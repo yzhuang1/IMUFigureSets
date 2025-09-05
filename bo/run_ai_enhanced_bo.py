@@ -1,6 +1,6 @@
 """
-AI增强的贝叶斯优化运行脚本
-集成通用数据转换器和AI模型选择器
+AI-Enhanced Bayesian Optimization Runner
+Integrates universal data converter and AI model selector
 """
 
 import logging
@@ -15,23 +15,23 @@ from models.ai_model_selector import select_model_for_data
 from bo.ai_enhanced_objective import create_ai_enhanced_objective
 from bo.run_bo import suggest, observe
 
-# 设置日志
+# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class AIEnhancedBO:
-    """AI增强的贝叶斯优化类"""
+    """AI-enhanced Bayesian optimization class"""
     
     def __init__(self, data, labels=None, device="cpu", n_trials=20, **kwargs):
         """
-        初始化AI增强的BO
+        Initialize AI-enhanced BO
         
         Args:
-            data: 输入数据
-            labels: 标签数据
-            device: 设备
-            n_trials: 优化轮数
-            **kwargs: 其他参数
+            data: Input data
+            labels: Label data
+            device: Device
+            n_trials: Number of optimization trials
+            **kwargs: Other parameters
         """
         self.data = data
         self.labels = labels
@@ -39,65 +39,65 @@ class AIEnhancedBO:
         self.n_trials = n_trials
         self.kwargs = kwargs
         
-        # 预处理数据
+        # Preprocess data
         self._preprocess_data()
         
-        # 获取AI推荐
+        # Get AI recommendation
         self._get_ai_recommendation()
         
-        # 创建目标函数
+        # Create objective function
         self.objective = create_ai_enhanced_objective(
             data, labels, device, **kwargs
         )
         
-        # 存储结果
+        # Store results
         self.results = []
         self.best_value = -np.inf
         self.best_params = None
         self.best_metrics = None
     
     def _preprocess_data(self):
-        """预处理数据"""
-        logger.info("预处理数据...")
+        """Preprocess data"""
+        logger.info("Preprocessing data...")
         
         self.dataset, self.collate_fn, self.data_profile = convert_to_torch_dataset(
             self.data, self.labels, **self.kwargs
         )
         
-        logger.info(f"数据预处理完成: {self.data_profile}")
+        logger.info(f"Data preprocessing completed: {self.data_profile}")
     
     def _get_ai_recommendation(self):
-        """获取AI模型推荐"""
-        logger.info("获取AI模型推荐...")
+        """Get AI model recommendation"""
+        logger.info("Getting AI model recommendation...")
         
         self.recommendation = select_model_for_data(self.data_profile.to_dict())
         
-        logger.info(f"AI推荐模型: {self.recommendation.model_name}")
-        logger.info(f"推荐理由: {self.recommendation.reasoning}")
-        logger.info(f"置信度: {self.recommendation.confidence:.2f}")
+        logger.info(f"AI recommended model: {self.recommendation.model_name}")
+        logger.info(f"Recommendation reason: {self.recommendation.reasoning}")
+        logger.info(f"Confidence: {self.recommendation.confidence:.2f}")
     
     def run_optimization(self) -> Dict[str, Any]:
         """
-        运行贝叶斯优化
+        Run Bayesian optimization
         
         Returns:
-            Dict: 优化结果
+            Dict: Optimization results
         """
-        logger.info(f"开始AI增强的贝叶斯优化，共{n_trials}轮")
+        logger.info(f"Starting AI-enhanced Bayesian optimization, {self.n_trials} trials")
         
         start_time = time.time()
         
         for trial in range(self.n_trials):
-            logger.info(f"第 {trial + 1}/{self.n_trials} 轮优化")
+            logger.info(f"Trial {trial + 1}/{self.n_trials}")
             
-            # 建议超参数
+            # Suggest hyperparameters
             hparams = suggest()
             
-            # 评估目标函数
+            # Evaluate objective function
             try:
                 value, metrics = self.objective(hparams)
                 
-                # 记录结果
+                # Record results
                 result = {
                     'trial': trial + 1,
                     'hparams': hparams,
@@ -107,25 +107,25 @@ class AIEnhancedBO:
                 }
                 self.results.append(result)
                 
-                # 更新最佳结果
+                # Update best results
                 if value > self.best_value:
                     self.best_value = value
                     self.best_params = hparams.copy()
                     self.best_metrics = metrics.copy()
-                    logger.info(f"新的最佳结果: {value:.4f}")
+                    logger.info(f"New best result: {value:.4f}")
                 
-                # 观察结果（用于BO算法）
+                # Observe results (for BO algorithm)
                 observe(hparams, value)
                 
-                logger.info(f"第 {trial + 1} 轮完成: 值={value:.4f}, 模型={metrics.get('model_name', 'Unknown')}")
+                logger.info(f"Trial {trial + 1} completed: value={value:.4f}, model={metrics.get('model_name', 'Unknown')}")
                 
             except Exception as e:
-                logger.error(f"第 {trial + 1} 轮评估失败: {e}")
+                logger.error(f"Trial {trial + 1} evaluation failed: {e}")
                 continue
         
         end_time = time.time()
         
-        # 汇总结果
+        # Summarize results
         summary = {
             'best_value': self.best_value,
             'best_params': self.best_params,
@@ -144,97 +144,97 @@ class AIEnhancedBO:
             'all_results': self.results
         }
         
-        logger.info("优化完成!")
-        logger.info(f"最佳值: {self.best_value:.4f}")
-        logger.info(f"最佳参数: {self.best_params}")
-        logger.info(f"总时间: {end_time - start_time:.2f}秒")
+        logger.info("Optimization completed!")
+        logger.info(f"Best value: {self.best_value:.4f}")
+        logger.info(f"Best parameters: {self.best_params}")
+        logger.info(f"Total time: {end_time - start_time:.2f} seconds")
         
         return summary
     
     def save_results(self, filename: str):
-        """保存结果到文件"""
+        """Save results to file"""
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(self.results, f, indent=2, ensure_ascii=False, default=str)
-        logger.info(f"结果已保存到: {filename}")
+        logger.info(f"Results saved to: {filename}")
 
 def run_ai_enhanced_bo(data, labels=None, device="cpu", n_trials=20, **kwargs):
     """
-    运行AI增强的贝叶斯优化
+    Run AI-enhanced Bayesian optimization
     
     Args:
-        data: 输入数据
-        labels: 标签数据
-        device: 设备
-        n_trials: 优化轮数
-        **kwargs: 其他参数
+        data: Input data
+        labels: Label data
+        device: Device
+        n_trials: Number of optimization trials
+        **kwargs: Other parameters
     
     Returns:
-        Dict: 优化结果
+        Dict: Optimization results
     """
     bo = AIEnhancedBO(data, labels, device, n_trials, **kwargs)
     return bo.run_optimization()
 
 def demo_ai_enhanced_bo():
-    """演示AI增强的贝叶斯优化"""
+    """Demonstrate AI-enhanced Bayesian optimization"""
     
     print("=" * 80)
-    print("AI增强的贝叶斯优化演示")
+    print("AI-Enhanced Bayesian Optimization Demo")
     print("=" * 80)
     
-    # 设置设备
+    # Set device
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"使用设备: {device}")
+    print(f"Using device: {device}")
     
-    # 设置OpenAI API密钥（如果可用）
+    # Set OpenAI API key (if available)
     import os
     if not os.getenv("OPENAI_API_KEY"):
-        print("警告: 未设置OPENAI_API_KEY，将使用默认模型选择")
-        print("要使用AI模型选择功能，请设置环境变量: export OPENAI_API_KEY='your-api-key'")
+        print("Warning: OPENAI_API_KEY not set, will use default model selection")
+        print("To use AI model selection feature, set environment variable: export OPENAI_API_KEY='your-api-key'")
     
     print("\n" + "=" * 60)
-    print("演示1: 表格数据优化")
+    print("Demo 1: Tabular Data Optimization")
     print("=" * 60)
     
-    # 表格数据
+    # Tabular data
     X_tabular = np.random.randn(500, 15).astype("float32")
     y_tabular = np.random.choice(["A", "B", "C"], size=500)
     
     result1 = run_ai_enhanced_bo(X_tabular, y_tabular, device=device, n_trials=5)
-    print(f"表格数据优化结果:")
-    print(f"  最佳值: {result1['best_value']:.4f}")
-    print(f"  最佳参数: {result1['best_params']}")
-    print(f"  AI推荐模型: {result1['ai_recommendation']['model_name']}")
-    print(f"  推荐理由: {result1['ai_recommendation']['reasoning']}")
+    print(f"Tabular data optimization results:")
+    print(f"  Best value: {result1['best_value']:.4f}")
+    print(f"  Best parameters: {result1['best_params']}")
+    print(f"  AI recommended model: {result1['ai_recommendation']['model_name']}")
+    print(f"  Recommendation reason: {result1['ai_recommendation']['reasoning']}")
     
     print("\n" + "=" * 60)
-    print("演示2: 图像数据优化")
+    print("Demo 2: Image Data Optimization")
     print("=" * 60)
     
-    # 图像数据
+    # Image data
     X_image = np.random.randn(300, 3, 28, 28).astype("float32")
     y_image = np.random.choice([0, 1], size=300)
     
     result2 = run_ai_enhanced_bo(X_image, y_image, device=device, n_trials=5)
-    print(f"图像数据优化结果:")
-    print(f"  最佳值: {result2['best_value']:.4f}")
-    print(f"  最佳参数: {result2['best_params']}")
-    print(f"  AI推荐模型: {result2['ai_recommendation']['model_name']}")
-    print(f"  推荐理由: {result2['ai_recommendation']['reasoning']}")
+    print(f"Image data optimization results:")
+    print(f"  Best value: {result2['best_value']:.4f}")
+    print(f"  Best parameters: {result2['best_params']}")
+    print(f"  AI recommended model: {result2['ai_recommendation']['model_name']}")
+    print(f"  Recommendation reason: {result2['ai_recommendation']['reasoning']}")
     
     print("\n" + "=" * 60)
-    print("演示3: 序列数据优化")
+    print("Demo 3: Sequence Data Optimization")
     print("=" * 60)
     
-    # 序列数据
+    # Sequence data
     X_sequence = np.random.randn(400, 30, 8).astype("float32")
     y_sequence = np.random.choice([0, 1, 2], size=400)
     
     result3 = run_ai_enhanced_bo(X_sequence, y_sequence, device=device, n_trials=5)
-    print(f"序列数据优化结果:")
-    print(f"  最佳值: {result3['best_value']:.4f}")
-    print(f"  最佳参数: {result3['best_params']}")
-    print(f"  AI推荐模型: {result3['ai_recommendation']['model_name']}")
-    print(f"  推荐理由: {result3['ai_recommendation']['reasoning']}")
+    print(f"Sequence data optimization results:")
+    print(f"  Best value: {result3['best_value']:.4f}")
+    print(f"  Best parameters: {result3['best_params']}")
+    print(f"  AI recommended model: {result3['ai_recommendation']['model_name']}")
+    print(f"  Recommendation reason: {result3['ai_recommendation']['reasoning']}")
 
 if __name__ == "__main__":
     demo_ai_enhanced_bo()

@@ -1,6 +1,6 @@
 """
 Dynamic Model Registry
-支持动态注册和创建神经网络模型
+Supports dynamic registration and creation of neural network models
 """
 
 import logging
@@ -12,7 +12,7 @@ import inspect
 logger = logging.getLogger(__name__)
 
 class ModelRegistry:
-    """动态模型注册表"""
+    """Dynamic model registry"""
     
     def __init__(self):
         self.models: Dict[str, Type[nn.Module]] = {}
@@ -21,30 +21,30 @@ class ModelRegistry:
         self._register_default_models()
     
     def _register_default_models(self):
-        """注册默认模型"""
-        # 导入默认模型
+        """Register default models"""
+        # Import default models
         from .tabular_mlp import TabMLP
         from .image_cnn import SmallCNN
         from .tiny_cnn_1d import TinyCNN1D
         
-        # 注册模型
+        # Register models
         self.register_model("TabMLP", TabMLP, {
             "type": "tabular",
-            "description": "多层感知机，适用于表格数据",
+            "description": "Multi-layer perceptron for tabular data",
             "input_types": ["tabular"],
             "parameters": ["in_dim", "num_classes", "hidden"]
         })
         
         self.register_model("SmallCNN", SmallCNN, {
             "type": "image",
-            "description": "小型卷积神经网络，适用于图像数据",
+            "description": "Small convolutional neural network for image data",
             "input_types": ["image"],
             "parameters": ["in_channels", "num_classes", "hidden"]
         })
         
         self.register_model("TinyCNN1D", TinyCNN1D, {
             "type": "sequence",
-            "description": "一维卷积神经网络，适用于序列数据",
+            "description": "1D convolutional neural network for sequence data",
             "input_types": ["sequence", "timeseries"],
             "parameters": ["in_channels", "num_classes", "hidden"]
         })
@@ -56,16 +56,16 @@ class ModelRegistry:
         metadata: Optional[Dict[str, Any]] = None
     ):
         """
-        注册模型类
+        Register model class
         
         Args:
-            name: 模型名称
-            model_class: 模型类
-            metadata: 模型元数据
+            name: Model name
+            model_class: Model class
+            metadata: Model metadata
         """
         self.models[name] = model_class
         self.model_metadata[name] = metadata or {}
-        logger.info(f"注册模型: {name}")
+        logger.info(f"Registered model: {name}")
     
     def register_model_factory(
         self, 
@@ -74,33 +74,33 @@ class ModelRegistry:
         metadata: Optional[Dict[str, Any]] = None
     ):
         """
-        注册模型工厂函数
+        Register model factory function
         
         Args:
-            name: 模型名称
-            factory_func: 工厂函数
-            metadata: 模型元数据
+            name: Model name
+            factory_func: Factory function
+            metadata: Model metadata
         """
         self.model_factories[name] = factory_func
         self.model_metadata[name] = metadata or {}
-        logger.info(f"注册模型工厂: {name}")
+        logger.info(f"Registered model factory: {name}")
     
     def load_model_from_module(self, module_path: str, class_name: str, model_name: str):
         """
-        从模块动态加载模型
+        Dynamically load model from module
         
         Args:
-            module_path: 模块路径
-            class_name: 类名
-            model_name: 注册的模型名称
+            module_path: Module path
+            class_name: Class name
+            model_name: Registered model name
         """
         try:
             module = importlib.import_module(module_path)
             model_class = getattr(module, class_name)
             self.register_model(model_name, model_class)
-            logger.info(f"从模块 {module_path} 加载模型 {class_name} 为 {model_name}")
+            logger.info(f"Loaded model {class_name} from module {module_path} as {model_name}")
         except Exception as e:
-            logger.error(f"加载模型失败: {e}")
+            logger.error(f"Failed to load model: {e}")
             raise
     
     def create_model(
@@ -109,14 +109,14 @@ class ModelRegistry:
         **kwargs
     ) -> nn.Module:
         """
-        创建模型实例
+        Create model instance
         
         Args:
-            model_name: 模型名称
-            **kwargs: 模型参数
+            model_name: Model name
+            **kwargs: Model parameters
         
         Returns:
-            nn.Module: 模型实例
+            nn.Module: Model instance
         """
         if model_name in self.models:
             model_class = self.models[model_name]
@@ -125,12 +125,12 @@ class ModelRegistry:
             factory_func = self.model_factories[model_name]
             return factory_func(**kwargs)
         else:
-            raise ValueError(f"未找到模型: {model_name}")
+            raise ValueError(f"Model not found: {model_name}")
     
     def get_model_info(self, model_name: str) -> Dict[str, Any]:
-        """获取模型信息"""
+        """Get model information"""
         if model_name not in self.model_metadata:
-            raise ValueError(f"未找到模型: {model_name}")
+            raise ValueError(f"Model not found: {model_name}")
         
         info = self.model_metadata[model_name].copy()
         info["name"] = model_name
@@ -139,13 +139,13 @@ class ModelRegistry:
     
     def list_models(self, model_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        列出所有模型
+        List all models
         
         Args:
-            model_type: 过滤模型类型
+            model_type: Filter model type
         
         Returns:
-            List[Dict]: 模型信息列表
+            List[Dict]: List of model information
         """
         models = []
         for name in self.models.keys():
@@ -154,7 +154,7 @@ class ModelRegistry:
                 models.append(info)
         
         for name in self.model_factories.keys():
-            if name not in self.models:  # 避免重复
+            if name not in self.models:  # Avoid duplicates
                 info = self.get_model_info(name)
                 if model_type is None or info.get("type") == model_type:
                     models.append(info)
@@ -162,33 +162,33 @@ class ModelRegistry:
         return models
     
     def get_model_parameters(self, model_name: str) -> List[str]:
-        """获取模型参数列表"""
+        """Get model parameter list"""
         if model_name in self.models:
             model_class = self.models[model_name]
             sig = inspect.signature(model_class.__init__)
-            return list(sig.parameters.keys())[1:]  # 排除self
+            return list(sig.parameters.keys())[1:]  # Exclude self
         elif model_name in self.model_factories:
             factory_func = self.model_factories[model_name]
             sig = inspect.signature(factory_func)
             return list(sig.parameters.keys())
         else:
-            raise ValueError(f"未找到模型: {model_name}")
+            raise ValueError(f"Model not found: {model_name}")
     
     def validate_model_parameters(self, model_name: str, **kwargs) -> bool:
-        """验证模型参数"""
+        """Validate model parameters"""
         try:
             required_params = self.get_model_parameters(model_name)
             for param in required_params:
                 if param not in kwargs:
-                    logger.warning(f"缺少必需参数: {param}")
+                    logger.warning(f"Missing required parameter: {param}")
                     return False
             return True
         except Exception as e:
-            logger.error(f"验证参数失败: {e}")
+            logger.error(f"Parameter validation failed: {e}")
             return False
 
 class ModelBuilder:
-    """模型构建器"""
+    """Model builder"""
     
     def __init__(self, registry: Optional[ModelRegistry] = None):
         self.registry = registry or ModelRegistry()
@@ -201,26 +201,26 @@ class ModelBuilder:
         **kwargs
     ) -> nn.Module:
         """
-        构建模型
+        Build model
         
         Args:
-            model_name: 模型名称
-            input_shape: 输入形状
-            num_classes: 类别数量
-            **kwargs: 其他参数
+            model_name: Model name
+            input_shape: Input shape
+            num_classes: Number of classes
+            **kwargs: Other parameters
         
         Returns:
-            nn.Module: 构建的模型
+            nn.Module: Built model
         """
-        # 验证参数
+        # Validate parameters
         if not self.registry.validate_model_parameters(model_name, **kwargs):
-            logger.warning(f"模型参数验证失败: {model_name}")
+            logger.warning(f"Model parameter validation failed: {model_name}")
         
-        # 根据模型类型设置默认参数
+        # Set default parameters based on model type
         model_info = self.registry.get_model_info(model_name)
         model_type = model_info.get("type", "general")
         
-        # 设置默认参数
+        # Set default parameters
         default_params = {
             "num_classes": num_classes,
             "hidden": kwargs.get("hidden", 64)
@@ -236,12 +236,12 @@ class ModelBuilder:
         elif model_type in ["sequence", "timeseries"]:
             default_params["in_channels"] = input_shape[-1]
         
-        # 合并参数
+        # Merge parameters
         final_params = {**default_params, **kwargs}
         
-        # 创建模型
+        # Create model
         model = self.registry.create_model(model_name, **final_params)
-        logger.info(f"构建模型: {model_name}, 参数: {final_params}")
+        logger.info(f"Built model: {model_name}, parameters: {final_params}")
         
         return model
     
@@ -252,20 +252,20 @@ class ModelBuilder:
         num_classes: int
     ) -> nn.Module:
         """
-        根据AI推荐构建模型
+        Build model based on AI recommendation
         
         Args:
-            recommendation: AI模型推荐
-            input_shape: 输入形状
-            num_classes: 类别数量
+            recommendation: AI model recommendation
+            input_shape: Input shape
+            num_classes: Number of classes
         
         Returns:
-            nn.Module: 构建的模型
+            nn.Module: Built model
         """
-        # 使用推荐的超参数
+        # Use recommended hyperparameters
         hyperparams = recommendation.hyperparameters.copy()
         
-        # 构建模型
+        # Build model
         model = self.build_model(
             model_name=recommendation.model_name,
             input_shape=input_shape,
@@ -273,19 +273,19 @@ class ModelBuilder:
             **hyperparams
         )
         
-        logger.info(f"根据AI推荐构建模型: {recommendation.model_name}")
-        logger.info(f"推荐理由: {recommendation.reasoning}")
+        logger.info(f"Built model based on AI recommendation: {recommendation.model_name}")
+        logger.info(f"Recommendation reason: {recommendation.reasoning}")
         
         return model
 
-# 全局注册表和构建器
+# Global registry and builder
 model_registry = ModelRegistry()
 model_builder = ModelBuilder(model_registry)
 
 def register_model(name: str, model_class: Type[nn.Module], metadata: Optional[Dict[str, Any]] = None):
-    """便捷函数：注册模型"""
+    """Convenience function: Register model"""
     model_registry.register_model(name, model_class, metadata)
 
 def build_model(model_name: str, input_shape: tuple, num_classes: int, **kwargs) -> nn.Module:
-    """便捷函数：构建模型"""
+    """Convenience function: Build model"""
     return model_builder.build_model(model_name, input_shape, num_classes, **kwargs)
