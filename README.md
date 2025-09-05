@@ -31,9 +31,16 @@ python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\acti
 pip install -r requirements.txt
 ```
 
-### 2. Set OpenAI API Key (Optional)
+### 2. Set OpenAI API Key
 ```bash
+# Option 1: Use the setup script (recommended)
+python setup_api_key.py
+
+# Option 2: Set environment variable
 export OPENAI_API_KEY='your-api-key'
+
+# Option 3: Create .env file
+echo "OPENAI_API_KEY=your-api-key" > .env
 ```
 
 ### 3. Basic Usage
@@ -97,6 +104,36 @@ register_model("MyModel", MyModelClass, {
 })
 ```
 
+### Customizing AI Prompts
+```python
+from prompts import prompt_loader
+
+# Load and customize prompts
+system_prompt = prompt_loader.load_system_prompt()
+model_prompt = prompt_loader.format_model_selection_prompt(data_profile)
+
+# Edit prompt templates in prompts/ directory
+# - prompts/system_prompt.txt
+# - prompts/model_selection_prompt.txt
+```
+
+### Configuration Management
+```python
+from config import config
+
+# Check if OpenAI is configured
+if config.is_openai_configured():
+    print("OpenAI is ready to use")
+    print(f"Model: {config.openai_model}")
+else:
+    print("Please configure your OpenAI API key")
+
+# Configuration is automatically loaded from:
+# 1. Environment variables
+# 2. .env file
+# 3. Default values
+```
+
 ## Project Structure
 
 ```
@@ -113,6 +150,14 @@ ml_pipeline/
 │   ├── ai_enhanced_objective.py  # AI-enhanced objective function
 │   ├── run_ai_enhanced_bo.py     # AI-enhanced BO runner
 │   └── ...                       # Original BO code
+├── prompts/
+│   ├── prompt_loader.py          # Prompt loading utilities
+│   ├── model_selection_prompt.txt # AI model selection prompt template
+│   ├── system_prompt.txt         # System prompt template
+│   └── README.md                 # Prompts documentation
+├── config.py                     # Configuration management
+├── setup_api_key.py             # API key setup script
+├── env.example                   # Environment variables example
 ├── main_new.py                   # New main process
 ├── example_usage.py              # Usage examples
 └── requirements.txt              # Dependencies list
@@ -124,7 +169,9 @@ ml_pipeline/
 - numpy
 - scikit-learn
 - tqdm
-- requests (for OpenAI API)
+- openai (for OpenAI API)
+- python-dotenv (for environment variables)
+- requests (legacy, may be removed in future versions)
 - pandas (optional)
 - opencv-python (optional, for image processing)
 - pillow (optional, for image processing)
