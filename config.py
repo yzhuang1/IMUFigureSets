@@ -1,0 +1,41 @@
+"""
+Configuration management for the ML pipeline
+Handles secure loading of API keys and other sensitive configuration
+"""
+
+import os
+from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+class Config:
+    """Configuration class for managing API keys and settings"""
+    
+    def __init__(self):
+        self.openai_api_key = self._get_openai_api_key()
+        self.openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4")
+    
+    def _get_openai_api_key(self) -> Optional[str]:
+        """Get OpenAI API key from environment variables or .env file"""
+        # Try to get from environment variable first
+        api_key = os.getenv("OPENAI_API_KEY")
+        
+        if not api_key:
+            # Try to get from .env file
+            api_key = os.getenv("OPENAI_API_KEY")
+        
+        if not api_key:
+            print("Warning: OPENAI_API_KEY not found in environment variables or .env file")
+            print("Please set OPENAI_API_KEY in your environment or create a .env file")
+        
+        return api_key
+    
+    def is_openai_configured(self) -> bool:
+        """Check if OpenAI is properly configured"""
+        return self.openai_api_key is not None and len(self.openai_api_key.strip()) > 0
+
+# Global configuration instance
+config = Config()

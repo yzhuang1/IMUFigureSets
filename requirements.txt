@@ -6,3 +6,5 @@ tqdm
 requests
 opencv-python
 pillow
+openai>=1.0.0
+python-dotenv>=1.0.0

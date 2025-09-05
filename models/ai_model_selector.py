@@ -6,9 +6,10 @@ Uses ChatGPT API to automatically select the most suitable neural network archit
 import json
 import logging
 from typing import Dict, Any, List, Optional, Tuple
-import requests
-import os
 from dataclasses import dataclass
+from openai import OpenAI
+from prompts import prompt_loader
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -26,123 +27,51 @@ class ModelRecommendation:
 class AIModelSelector:
     """AI model selector"""
     
-    def __init__(self, api_key: Optional[str] = None, base_url: str = "https://api.openai.com/v1"):
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.base_url = base_url
-        self.model = "gpt-4"  # Use GPT-4 for better recommendations
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None):
+        self.api_key = api_key or config.openai_api_key
+        self.base_url = base_url or config.openai_base_url
+        self.model = model or config.openai_model
         
-        if not self.api_key:
-            logger.warning("OPENAI_API_KEY not set, will use default model selection")
+        # Initialize OpenAI client
+        if self.api_key:
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url
+            )
+        else:
+            self.client = None
+            logger.warning("OpenAI API key not configured, will use default model selection")
     
     def _create_prompt(self, data_profile: Dict[str, Any]) -> str:
         """Create prompt for model selection"""
-        prompt = f"""
-You are a machine learning expert who needs to recommend the most suitable neural network architecture based on data characteristics.
-
-Data feature information:
-{json.dumps(data_profile, indent=2, ensure_ascii=False)}
-
-Please recommend the most suitable neural network architecture based on the following information:
-
-1. Data feature analysis:
-   - Data type: {data_profile.get('data_type', 'unknown')}
-   - Data shape: {data_profile.get('shape', 'unknown')}
-   - Sample count: {data_profile.get('sample_count', 0)}
-   - Feature count: {data_profile.get('feature_count', 0)}
-   - Has labels: {data_profile.get('has_labels', False)}
-   - Label count: {data_profile.get('label_count', 0)}
-
-2. Data characteristics:
-   - Is sequence data: {data_profile.get('is_sequence', False)}
-   - Is image data: {data_profile.get('is_image', False)}
-   - Is tabular data: {data_profile.get('is_tabular', False)}
-
-Please select the most suitable from the following predefined model types:
-
-**Tabular Data Models:**
-- TabMLP: Multi-layer perceptron for tabular data
-- TabTransformer: Transformer-based tabular data model
-- TabNet: Interpretable tabular data model
-
-**Image Data Models:**
-- SmallCNN: Small convolutional neural network
-- ResNet: Residual network
-- EfficientNet: Efficient convolutional neural network
-- VisionTransformer: Transformer-based image model
-
-**Sequence Data Models:**
-- TinyCNN1D: 1D convolutional neural network
-- LSTM: Long Short-Term Memory network
-- GRU: Gated Recurrent Unit
-- Transformer: Attention-based sequence model
-
-**General Models:**
-- MLP: General multi-layer perceptron
-- AutoEncoder: Autoencoder
-
-Please return the recommendation result in JSON format as follows:
-{{
-    "model_name": "Recommended model name",
-    "model_type": "Model type (e.g., tabular, image, sequence, general)",
-    "architecture": "Specific architecture description",
-    "input_shape": [Array of input shapes],
-    "reasoning": "Detailed explanation of recommendation reason",
-    "confidence": 0.95,
-    "hyperparameters": {{
-        "hidden_size": 128,
-        "num_layers": 3,
-        "dropout": 0.2,
-        "learning_rate": 0.001
-    }}
-}}
-
-Please ensure the recommendation result is based on data characteristics and provide reasonable recommendation reasons.
-"""
-        return prompt
+        return prompt_loader.format_model_selection_prompt(data_profile)
     
     def _call_openai_api(self, prompt: str) -> str:
-        """Call OpenAI API"""
-        if not self.api_key:
-            raise ValueError("OPENAI_API_KEY not set")
-        
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "model": self.model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a professional machine learning expert skilled at recommending the most suitable neural network architecture based on data characteristics."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.3,
-            "max_tokens": 1000
-        }
+        """Call OpenAI API using official library"""
+        if not self.client:
+            raise ValueError("OpenAI client not initialized. Please check your API key configuration.")
         
         try:
-            response = requests.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=30
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": prompt_loader.load_system_prompt()
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.3,
+                max_tokens=1000
             )
-            response.raise_for_status()
             
-            result = response.json()
-            return result["choices"][0]["message"]["content"]
+            return response.choices[0].message.content
         
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             logger.error(f"OpenAI API call failed: {e}")
-            raise
-        except KeyError as e:
-            logger.error(f"API response format error: {e}")
             raise
     
     def _parse_recommendation(self, response: str) -> ModelRecommendation:
@@ -194,8 +123,8 @@ Please ensure the recommendation result is based on data characteristics and pro
             ModelRecommendation: Model recommendation result
         """
         try:
-            if not self.api_key:
-                logger.warning("API key not set, using default model selection")
+            if not self.client:
+                logger.warning("OpenAI client not available, using default model selection")
                 return self._get_default_recommendation(data_profile)
             
             prompt = self._create_prompt(data_profile)

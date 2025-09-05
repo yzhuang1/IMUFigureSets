@@ -1,0 +1,60 @@
+You are a machine learning expert who needs to recommend the most suitable neural network architecture based on data characteristics.
+
+Data feature information:
+{data_profile_json}
+
+Please recommend the most suitable neural network architecture based on the following information:
+
+1. Data feature analysis:
+   - Data type: {data_type}
+   - Data shape: {data_shape}
+   - Sample count: {sample_count}
+   - Feature count: {feature_count}
+   - Has labels: {has_labels}
+   - Label count: {label_count}
+
+2. Data characteristics:
+   - Is sequence data: {is_sequence}
+   - Is image data: {is_image}
+   - Is tabular data: {is_tabular}
+
+Please select the most suitable from the following predefined model types:
+
+**Tabular Data Models:**
+- TabMLP: Multi-layer perceptron for tabular data
+- TabTransformer: Transformer-based tabular data model
+- TabNet: Interpretable tabular data model
+
+**Image Data Models:**
+- SmallCNN: Small convolutional neural network
+- ResNet: Residual network
+- EfficientNet: Efficient convolutional neural network
+- VisionTransformer: Transformer-based image model
+
+**Sequence Data Models:**
+- TinyCNN1D: 1D convolutional neural network
+- LSTM: Long Short-Term Memory network
+- GRU: Gated Recurrent Unit
+- Transformer: Attention-based sequence model
+
+**General Models:**
+- MLP: General multi-layer perceptron
+- AutoEncoder: Autoencoder
+
+Please return the recommendation result in JSON format as follows:
+{{
+    "model_name": "Recommended model name",
+    "model_type": "Model type (e.g., tabular, image, sequence, general)",
+    "architecture": "Specific architecture description",
+    "input_shape": [Array of input shapes],
+    "reasoning": "Detailed explanation of recommendation reason",
+    "confidence": 0.95,
+    "hyperparameters": {{
+        "hidden_size": 128,
+        "num_layers": 3,
+        "dropout": 0.2,
+        "learning_rate": 0.001
+    }}
+}}
+
+Please ensure the recommendation result is based on data characteristics and provide reasonable recommendation reasons.
