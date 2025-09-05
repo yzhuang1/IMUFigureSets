@@ -1,6 +1,6 @@
 """
-AI增强的目标函数
-集成通用数据转换器和AI模型选择器
+AI-Enhanced Objective Function
+Integrates universal data converter and AI model selector
 """
 
 from typing import Dict, Any, Tuple, Optional
@@ -18,51 +18,51 @@ from evaluation.evaluate import evaluate_model
 logger = logging.getLogger(__name__)
 
 class AIEnhancedObjective:
-    """AI增强的目标函数类"""
+    """AI-enhanced objective function class"""
     
     def __init__(self, data, labels=None, device="cpu", **kwargs):
         """
-        初始化目标函数
+        Initialize objective function
         
         Args:
-            data: 输入数据
-            labels: 标签数据
-            device: 设备
-            **kwargs: 其他参数
+            data: Input data
+            labels: Label data
+            device: Device
+            **kwargs: Other parameters
         """
         self.data = data
         self.labels = labels
         self.device = device
         self.kwargs = kwargs
         
-        # 预处理数据
+        # Preprocess data
         self._preprocess_data()
         
-        # 获取AI推荐
+        # Get AI recommendation
         self._get_ai_recommendation()
     
     def _preprocess_data(self):
-        """预处理数据"""
-        logger.info("预处理数据...")
+        """Preprocess data"""
+        logger.info("Preprocessing data...")
         
-        # 转换数据
+        # Convert data
         self.dataset, self.collate_fn, self.data_profile = convert_to_torch_dataset(
             self.data, self.labels, **self.kwargs
         )
         
-        logger.info(f"数据预处理完成: {self.data_profile}")
+        logger.info(f"Data preprocessing completed: {self.data_profile}")
     
     def _get_ai_recommendation(self):
-        """获取AI模型推荐"""
-        logger.info("获取AI模型推荐...")
+        """Get AI model recommendation"""
+        logger.info("Getting AI model recommendation...")
         
         self.recommendation = select_model_for_data(self.data_profile.to_dict())
         
-        logger.info(f"AI推荐模型: {self.recommendation.model_name}")
-        logger.info(f"推荐理由: {self.recommendation.reasoning}")
+        logger.info(f"AI recommended model: {self.recommendation.model_name}")
+        logger.info(f"Recommendation reason: {self.recommendation.reasoning}")
     
     def _determine_input_shape(self) -> tuple:
-        """确定输入形状"""
+        """Determine input shape"""
         if self.data_profile.is_sequence:
             return (self.data_profile.feature_count,)
         elif self.data_profile.is_image:
@@ -73,23 +73,23 @@ class AIEnhancedObjective:
                        self.data_profile.height, 
                        self.data_profile.width)
             else:
-                return (3, 32, 32)  # 默认图像尺寸
+                return (3, 32, 32)  # Default image size
         elif self.data_profile.is_tabular:
             return (self.data_profile.feature_count,)
         else:
             return (self.data_profile.feature_count,)
     
     def _create_model(self, hparams: Dict[str, Any]) -> torch.nn.Module:
-        """创建模型"""
-        # 确定输入形状和类别数
+        """Create model"""
+        # Determine input shape and number of classes
         input_shape = self._determine_input_shape()
         num_classes = self.data_profile.label_count if self.data_profile.has_labels else 2
         
-        # 合并超参数
+        # Merge hyperparameters
         model_params = self.recommendation.hyperparameters.copy()
         model_params.update(hparams)
         
-        # 构建模型
+        # Build model
         model = build_model_from_recommendation(
             self.recommendation, input_shape, num_classes
         )
@@ -98,20 +98,20 @@ class AIEnhancedObjective:
     
     def __call__(self, hparams: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
         """
-        目标函数调用
+        Objective function call
         
         Args:
-            hparams: 超参数
+            hparams: Hyperparameters
         
         Returns:
-            Tuple[float, Dict]: (目标值, 详细指标)
+            Tuple[float, Dict]: (Objective value, detailed metrics)
         """
         try:
-            # 创建模型
+            # Create model
             model = self._create_model(hparams)
             model.to(self.device)
             
-            # 创建数据加载器
+            # Create data loader
             batch_size = hparams.get('batch_size', 64)
             loader = DataLoader(
                 self.dataset, 
@@ -120,7 +120,7 @@ class AIEnhancedObjective:
                 collate_fn=self.collate_fn
             )
             
-            # 训练模型
+            # Train model
             epochs = hparams.get('epochs', 3)
             lr = hparams.get('lr', 1e-3)
             
@@ -128,13 +128,13 @@ class AIEnhancedObjective:
                 model, loader, device=self.device, epochs=epochs, lr=lr
             )
             
-            # 评估模型
+            # Evaluate model
             metrics = evaluate_model(trained_model, loader, device=self.device)
             
-            # 返回目标值（使用macro_f1作为主要指标）
+            # Return objective value (using macro_f1 as main metric)
             objective_value = metrics.get("macro_f1", 0.0)
             
-            # 添加额外信息
+            # Add extra information
             metrics.update({
                 "model_name": self.recommendation.model_name,
                 "confidence": self.recommendation.confidence,
@@ -143,26 +143,26 @@ class AIEnhancedObjective:
                 "feature_count": self.data_profile.feature_count
             })
             
-            logger.info(f"目标函数评估完成: {objective_value:.4f}")
+            logger.info(f"Objective function evaluation completed: {objective_value:.4f}")
             
             return float(objective_value), metrics
         
         except Exception as e:
-            logger.error(f"目标函数评估失败: {e}")
+            logger.error(f"Objective function evaluation failed: {e}")
             return 0.0, {"error": str(e)}
 
 def create_ai_enhanced_objective(data, labels=None, device="cpu", **kwargs):
     """
-    创建AI增强的目标函数
+    Create AI-enhanced objective function
     
     Args:
-        data: 输入数据
-        labels: 标签数据
-        device: 设备
-        **kwargs: 其他参数
+        data: Input data
+        labels: Label data
+        device: Device
+        **kwargs: Other parameters
     
     Returns:
-        AIEnhancedObjective: 目标函数实例
+        AIEnhancedObjective: Objective function instance
     """
     return AIEnhancedObjective(data, labels, device, **kwargs)
 
@@ -173,21 +173,21 @@ def objective_for_dataset_ai_enhanced(
     hparams: Optional[Dict[str, Any]] = None
 ) -> Tuple[float, Dict[str, Any]]:
     """
-    便捷函数：为数据集创建AI增强的目标函数并评估
+    Convenience function: Create AI-enhanced objective function for dataset and evaluate
     
     Args:
-        data: 输入数据
-        labels: 标签数据
-        device: 设备
-        hparams: 超参数
+        data: Input data
+        labels: Label data
+        device: Device
+        hparams: Hyperparameters
     
     Returns:
-        Tuple[float, Dict]: (目标值, 详细指标)
+        Tuple[float, Dict]: (Objective value, detailed metrics)
     """
     hparams = hparams or {"lr": 1e-3, "epochs": 3, "hidden": 64}
     
     objective = create_ai_enhanced_objective(data, labels, device)
     return objective(hparams)
 
-# 向后兼容的别名
+# Backward compatible alias
 objective_for_dataset = objective_for_dataset_ai_enhanced

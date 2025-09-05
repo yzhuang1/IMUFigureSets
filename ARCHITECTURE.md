@@ -1,237 +1,237 @@
-# AI增强机器学习管道架构说明
+# AI-Enhanced Machine Learning Pipeline Architecture
 
-## 整体架构
+## Overall Architecture
 
 ```
-输入数据 (任意格式)
+Input Data (Any Format)
     ↓
-通用数据转换器 (Universal Converter)
+Universal Data Converter
     ↓
-数据特征分析 (Data Profile)
+Data Feature Analysis (Data Profile)
     ↓
-AI模型选择器 (AI Model Selector)
+AI Model Selector
     ↓
-动态模型注册系统 (Dynamic Model Registry)
+Dynamic Model Registry System
     ↓
-模型构建 (Model Builder)
+Model Builder
     ↓
-训练和评估 (Training & Evaluation)
+Training & Evaluation
     ↓
-贝叶斯优化 (Bayesian Optimization)
+Bayesian Optimization
     ↓
-输出结果 (Results)
+Output Results
 ```
 
-## 核心组件
+## Core Components
 
-### 1. 通用数据转换器 (`adapters/universal_converter.py`)
+### 1. Universal Data Converter (`adapters/universal_converter.py`)
 
-**功能**: 将各种数据格式自动转换为PyTorch tensor格式
+**Function**: Automatically converts various data formats to PyTorch tensor format
 
-**特性**:
-- 自动检测数据类型（表格、图像、序列等）
-- 支持多种输入格式（NumPy、Pandas、列表等）
-- 智能数据预处理和标准化
-- 生成详细的数据特征档案
+**Features**:
+- Automatic data type detection (tabular, image, sequence, etc.)
+- Supports multiple input formats (NumPy, Pandas, lists, etc.)
+- Intelligent data preprocessing and standardization
+- Generates detailed data feature profiles
 
-**主要类**:
-- `DataProfile`: 数据特征描述类
-- `UniversalDataset`: 通用数据集类
-- `UniversalConverter`: 数据转换器主类
+**Main Classes**:
+- `DataProfile`: Data feature description class
+- `UniversalDataset`: Universal dataset class
+- `UniversalConverter`: Main data converter class
 
-### 2. AI模型选择器 (`models/ai_model_selector.py`)
+### 2. AI Model Selector (`models/ai_model_selector.py`)
 
-**功能**: 使用ChatGPT API根据数据特征自动推荐最适合的神经网络
+**Function**: Uses ChatGPT API to automatically recommend the most suitable neural network based on data characteristics
 
-**特性**:
-- 基于数据特征的智能推荐
-- 支持多种预定义模型类型
-- 提供详细的推荐理由和置信度
-- 可配置的API调用
+**Features**:
+- Intelligent recommendations based on data characteristics
+- Supports multiple predefined model types
+- Provides detailed recommendation reasons and confidence scores
+- Configurable API calls
 
-**主要类**:
-- `ModelRecommendation`: 模型推荐结果类
-- `AIModelSelector`: AI模型选择器主类
+**Main Classes**:
+- `ModelRecommendation`: Model recommendation result class
+- `AIModelSelector`: Main AI model selector class
 
-### 3. 动态模型注册系统 (`models/dynamic_model_registry.py`)
+### 3. Dynamic Model Registry System (`models/dynamic_model_registry.py`)
 
-**功能**: 支持动态注册和创建神经网络模型
+**Function**: Supports dynamic registration and creation of neural network models
 
-**特性**:
-- 动态模型注册和发现
-- 模型工厂模式
-- 参数验证和自动构建
-- 元数据管理
+**Features**:
+- Dynamic model registration and discovery
+- Model factory pattern
+- Parameter validation and automatic building
+- Metadata management
 
-**主要类**:
-- `ModelRegistry`: 模型注册表
-- `ModelBuilder`: 模型构建器
+**Main Classes**:
+- `ModelRegistry`: Model registry
+- `ModelBuilder`: Model builder
 
-### 4. AI增强的目标函数 (`bo/ai_enhanced_objective.py`)
+### 4. AI-Enhanced Objective Function (`bo/ai_enhanced_objective.py`)
 
-**功能**: 集成AI推荐的贝叶斯优化目标函数
+**Function**: Integrates AI-recommended Bayesian optimization objective function
 
-**特性**:
-- 自动数据预处理
-- AI模型推荐集成
-- 智能超参数设置
-- 详细的评估指标
+**Features**:
+- Automatic data preprocessing
+- AI model recommendation integration
+- Intelligent hyperparameter setting
+- Detailed evaluation metrics
 
-**主要类**:
-- `AIEnhancedObjective`: AI增强的目标函数类
+**Main Classes**:
+- `AIEnhancedObjective`: AI-enhanced objective function class
 
-### 5. 主流程 (`main_new.py`)
+### 5. Main Process (`main_new.py`)
 
-**功能**: 集成所有组件的完整机器学习流程
+**Function**: Integrates all components into a complete machine learning workflow
 
-**特性**:
-- 一键式数据处理和模型选择
-- 自动训练和评估
-- 支持多种数据类型
-- 详细的日志和结果输出
+**Features**:
+- One-click data processing and model selection
+- Automatic training and evaluation
+- Supports multiple data types
+- Detailed logging and result output
 
-## 数据流
+## Data Flow
 
-### 1. 数据输入阶段
+### 1. Data Input Stage
 ```
-原始数据 → 数据类型检测 → 数据特征分析 → 数据转换 → PyTorch Dataset
-```
-
-### 2. 模型选择阶段
-```
-数据特征 → AI分析 → 模型推荐 → 模型构建 → 模型实例
+Raw Data → Data Type Detection → Data Feature Analysis → Data Conversion → PyTorch Dataset
 ```
 
-### 3. 训练优化阶段
+### 2. Model Selection Stage
 ```
-模型 + 数据 → 超参数优化 → 模型训练 → 性能评估 → 结果输出
+Data Features → AI Analysis → Model Recommendation → Model Building → Model Instance
 ```
 
-## 扩展性设计
+### 3. Training Optimization Stage
+```
+Model + Data → Hyperparameter Optimization → Model Training → Performance Evaluation → Result Output
+```
 
-### 1. 数据转换器扩展
-- 在 `UniversalConverter` 中注册新的转换器
-- 实现自定义的 `_convert_*` 方法
-- 支持新的数据格式和预处理逻辑
+## Extensibility Design
 
-### 2. 模型注册扩展
-- 使用 `register_model()` 注册新模型
-- 实现模型工厂函数
-- 添加模型元数据
+### 1. Data Converter Extension
+- Register new converters in `UniversalConverter`
+- Implement custom `_convert_*` methods
+- Support new data formats and preprocessing logic
 
-### 3. AI推荐扩展
-- 在 `AIModelSelector` 中添加新的模型类型
-- 更新推荐提示词模板
-- 扩展模型参数映射
+### 2. Model Registry Extension
+- Use `register_model()` to register new models
+- Implement model factory functions
+- Add model metadata
 
-## 向后兼容性
+### 3. AI Recommendation Extension
+- Add new model types in `AIModelSelector`
+- Update recommendation prompt templates
+- Extend model parameter mapping
 
-新架构完全向后兼容原有代码：
-- 保留所有原有的API接口
-- 原有文件继续可用
-- 渐进式迁移支持
+## Backward Compatibility
 
-## 使用示例
+The new architecture is fully backward compatible with original code:
+- Preserves all original API interfaces
+- Original files remain usable
+- Supports gradual migration
 
-### 基本使用
+## Usage Examples
+
+### Basic Usage
 ```python
 from main_new import train_and_evaluate
 
-# 自动处理数据和选择模型
+# Automatically process data and select model
 result = train_and_evaluate(data, labels)
 ```
 
-### 高级使用
+### Advanced Usage
 ```python
 from adapters.universal_converter import convert_to_torch_dataset
 from models.ai_model_selector import select_model_for_data
 from models.dynamic_model_registry import build_model_from_recommendation
 
-# 1. 转换数据
+# 1. Convert data
 dataset, collate_fn, profile = convert_to_torch_dataset(data, labels)
 
-# 2. AI选择模型
+# 2. AI model selection
 recommendation = select_model_for_data(profile.to_dict())
 
-# 3. 构建模型
+# 3. Build model
 model = build_model_from_recommendation(recommendation, input_shape, num_classes)
 ```
 
-### 贝叶斯优化
+### Bayesian Optimization
 ```python
 from bo.run_ai_enhanced_bo import run_ai_enhanced_bo
 
-# 运行AI增强的BO
+# Run AI-enhanced BO
 result = run_ai_enhanced_bo(data, labels, n_trials=20)
 ```
 
-## 配置选项
+## Configuration Options
 
-### 环境变量
-- `OPENAI_API_KEY`: OpenAI API密钥（用于AI模型选择）
+### Environment Variables
+- `OPENAI_API_KEY`: OpenAI API key (for AI model selection)
 
-### 参数配置
-- 数据预处理参数（标准化、归一化等）
-- 模型超参数（学习率、隐藏层大小等）
-- BO优化参数（试验次数、搜索空间等）
+### Parameter Configuration
+- Data preprocessing parameters (standardization, normalization, etc.)
+- Model hyperparameters (learning rate, hidden layer size, etc.)
+- BO optimization parameters (number of trials, search space, etc.)
 
-## 性能考虑
+## Performance Considerations
 
-### 1. 数据转换优化
-- 延迟加载和内存优化
-- 批量处理支持
-- 并行数据预处理
+### 1. Data Conversion Optimization
+- Lazy loading and memory optimization
+- Batch processing support
+- Parallel data preprocessing
 
-### 2. 模型选择优化
-- API调用缓存
-- 本地模型推荐备选
-- 异步处理支持
+### 2. Model Selection Optimization
+- API call caching
+- Local model recommendation fallback
+- Asynchronous processing support
 
-### 3. 训练优化
-- GPU加速支持
-- 混合精度训练
-- 分布式训练准备
+### 3. Training Optimization
+- GPU acceleration support
+- Mixed precision training
+- Distributed training preparation
 
-## 错误处理
+## Error Handling
 
-### 1. 数据转换错误
-- 自动降级到默认转换器
-- 详细的错误日志
-- 数据验证和修复
+### 1. Data Conversion Errors
+- Automatic fallback to default converter
+- Detailed error logging
+- Data validation and repair
 
-### 2. AI推荐错误
-- 本地默认推荐备选
-- API调用重试机制
-- 推荐结果验证
+### 2. AI Recommendation Errors
+- Local default recommendation fallback
+- API call retry mechanism
+- Recommendation result validation
 
-### 3. 模型构建错误
-- 参数验证和修复
-- 模型兼容性检查
-- 自动参数调整
+### 3. Model Building Errors
+- Parameter validation and repair
+- Model compatibility checking
+- Automatic parameter adjustment
 
-## 监控和日志
+## Monitoring and Logging
 
-### 1. 日志系统
-- 分级日志记录
-- 结构化日志输出
-- 性能指标跟踪
+### 1. Logging System
+- Hierarchical logging
+- Structured log output
+- Performance metrics tracking
 
-### 2. 监控指标
-- 数据转换性能
-- AI推荐准确性
-- 模型训练效果
-- BO优化进度
+### 2. Monitoring Metrics
+- Data conversion performance
+- AI recommendation accuracy
+- Model training effectiveness
+- BO optimization progress
 
-## 未来扩展
+## Future Extensions
 
-### 1. 计划功能
-- 更多数据格式支持
-- 更丰富的模型类型
-- 自动化超参数调优
-- 模型解释性分析
+### 1. Planned Features
+- More data format support
+- Richer model types
+- Automated hyperparameter tuning
+- Model interpretability analysis
 
-### 2. 技术改进
-- 更智能的AI推荐
-- 更高效的BO算法
-- 更好的错误恢复
-- 更强的扩展性
+### 2. Technical Improvements
+- Smarter AI recommendations
+- More efficient BO algorithms
+- Better error recovery
+- Stronger extensibility

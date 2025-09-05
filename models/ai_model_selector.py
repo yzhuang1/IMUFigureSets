@@ -1,6 +1,6 @@
 """
 AI Model Selector
-使用ChatGPT API根据数据特征自动选择最适合的神经网络架构
+Uses ChatGPT API to automatically select the most suitable neural network architecture based on data characteristics
 """
 
 import json
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelRecommendation:
-    """模型推荐结果"""
+    """Model recommendation result"""
     model_name: str
     model_type: str
     architecture: str
@@ -24,69 +24,69 @@ class ModelRecommendation:
     hyperparameters: Dict[str, Any]
 
 class AIModelSelector:
-    """AI模型选择器"""
+    """AI model selector"""
     
     def __init__(self, api_key: Optional[str] = None, base_url: str = "https://api.openai.com/v1"):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url
-        self.model = "gpt-4"  # 使用GPT-4获得更好的推荐
+        self.model = "gpt-4"  # Use GPT-4 for better recommendations
         
         if not self.api_key:
-            logger.warning("未设置OPENAI_API_KEY，将使用默认模型选择")
+            logger.warning("OPENAI_API_KEY not set, will use default model selection")
     
     def _create_prompt(self, data_profile: Dict[str, Any]) -> str:
-        """创建用于模型选择的提示词"""
+        """Create prompt for model selection"""
         prompt = f"""
-你是一个机器学习专家，需要根据数据特征推荐最适合的神经网络架构。
+You are a machine learning expert who needs to recommend the most suitable neural network architecture based on data characteristics.
 
-数据特征信息：
+Data feature information:
 {json.dumps(data_profile, indent=2, ensure_ascii=False)}
 
-请根据以下信息推荐最适合的神经网络架构：
+Please recommend the most suitable neural network architecture based on the following information:
 
-1. 数据特征分析：
-   - 数据类型：{data_profile.get('data_type', 'unknown')}
-   - 数据形状：{data_profile.get('shape', 'unknown')}
-   - 样本数量：{data_profile.get('sample_count', 0)}
-   - 特征数量：{data_profile.get('feature_count', 0)}
-   - 是否有标签：{data_profile.get('has_labels', False)}
-   - 标签数量：{data_profile.get('label_count', 0)}
+1. Data feature analysis:
+   - Data type: {data_profile.get('data_type', 'unknown')}
+   - Data shape: {data_profile.get('shape', 'unknown')}
+   - Sample count: {data_profile.get('sample_count', 0)}
+   - Feature count: {data_profile.get('feature_count', 0)}
+   - Has labels: {data_profile.get('has_labels', False)}
+   - Label count: {data_profile.get('label_count', 0)}
 
-2. 数据特性：
-   - 是否为序列数据：{data_profile.get('is_sequence', False)}
-   - 是否为图像数据：{data_profile.get('is_image', False)}
-   - 是否为表格数据：{data_profile.get('is_tabular', False)}
+2. Data characteristics:
+   - Is sequence data: {data_profile.get('is_sequence', False)}
+   - Is image data: {data_profile.get('is_image', False)}
+   - Is tabular data: {data_profile.get('is_tabular', False)}
 
-请从以下预定义的模型类型中选择最合适的：
+Please select the most suitable from the following predefined model types:
 
-**表格数据模型：**
-- TabMLP: 多层感知机，适用于表格数据
-- TabTransformer: 基于Transformer的表格数据模型
-- TabNet: 可解释的表格数据模型
+**Tabular Data Models:**
+- TabMLP: Multi-layer perceptron for tabular data
+- TabTransformer: Transformer-based tabular data model
+- TabNet: Interpretable tabular data model
 
-**图像数据模型：**
-- SmallCNN: 小型卷积神经网络
-- ResNet: 残差网络
-- EfficientNet: 高效的卷积神经网络
-- VisionTransformer: 基于Transformer的图像模型
+**Image Data Models:**
+- SmallCNN: Small convolutional neural network
+- ResNet: Residual network
+- EfficientNet: Efficient convolutional neural network
+- VisionTransformer: Transformer-based image model
 
-**序列数据模型：**
-- TinyCNN1D: 一维卷积神经网络
-- LSTM: 长短期记忆网络
-- GRU: 门控循环单元
-- Transformer: 基于注意力机制的序列模型
+**Sequence Data Models:**
+- TinyCNN1D: 1D convolutional neural network
+- LSTM: Long Short-Term Memory network
+- GRU: Gated Recurrent Unit
+- Transformer: Attention-based sequence model
 
-**通用模型：**
-- MLP: 通用多层感知机
-- AutoEncoder: 自编码器
+**General Models:**
+- MLP: General multi-layer perceptron
+- AutoEncoder: Autoencoder
 
-请以JSON格式返回推荐结果，格式如下：
+Please return the recommendation result in JSON format as follows:
 {{
-    "model_name": "推荐的模型名称",
-    "model_type": "模型类型（如：tabular, image, sequence, general）",
-    "architecture": "具体的架构描述",
-    "input_shape": [输入形状的数组],
-    "reasoning": "推荐理由的详细说明",
+    "model_name": "Recommended model name",
+    "model_type": "Model type (e.g., tabular, image, sequence, general)",
+    "architecture": "Specific architecture description",
+    "input_shape": [Array of input shapes],
+    "reasoning": "Detailed explanation of recommendation reason",
     "confidence": 0.95,
     "hyperparameters": {{
         "hidden_size": 128,
@@ -96,14 +96,14 @@ class AIModelSelector:
     }}
 }}
 
-请确保推荐结果基于数据特征，并给出合理的推荐理由。
+Please ensure the recommendation result is based on data characteristics and provide reasonable recommendation reasons.
 """
         return prompt
     
     def _call_openai_api(self, prompt: str) -> str:
-        """调用OpenAI API"""
+        """Call OpenAI API"""
         if not self.api_key:
-            raise ValueError("未设置OPENAI_API_KEY")
+            raise ValueError("OPENAI_API_KEY not set")
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -115,7 +115,7 @@ class AIModelSelector:
             "messages": [
                 {
                     "role": "system",
-                    "content": "你是一个专业的机器学习专家，擅长根据数据特征推荐最适合的神经网络架构。"
+                    "content": "You are a professional machine learning expert skilled at recommending the most suitable neural network architecture based on data characteristics."
                 },
                 {
                     "role": "user",
@@ -139,21 +139,21 @@ class AIModelSelector:
             return result["choices"][0]["message"]["content"]
         
         except requests.exceptions.RequestException as e:
-            logger.error(f"OpenAI API调用失败: {e}")
+            logger.error(f"OpenAI API call failed: {e}")
             raise
         except KeyError as e:
-            logger.error(f"API响应格式错误: {e}")
+            logger.error(f"API response format error: {e}")
             raise
     
     def _parse_recommendation(self, response: str) -> ModelRecommendation:
-        """解析API响应为模型推荐"""
+        """Parse API response as model recommendation"""
         try:
-            # 尝试提取JSON部分
+            # Try to extract JSON part
             start_idx = response.find('{')
             end_idx = response.rfind('}') + 1
             
             if start_idx == -1 or end_idx == 0:
-                raise ValueError("响应中未找到JSON格式")
+                raise ValueError("No JSON format found in response")
             
             json_str = response[start_idx:end_idx]
             data = json.loads(json_str)
@@ -169,50 +169,50 @@ class AIModelSelector:
             )
         
         except (json.JSONDecodeError, ValueError, KeyError) as e:
-            logger.error(f"解析推荐结果失败: {e}")
-            logger.error(f"原始响应: {response}")
+            logger.error(f"Failed to parse recommendation result: {e}")
+            logger.error(f"Original response: {response}")
             
-            # 返回默认推荐
+            # Return default recommendation
             return ModelRecommendation(
                 model_name="MLP",
                 model_type="general",
                 architecture="Multi-layer Perceptron",
                 input_shape=(data_profile.get("feature_count", 10),),
-                reasoning="解析失败，使用默认MLP模型",
+                reasoning="Parsing failed, using default MLP model",
                 confidence=0.1,
                 hyperparameters={"hidden_size": 64, "num_layers": 2}
             )
     
     def select_model(self, data_profile: Dict[str, Any]) -> ModelRecommendation:
         """
-        根据数据特征选择最适合的模型
+        Select the most suitable model based on data characteristics
         
         Args:
-            data_profile: 数据特征档案
+            data_profile: Data feature profile
         
         Returns:
-            ModelRecommendation: 模型推荐结果
+            ModelRecommendation: Model recommendation result
         """
         try:
             if not self.api_key:
-                logger.warning("未设置API密钥，使用默认模型选择")
+                logger.warning("API key not set, using default model selection")
                 return self._get_default_recommendation(data_profile)
             
             prompt = self._create_prompt(data_profile)
             response = self._call_openai_api(prompt)
             recommendation = self._parse_recommendation(response)
             
-            logger.info(f"AI推荐模型: {recommendation.model_name} (置信度: {recommendation.confidence:.2f})")
-            logger.info(f"推荐理由: {recommendation.reasoning}")
+            logger.info(f"AI recommended model: {recommendation.model_name} (confidence: {recommendation.confidence:.2f})")
+            logger.info(f"Recommendation reason: {recommendation.reasoning}")
             
             return recommendation
         
         except Exception as e:
-            logger.error(f"模型选择失败: {e}")
+            logger.error(f"Model selection failed: {e}")
             return self._get_default_recommendation(data_profile)
     
     def _get_default_recommendation(self, data_profile: Dict[str, Any]) -> ModelRecommendation:
-        """获取默认模型推荐（当API不可用时）"""
+        """Get default model recommendation (when API is unavailable)"""
         data_type = data_profile.get("data_type", "unknown")
         is_image = data_profile.get("is_image", False)
         is_sequence = data_profile.get("is_sequence", False)
@@ -223,8 +223,8 @@ class AIModelSelector:
                 model_name="SmallCNN",
                 model_type="image",
                 architecture="Small Convolutional Neural Network",
-                input_shape=(3, 32, 32),  # 默认图像尺寸
-                reasoning="检测到图像数据，推荐使用卷积神经网络",
+                input_shape=(3, 32, 32),  # Default image size
+                reasoning="Detected image data, recommend using convolutional neural network",
                 confidence=0.8,
                 hyperparameters={"hidden_size": 64, "num_layers": 2}
             )
@@ -234,7 +234,7 @@ class AIModelSelector:
                 model_type="sequence",
                 architecture="1D Convolutional Neural Network",
                 input_shape=(data_profile.get("feature_count", 10),),
-                reasoning="检测到序列数据，推荐使用一维卷积神经网络",
+                reasoning="Detected sequence data, recommend using 1D convolutional neural network",
                 confidence=0.8,
                 hyperparameters={"hidden_size": 64, "num_layers": 2}
             )
@@ -244,7 +244,7 @@ class AIModelSelector:
                 model_type="tabular",
                 architecture="Multi-layer Perceptron for Tabular Data",
                 input_shape=(data_profile.get("feature_count", 10),),
-                reasoning="检测到表格数据，推荐使用多层感知机",
+                reasoning="Detected tabular data, recommend using multi-layer perceptron",
                 confidence=0.8,
                 hyperparameters={"hidden_size": 64, "num_layers": 2}
             )
@@ -254,22 +254,22 @@ class AIModelSelector:
                 model_type="general",
                 architecture="Multi-layer Perceptron",
                 input_shape=(data_profile.get("feature_count", 10),),
-                reasoning="未知数据类型，使用通用多层感知机",
+                reasoning="Unknown data type, using general multi-layer perceptron",
                 confidence=0.5,
                 hyperparameters={"hidden_size": 64, "num_layers": 2}
             )
 
-# 全局模型选择器实例
+# Global model selector instance
 ai_model_selector = AIModelSelector()
 
 def select_model_for_data(data_profile: Dict[str, Any]) -> ModelRecommendation:
     """
-    便捷函数：为数据选择最适合的模型
+    Convenience function: Select the most suitable model for data
     
     Args:
-        data_profile: 数据特征档案
+        data_profile: Data feature profile
     
     Returns:
-        ModelRecommendation: 模型推荐结果
+        ModelRecommendation: Model recommendation result
     """
     return ai_model_selector.select_model(data_profile)
