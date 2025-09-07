@@ -117,6 +117,10 @@ class AIEnhancedEvaluator:
         model_info = context["model_recommendation"]
         metrics = context["performance_metrics"]
         
+        # Format metrics safely
+        acc_str = f"{metrics.get('acc', 0):.4f}" if metrics.get('acc') is not None else 'N/A'
+        f1_str = f"{metrics.get('macro_f1', 0):.4f}" if metrics.get('macro_f1') is not None else 'N/A'
+        
         prompt = f"""
 Please analyze the performance of a machine learning model and decide if we should accept it or try a different model.
 
@@ -136,8 +140,8 @@ Please analyze the performance of a machine learning model and decide if we shou
 - Selection confidence: {model_info['confidence']:.2f}
 
 **PERFORMANCE RESULTS:**
-- Accuracy: {metrics.get('acc', 'N/A'):.4f if metrics.get('acc') else 'N/A'}
-- Macro F1 Score: {metrics.get('macro_f1', 'N/A'):.4f if metrics.get('macro_f1') else 'N/A'}
+- Accuracy: {acc_str}
+- Macro F1 Score: {f1_str}
 
 **ANALYSIS REQUIRED:**
 1. Is this performance acceptable for this type of data and problem?

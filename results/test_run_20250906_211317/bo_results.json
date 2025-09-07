@@ -1,0 +1,9 @@
+{
+  "best_value": 0.0,
+  "best_params": {
+    "lr": 0.003110460711161788,
+    "epochs": 4,
+    "hidden": 32
+  },
+  "total_trials": 3
+}

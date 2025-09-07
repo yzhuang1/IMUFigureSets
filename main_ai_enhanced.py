@@ -120,8 +120,14 @@ def process_data_with_ai_enhanced_evaluation(data, labels=None, **kwargs):
     """
     logger.info("Starting AI-enhanced data processing...")
     
-    # Set device
-    device = kwargs.get('device', "cuda" if torch.cuda.is_available() else "cpu")
+    # Set device - remove from kwargs to avoid duplicate parameter error
+    device = kwargs.pop('device', "cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Force CPU if CUDA is not properly available
+    try:
+        torch.cuda.current_device()
+    except:
+        device = "cpu"
     
     # Train with iterative selection
     result = train_with_iterative_selection(data, labels, device=device, **kwargs)

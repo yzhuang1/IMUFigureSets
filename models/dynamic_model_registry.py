@@ -265,16 +265,41 @@ class ModelBuilder:
         # Use recommended hyperparameters
         hyperparams = recommendation.hyperparameters.copy()
         
+        # Map common AI parameter names to model parameter names
+        param_mapping = {
+            "hidden_size": "hidden",
+            "num_layers": "layers",
+            "learning_rate": "lr",
+            "dropout_rate": "dropout"
+        }
+        
+        # Apply parameter mapping
+        mapped_params = {}
+        for key, value in hyperparams.items():
+            mapped_key = param_mapping.get(key, key)
+            mapped_params[mapped_key] = value
+        
+        # Get valid parameters for this model to filter out unsupported ones
+        try:
+            valid_params = self.registry.get_model_parameters(recommendation.model_name)
+            filtered_params = {k: v for k, v in mapped_params.items() if k in valid_params}
+            logger.info(f"Filtered parameters for {recommendation.model_name}: {filtered_params}")
+        except Exception:
+            # If we can't get valid parameters, use all mapped parameters
+            filtered_params = mapped_params
+            logger.warning(f"Could not validate parameters for {recommendation.model_name}, using all: {filtered_params}")
+        
         # Build model
         model = self.build_model(
             model_name=recommendation.model_name,
             input_shape=input_shape,
             num_classes=num_classes,
-            **hyperparams
+            **filtered_params
         )
         
         logger.info(f"Built model based on AI recommendation: {recommendation.model_name}")
         logger.info(f"Recommendation reason: {recommendation.reasoning}")
+        logger.info(f"Mapped parameters: {mapped_params}")
         
         return model
 
@@ -289,3 +314,7 @@ def register_model(name: str, model_class: Type[nn.Module], metadata: Optional[D
 def build_model(model_name: str, input_shape: tuple, num_classes: int, **kwargs) -> nn.Module:
     """Convenience function: Build model"""
     return model_builder.build_model(model_name, input_shape, num_classes, **kwargs)
+
+def build_model_from_recommendation(recommendation, input_shape: tuple, num_classes: int) -> nn.Module:
+    """Convenience function: Build model from AI recommendation"""
+    return model_builder.build_model_from_recommendation(recommendation, input_shape, num_classes)
