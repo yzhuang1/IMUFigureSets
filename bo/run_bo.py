@@ -1,27 +1,215 @@
 """
-Stub for Bayesian Optimization loop.
-Replace suggest() and observe() with your favorite BO library (Ax, Optuna, BoTorch, scikit-optimize...).
-The contract is:
-- suggest() -> dict of hyperparameters
+Proper Bayesian Optimization implementation using scikit-optimize
+Uses Gaussian Process surrogate model with Expected Improvement acquisition function
+- suggest() -> dict of hyperparameters based on surrogate model and acquisition function
 - objective(hparams) -> returns scalar or dict of metrics (you can convert multi-objective to scalar)
-- observe(hparams, value) -> record the result
+- observe(hparams, value) -> updates the surrogate model with new observations
 """
 
-import random
+import numpy as np
+from typing import Dict, Any, List, Tuple
+import logging
 
-_search_space = {
+# Try to import scikit-optimize for proper BO, fallback to random if not available
+try:
+    from skopt import gp_minimize
+    from skopt.space import Real, Integer, Categorical
+    from skopt.acquisition import gaussian_ei
+    from skopt.utils import use_named_args
+    from skopt import Optimizer
+    SKOPT_AVAILABLE = True
+except ImportError:
+    SKOPT_AVAILABLE = False
+    logging.warning("scikit-optimize not available, falling back to random search")
+
+logger = logging.getLogger(__name__)
+
+# Define search space with proper types for BO
+_search_space_skopt = [
+    Real(1e-4, 3e-3, prior='log-uniform', name='lr'),
+    Integer(3, 10, name='epochs'), 
+    Categorical([32, 64, 128, 256], name='hidden'),
+]
+
+_search_space_bounds = {
     "lr": (1e-4, 3e-3),
-    "epochs": (3, 10),
-    "hidden": (32, 256),
+    "epochs": (3, 10), 
+    "hidden": [32, 64, 128, 256],
 }
 
-def suggest():
-    return {
-        "lr": 10 ** random.uniform(-4, -2.5),
-        "epochs": random.randint(3, 8),
-        "hidden": random.choice([32, 64, 128, 256]),
-    }
+class BayesianOptimizer:
+    """Bayesian Optimization implementation with Gaussian Process surrogate model"""
+    
+    def __init__(self, search_space=None, n_initial_points=3, acquisition_func='EI'):
+        """
+        Initialize Bayesian Optimizer
+        
+        Args:
+            search_space: Search space definition
+            n_initial_points: Number of random initial points before using GP
+            acquisition_func: Acquisition function ('EI' for Expected Improvement)
+        """
+        self.search_space = search_space or _search_space_skopt
+        self.n_initial_points = n_initial_points
+        self.acquisition_func = acquisition_func
+        
+        # History storage
+        self.X_observed: List[List[float]] = []  # Parameter vectors
+        self.y_observed: List[float] = []         # Objective values
+        self.param_names = [dim.name for dim in self.search_space]
+        
+        # BO state
+        self.n_calls = 0
+        self.optimizer = None
+        
+        if SKOPT_AVAILABLE:
+            self.optimizer = Optimizer(
+                dimensions=self.search_space,
+                base_estimator="GP",  # Gaussian Process
+                acq_func="EI",       # Expected Improvement
+                n_initial_points=self.n_initial_points,
+                random_state=42
+            )
+            logger.info("Initialized Gaussian Process Bayesian Optimizer")
+        else:
+            logger.warning("Using random search fallback (install scikit-optimize for proper BO)")
+    
+    def suggest(self) -> Dict[str, Any]:
+        """
+        Suggest next hyperparameters using BO acquisition function
+        
+        Returns:
+            Dict: Suggested hyperparameters
+        """
+        self.n_calls += 1
+        
+        if SKOPT_AVAILABLE and self.optimizer:
+            # Use proper Bayesian Optimization
+            if len(self.y_observed) < self.n_initial_points:
+                # Initial random exploration
+                suggested = self.optimizer.ask()
+                logger.info(f"BO Trial {self.n_calls}: Initial random exploration")
+            else:
+                # BO with GP surrogate and acquisition function
+                suggested = self.optimizer.ask()
+                logger.info(f"BO Trial {self.n_calls}: Using GP surrogate + Expected Improvement")
+            
+            # Convert to parameter dict
+            hparams = dict(zip(self.param_names, suggested))
+            
+        else:
+            # Fallback to random search
+            import random
+            hparams = {
+                "lr": 10 ** random.uniform(np.log10(1e-4), np.log10(3e-3)),
+                "epochs": random.randint(3, 10),
+                "hidden": random.choice([32, 64, 128, 256]),
+            }
+            logger.info(f"BO Trial {self.n_calls}: Random search fallback")
+        
+        # Store parameter vector for observation later
+        self._last_suggested = [hparams[name] for name in self.param_names]
+        
+        return hparams
+    
+    def observe(self, hparams: Dict[str, Any], value: float):
+        """
+        Observe the result of an evaluation and update the surrogate model
+        
+        Args:
+            hparams: Hyperparameters that were evaluated
+            value: Objective function value (higher is better)
+        """
+        # Convert hparams to parameter vector
+        param_vector = [hparams[name] for name in self.param_names]
+        
+        # Store observation
+        self.X_observed.append(param_vector)
+        self.y_observed.append(value)
+        
+        if SKOPT_AVAILABLE and self.optimizer:
+            # Update GP surrogate model
+            self.optimizer.tell(param_vector, -value)  # Minimize negative (since we maximize)
+            logger.info(f"Updated GP surrogate model with observation: {value:.4f}")
+        
+        logger.info(f"Recorded observation #{len(self.y_observed)}: "
+                   f"lr={hparams['lr']:.6f}, epochs={hparams['epochs']}, "
+                   f"hidden={hparams['hidden']}, value={value:.4f}")
+    
+    def get_best_params(self) -> Tuple[Dict[str, Any], float]:
+        """
+        Get the best parameters observed so far
+        
+        Returns:
+            Tuple[Dict, float]: Best parameters and best value
+        """
+        if not self.y_observed:
+            return {}, -np.inf
+        
+        best_idx = np.argmax(self.y_observed)
+        best_vector = self.X_observed[best_idx]
+        best_value = self.y_observed[best_idx]
+        
+        best_params = dict(zip(self.param_names, best_vector))
+        return best_params, best_value
+    
+    def get_convergence_info(self) -> Dict[str, Any]:
+        """
+        Get information about optimization convergence
+        
+        Returns:
+            Dict: Convergence metrics
+        """
+        if len(self.y_observed) < 2:
+            return {"status": "insufficient_data"}
+        
+        recent_improvements = []
+        for i in range(1, len(self.y_observed)):
+            current_best = max(self.y_observed[:i+1])
+            previous_best = max(self.y_observed[:i])
+            improvement = current_best - previous_best
+            recent_improvements.append(improvement)
+        
+        # Check last few improvements
+        recent_window = min(5, len(recent_improvements))
+        recent_avg_improvement = np.mean(recent_improvements[-recent_window:]) if recent_improvements else 0
+        
+        return {
+            "status": "converging" if recent_avg_improvement < 0.001 else "exploring",
+            "total_evaluations": len(self.y_observed),
+            "best_value": max(self.y_observed) if self.y_observed else -np.inf,
+            "recent_avg_improvement": recent_avg_improvement,
+            "improvement_history": recent_improvements[-10:]  # Last 10 improvements
+        }
 
-def observe(hparams, value):
-    # no-op stub
-    pass
+# Global optimizer instance
+_global_optimizer = BayesianOptimizer()
+
+def suggest() -> Dict[str, Any]:
+    """
+    Suggest next hyperparameters using Bayesian Optimization
+    
+    Returns:
+        Dict: Suggested hyperparameters
+    """
+    return _global_optimizer.suggest()
+
+def observe(hparams: Dict[str, Any], value: float):
+    """
+    Observe evaluation result and update surrogate model
+    
+    Args:
+        hparams: Hyperparameters that were evaluated  
+        value: Objective function value (higher is better)
+    """
+    _global_optimizer.observe(hparams, value)
+
+def reset_optimizer():
+    """Reset the global optimizer (useful for new optimization runs)"""
+    global _global_optimizer
+    _global_optimizer = BayesianOptimizer()
+    logger.info("Reset Bayesian Optimizer")
+
+def get_optimizer_info() -> Dict[str, Any]:
+    """Get information about the current optimization state"""
+    return _global_optimizer.get_convergence_info()

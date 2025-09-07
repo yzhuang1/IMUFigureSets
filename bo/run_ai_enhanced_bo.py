@@ -13,7 +13,7 @@ import time
 from adapters.universal_converter import convert_to_torch_dataset
 from models.ai_model_selector import select_model_for_data
 from bo.ai_enhanced_objective import create_ai_enhanced_objective
-from bo.run_bo import suggest, observe
+from bo.run_bo import suggest, observe, reset_optimizer, get_optimizer_info
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -41,6 +41,10 @@ class AIEnhancedBO:
         self.kwargs = kwargs
         
         logger.info(f"AIEnhancedBO initialized with n_trials={self.n_trials}")
+        
+        # Reset BO optimizer for clean start
+        reset_optimizer()
+        logger.info("Reset Bayesian Optimizer for new optimization run")
         
         # Preprocess data
         self._preprocess_data()
@@ -128,6 +132,9 @@ class AIEnhancedBO:
         
         end_time = time.time()
         
+        # Get BO convergence information
+        convergence_info = get_optimizer_info()
+        
         # Summarize results
         summary = {
             'best_value': self.best_value,
@@ -136,6 +143,7 @@ class AIEnhancedBO:
             'total_trials': len(self.results),
             'successful_trials': len([r for r in self.results if 'error' not in r.get('metrics', {})]),
             'total_time': end_time - start_time,
+            'bo_convergence': convergence_info,
             'data_profile': self.data_profile.to_dict(),
             'ai_recommendation': {
                 'model_name': self.recommendation.model_name,
@@ -151,6 +159,9 @@ class AIEnhancedBO:
         logger.info(f"Best value: {self.best_value:.4f}")
         logger.info(f"Best parameters: {self.best_params}")
         logger.info(f"Total time: {end_time - start_time:.2f} seconds")
+        logger.info(f"BO convergence status: {convergence_info.get('status', 'unknown')}")
+        if 'recent_avg_improvement' in convergence_info:
+            logger.info(f"Recent average improvement: {convergence_info['recent_avg_improvement']:.6f}")
         
         return summary
     
