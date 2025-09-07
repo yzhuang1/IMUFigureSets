@@ -69,7 +69,3 @@ logs/
 # Test files
 test_*.py
 *_test.py
-
-# Claude .md file
-CLAUDE.md
-.claude/
