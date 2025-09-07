@@ -139,12 +139,10 @@ else:
 ```
 ml_pipeline/
 ├── adapters/
-│   ├── universal_converter.py    # Universal data converter
-│   └── unified_adapter.py        # Original adapter (backward compatible)
+│   └── universal_converter.py    # Universal data converter
 ├── models/
 │   ├── ai_model_selector.py      # AI model selector
 │   ├── dynamic_model_registry.py # Dynamic model registry system
-│   ├── model_picker.py           # Original model selector (backward compatible)
 │   └── ...                       # Various model implementations
 ├── bo/
 │   ├── ai_enhanced_objective.py  # AI-enhanced objective function
@@ -158,7 +156,7 @@ ml_pipeline/
 ├── config.py                     # Configuration management
 ├── setup_api_key.py             # API key setup script
 ├── env.example                   # Environment variables example
-├── main_new.py                   # New main process
+├── main_new.py                   # Main AI-enhanced process
 ├── example_usage.py              # Usage examples
 └── requirements.txt              # Dependencies list
 ```
@@ -176,13 +174,9 @@ ml_pipeline/
 - opencv-python (optional, for image processing)
 - pillow (optional, for image processing)
 
-## Backward Compatibility
+## Architecture Evolution
 
-The new architecture is fully backward compatible, and the original code still works:
-- `main.py` - Original main process
-- `adapters/unified_adapter.py` - Original data converter
-- `models/model_picker.py` - Original model selector
-- `bo/objective.py` - Original objective function
+The codebase has been streamlined to focus on the AI-enhanced pipeline. Legacy components have been removed in favor of the more capable AI-powered system.
 
 ## Contributing Guide
 

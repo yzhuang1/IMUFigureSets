@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class AIEnhancedBO:
     """AI-enhanced Bayesian optimization class"""
     
-    def __init__(self, data, labels=None, device="cpu", n_trials=20, **kwargs):
+    def __init__(self, data, labels=None, device="cpu", n_trials=None, **kwargs):
         """
         Initialize AI-enhanced BO
         
@@ -30,14 +30,17 @@ class AIEnhancedBO:
             data: Input data
             labels: Label data
             device: Device
-            n_trials: Number of optimization trials
+            n_trials: Number of optimization trials (uses config default if None)
             **kwargs: Other parameters
         """
+        from config import config
         self.data = data
         self.labels = labels
         self.device = device
-        self.n_trials = n_trials
+        self.n_trials = n_trials or config.max_bo_trials
         self.kwargs = kwargs
+        
+        logger.info(f"AIEnhancedBO initialized with n_trials={self.n_trials}")
         
         # Preprocess data
         self._preprocess_data()
@@ -157,7 +160,7 @@ class AIEnhancedBO:
             json.dump(self.results, f, indent=2, ensure_ascii=False, default=str)
         logger.info(f"Results saved to: {filename}")
 
-def run_ai_enhanced_bo(data, labels=None, device="cpu", n_trials=20, **kwargs):
+def run_ai_enhanced_bo(data, labels=None, device="cpu", n_trials=None, **kwargs):
     """
     Run AI-enhanced Bayesian optimization
     
@@ -165,7 +168,7 @@ def run_ai_enhanced_bo(data, labels=None, device="cpu", n_trials=20, **kwargs):
         data: Input data
         labels: Label data
         device: Device
-        n_trials: Number of optimization trials
+        n_trials: Number of optimization trials (uses config default if None)
         **kwargs: Other parameters
     
     Returns:
@@ -185,11 +188,16 @@ def demo_ai_enhanced_bo():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
     
-    # Set OpenAI API key (if available)
-    import os
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Warning: OPENAI_API_KEY not set, will use default model selection")
-        print("To use AI model selection feature, set environment variable: export OPENAI_API_KEY='your-api-key'")
+    # Check OpenAI API key - required for AI model selection
+    from config import config
+    if not config.is_openai_configured():
+        print("ERROR: OpenAI API key is required for AI-enhanced Bayesian Optimization!")
+        print("Please set OPENAI_API_KEY environment variable:")
+        print("  export OPENAI_API_KEY='your-api-key'")
+        print("  or create .env file with: OPENAI_API_KEY=your-api-key")
+        exit(1)
+    
+    print(f"✓ OpenAI configured (model: {config.openai_model})")
     
     print("\n" + "=" * 60)
     print("Demo 1: Tabular Data Optimization")
@@ -199,7 +207,7 @@ def demo_ai_enhanced_bo():
     X_tabular = np.random.randn(500, 15).astype("float32")
     y_tabular = np.random.choice(["A", "B", "C"], size=500)
     
-    result1 = run_ai_enhanced_bo(X_tabular, y_tabular, device=device, n_trials=5)
+    result1 = run_ai_enhanced_bo(X_tabular, y_tabular, device=device, n_trials=5)  # Override default for demo
     print(f"Tabular data optimization results:")
     print(f"  Best value: {result1['best_value']:.4f}")
     print(f"  Best parameters: {result1['best_params']}")

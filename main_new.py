@@ -187,11 +187,16 @@ def demo_with_different_data_types():
     print(f"Recommendation reason: {result4['recommendation'].reasoning}")
 
 if __name__ == "__main__":
-    # Set OpenAI API key (if available)
-    import os
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Warning: OPENAI_API_KEY not set, will use default model selection")
-        print("To use AI model selection feature, set environment variable: export OPENAI_API_KEY='your-api-key'")
+    # Check OpenAI API key - required for AI model selection
+    from config import config
+    if not config.is_openai_configured():
+        print("ERROR: OpenAI API key is required for AI model selection!")
+        print("Please set OPENAI_API_KEY environment variable:")
+        print("  export OPENAI_API_KEY='your-api-key'")
+        print("  or create .env file with: OPENAI_API_KEY=your-api-key")
+        exit(1)
+    
+    print(f"✓ OpenAI configured (model: {config.openai_model})")
     
     # Run demo
     demo_with_different_data_types()

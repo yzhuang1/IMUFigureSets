@@ -45,17 +45,23 @@ class PromptLoader:
         except Exception as e:
             raise Exception(f"Error loading prompt {prompt_name}: {e}")
     
-    def format_model_selection_prompt(self, data_profile: Dict[str, Any]) -> str:
+    def format_model_selection_prompt(self, data_profile: Dict[str, Any], exclude_models: list = None) -> str:
         """
         Load and format the model selection prompt
         
         Args:
             data_profile: Data profile dictionary
+            exclude_models: List of model names to exclude from selection
         
         Returns:
             str: Formatted prompt
         """
         template = self.load_prompt("model_selection_prompt")
+        
+        # Add exclusion information if provided
+        exclusion_text = ""
+        if exclude_models:
+            exclusion_text = f"\n\n**EXCLUDED MODELS (DO NOT RECOMMEND):**\n{', '.join(exclude_models)}\n\nPlease recommend a different model architecture than the ones listed above."
         
         # Format the template with data profile values
         formatted_prompt = template.format(
@@ -68,7 +74,8 @@ class PromptLoader:
             label_count=data_profile.get('label_count', 0),
             is_sequence=data_profile.get('is_sequence', False),
             is_image=data_profile.get('is_image', False),
-            is_tabular=data_profile.get('is_tabular', False)
+            is_tabular=data_profile.get('is_tabular', False),
+            exclusion_text=exclusion_text
         )
         
         return formatted_prompt

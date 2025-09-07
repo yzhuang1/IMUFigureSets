@@ -57,4 +57,4 @@ Please return the recommendation result in JSON format as follows:
     }}
 }}
 
-Please ensure the recommendation result is based on data characteristics and provide reasonable recommendation reasons.
+Please ensure the recommendation result is based on data characteristics and provide reasonable recommendation reasons.{exclusion_text}
