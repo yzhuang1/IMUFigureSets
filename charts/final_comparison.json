@@ -1,0 +1,18 @@
+{
+  "initial_performance": {
+    "acc": 0.9332,
+    "macro_f1": 0.8377179858213966
+  },
+  "bo_optimized_performance": {
+    "acc": 0.8425,
+    "macro_f1": 0.579852485709634
+  },
+  "best_hyperparameters": {
+    "lr": 0.003,
+    "epochs": 10,
+    "hidden": 128
+  },
+  "accuracy_improvement": -0.0907,
+  "f1_improvement": -0.25786550011176257,
+  "total_bo_trials": 40
+}

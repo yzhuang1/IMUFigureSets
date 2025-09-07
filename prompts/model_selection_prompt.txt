@@ -20,26 +20,17 @@ Please recommend the most suitable neural network architecture based on the foll
 
 Please select the most suitable from the following predefined model types:
 
-**Tabular Data Models:**
+**Available Models:**
 - TabMLP: Multi-layer perceptron for tabular data
-- TabTransformer: Transformer-based tabular data model
-- TabNet: Interpretable tabular data model
+- SmallCNN: Small convolutional neural network for image data
+- TinyCNN1D: 1D convolutional neural network for sequence data
 
-**Image Data Models:**
-- SmallCNN: Small convolutional neural network
-- ResNet: Residual network
-- EfficientNet: Efficient convolutional neural network
-- VisionTransformer: Transformer-based image model
+IMPORTANT: Only recommend from these three models that are actually available in the system:
+1. TabMLP - for tabular/structured data (ALWAYS use this for tabular data like CSV with numerical features)
+2. SmallCNN - for image data only
+3. TinyCNN1D - for sequence/time series data only
 
-**Sequence Data Models:**
-- TinyCNN1D: 1D convolutional neural network
-- LSTM: Long Short-Term Memory network
-- GRU: Gated Recurrent Unit
-- Transformer: Attention-based sequence model
-
-**General Models:**
-- MLP: General multi-layer perceptron
-- AutoEncoder: Autoencoder
+For tabular data (including flattened features from any source), ALWAYS recommend TabMLP as it is specifically designed for this type of data.
 
 Please return the recommendation result in JSON format as follows:
 {{

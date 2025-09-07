@@ -26,9 +26,9 @@ export OPENAI_API_KEY='your-api-key'
 echo "OPENAI_API_KEY=your-api-key" > .env
 ```
 
-### Running Examples
+### Running the Pipeline
 ```bash
-python example_usage.py
+python main.py
 ```
 
 ## Core Architecture
@@ -59,9 +59,9 @@ python example_usage.py
 ## Entry Points
 
 ### Main Pipeline
-- `main_new.py` - Main AI-enhanced pipeline
-- `process_data_with_ai()` - Full automated processing
-- `train_and_evaluate()` - Complete training workflow
+- `main.py` - Advanced AI-enhanced pipeline with iterative model selection
+- `process_data_with_ai_enhanced_evaluation()` - Full automated processing with iterative AI evaluation
+- `train_with_iterative_selection()` - Complete training workflow with AI feedback loop
 
 ### Bayesian Optimization
 - `bo/run_ai_enhanced_bo.py` - AI-enhanced BO runner

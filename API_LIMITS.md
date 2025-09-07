@@ -82,7 +82,7 @@ MAX_BO_TRIALS=5         # Minimal BO
 
 ### **Using Config Defaults:**
 ```python
-from main_ai_enhanced import process_data_with_ai_enhanced_evaluation
+from main import process_data_with_ai_enhanced_evaluation
 
 # Uses MAX_MODEL_ATTEMPTS from config (default: 3)
 result = process_data_with_ai_enhanced_evaluation(data, labels)

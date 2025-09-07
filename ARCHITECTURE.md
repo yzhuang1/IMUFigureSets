@@ -80,13 +80,15 @@ Output Results
 **Main Classes**:
 - `AIEnhancedObjective`: AI-enhanced objective function class
 
-### 5. Main Process (`main_new.py`)
+### 5. Main Process (`main.py`)
 
-**Function**: Integrates all components into a complete machine learning workflow
+**Function**: Advanced AI-enhanced pipeline with iterative model selection and AI feedback loop
 
 **Features**:
-- One-click data processing and model selection
-- Automatic training and evaluation
+- Iterative AI-guided model selection
+- Automatic model re-evaluation and improvement
+- AI-enhanced evaluation with performance analysis
+- Complete training workflow with AI feedback
 - Supports multiple data types
 - Detailed logging and result output
 
@@ -135,10 +137,10 @@ The new architecture is fully backward compatible with original code:
 
 ### Basic Usage
 ```python
-from main_new import train_and_evaluate
+from main import process_data_with_ai_enhanced_evaluation
 
-# Automatically process data and select model
-result = train_and_evaluate(data, labels)
+# Advanced AI-enhanced processing with iterative model selection
+result = process_data_with_ai_enhanced_evaluation(data, labels)
 ```
 
 ### Advanced Usage
