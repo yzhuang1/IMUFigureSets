@@ -1,6 +1,6 @@
 """
-AI-Enhanced Main Process with Iterative Model Selection
-Processes real data files from data/ directory only
+AI-Enhanced Main Process with New Pipeline Flow
+Model Generation → BO → Evaluation → Feedback Loop
 """
 
 import logging
@@ -13,8 +13,7 @@ import os
 from pathlib import Path
 
 from adapters.universal_converter import convert_to_torch_dataset
-from models.dynamic_model_registry import build_model_from_recommendation
-from evaluation.ai_enhanced_evaluate import IterativeModelSelector, AIEnhancedEvaluator
+from evaluation.template_pipeline_orchestrator import TemplatePipelineOrchestrator
 from train import train_one_model
 from bo.run_ai_enhanced_bo import run_ai_enhanced_bo
 from visualization import generate_bo_charts, create_charts_folder
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, max_model_attempts=None, **kwargs):
     """
-    Train model with AI-enhanced iterative model selection
+    Train model with AI-enhanced pipeline: Model Generation → BO → Evaluation → Feedback
     
     Args:
         data: Input data
@@ -38,7 +37,8 @@ def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, ma
     Returns:
         Dict: Training results with final model and evaluation
     """
-    logger.info("Starting AI-enhanced training with iterative model selection")
+    logger.info("Starting AI-enhanced training with new pipeline flow")
+    logger.info("Flow: Template Selection → BO → Evaluation → Feedback Loop")
     
     # Convert data and get profile
     dataset, collate_fn, data_profile = convert_to_torch_dataset(data, labels, **kwargs)
@@ -49,71 +49,61 @@ def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, ma
     batch_size = kwargs.get('batch_size', 64)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     
-    # Define training function
-    def train_model(recommendation, **train_kwargs):
-        """Train a model from recommendation"""
-        logger.info(f"Training model: {recommendation.model_name}")
-        
-        # Determine input shape
-        if data_profile.is_sequence:
-            input_shape = (data_profile.feature_count,)
-        elif data_profile.is_image:
-            if data_profile.channels and data_profile.height and data_profile.width:
-                input_shape = (data_profile.channels, data_profile.height, data_profile.width)
-            else:
-                input_shape = (3, 32, 32)  # Default
+    # Determine input shape for models
+    if data_profile.is_sequence:
+        # For sequence data like ECG (samples, seq_len, features), use (seq_len, features)
+        if len(data_profile.shape) == 3:
+            input_shape = data_profile.shape[1:]  # (seq_len, features)
         else:
             input_shape = (data_profile.feature_count,)
-        
-        num_classes = data_profile.label_count if data_profile.has_labels else 2
-        
-        # Build model
-        model = build_model_from_recommendation(recommendation, input_shape, num_classes)
-        model.to(device)
-        
-        # Train model
-        trained_model = train_one_model(model, loader, device=device, epochs=epochs)
-        
-        return trained_model
+    elif data_profile.is_image:
+        if data_profile.channels and data_profile.height and data_profile.width:
+            input_shape = (data_profile.channels, data_profile.height, data_profile.width)
+        else:
+            input_shape = (3, 32, 32)  # Default
+    else:
+        input_shape = (data_profile.feature_count,)
     
-    # Define evaluation function
-    def evaluate_model_with_ai(evaluator, model, **eval_kwargs):
-        """Evaluate model using AI analysis"""
-        return evaluator.evaluate_with_ai_analysis(model, loader, device)
+    num_classes = data_profile.label_count if data_profile.has_labels else 2
     
-    # Create iterative model selector (uses config default if max_model_attempts is None)
-    selector = IterativeModelSelector(
+    # Create template-based orchestrator for complete pipeline
+    orchestrator = TemplatePipelineOrchestrator(
         data_profile=data_profile.to_dict(),
-        max_iterations=max_model_attempts
+        max_model_attempts=max_model_attempts
     )
     
-    # Find best model
-    best_model, best_analysis = selector.find_best_model(
-        train_func=train_model,
-        evaluate_func=evaluate_model_with_ai
+    # Run complete pipeline
+    best_model, pipeline_results = orchestrator.run_complete_pipeline(
+        X=data, y=labels,
+        device=device,
+        input_shape=input_shape,
+        num_classes=num_classes,
+        epochs=epochs,
+        **kwargs
     )
     
-    # Prepare results
+    # Prepare results from new pipeline
     results = {
         'model': best_model,
-        'analysis': best_analysis,
         'data_profile': data_profile,
-        'attempt_summary': selector.get_attempt_summary(),
-        'final_metrics': best_analysis.metrics,
+        'pipeline_results': pipeline_results,
+        'final_metrics': pipeline_results['final_metrics'],
+        'attempt_summary': orchestrator.get_pipeline_summary(),
         'dataset': dataset,
         'data_loader': loader,
         'collate_fn': collate_fn
     }
     
     logger.info("AI-enhanced training completed!")
-    logger.info(f"Final model achieved: {best_analysis.metrics}")
+    logger.info(f"Final model achieved: {results['final_metrics']}")
     logger.info(f"Total model attempts: {results['attempt_summary']['total_attempts']}")
+    logger.info(f"Pipeline success: {results['attempt_summary']['final_success']}")
     
     return results
 
 def process_data_with_ai_enhanced_evaluation(data, labels=None, **kwargs):
     """
-    Process data with AI-enhanced evaluation and iterative model selection
+    Process data with AI-enhanced evaluation and new pipeline flow
     
     Args:
         data: Input data (any format)
@@ -123,7 +113,7 @@ def process_data_with_ai_enhanced_evaluation(data, labels=None, **kwargs):
     Returns:
         dict: Dictionary containing best model, analysis, and attempt history
     """
-    logger.info("Starting AI-enhanced data processing...")
+    logger.info("Starting AI-enhanced data processing with new pipeline flow...")
     
     # Set device - remove from kwargs to avoid duplicate parameter error
     device = kwargs.pop('device', "cuda" if torch.cuda.is_available() else "cpu")
@@ -134,7 +124,7 @@ def process_data_with_ai_enhanced_evaluation(data, labels=None, **kwargs):
     except:
         device = "cpu"
     
-    # Train with iterative selection
+    # Train with new pipeline flow
     result = train_with_iterative_selection(data, labels, device=device, **kwargs)
     
     return result
@@ -165,6 +155,12 @@ def load_data_from_files():
         return None
     
     logger.info(f"Found {len(data_files)} data files: {[f.name for f in data_files]}")
+    
+    # Prioritize NPY files if they exist
+    npy_files = [f for f in data_files if f.suffix == '.npy']
+    if npy_files:
+        logger.info("Found NPY files, prioritizing them over CSV")
+        data_files = npy_files + [f for f in data_files if f.suffix != '.npy']
     
     # Try to load data
     for file_path in data_files:
@@ -308,176 +304,89 @@ def process_real_data():
     print(f"  OpenAI: {config.openai_model}")
     
     print("\n" + "=" * 60)
-    print("Running AI-Enhanced Processing on Your Data")
+    print("Running AI-Enhanced Pipeline with New Flow")
     print("=" * 60)
+    print("Flow: Template Selection → BO → Evaluation → Feedback Loop")
     
     # Process with AI-enhanced evaluation
     result = process_data_with_ai_enhanced_evaluation(
         X, y,
         device=device,
         epochs=8,  # Reasonable number for real data
-        max_model_attempts=1  # Use single model to avoid selection issues
+        max_model_attempts=None  # Use config default for multiple model attempts
     )
     
     print(f"\nAI-Enhanced Processing Results:")
     print(f"  Final model metrics: {result['final_metrics']}")
-    print(f"  AI decision: {result['analysis'].decision}")
+    print(f"  Pipeline success: {result['attempt_summary']['final_success']}")
     print(f"  Total model attempts: {result['attempt_summary']['total_attempts']}")
+    print(f"  Best model: {result['pipeline_results']['model_name']}")
     
-    # Run BO with subset for demonstration
-    if X.shape[0] <= 50000:  # Allow BO to run, will use subset anyway
-        print(f"\n" + "=" * 60)
-        print("Running Bayesian Optimization on Your Data")
-        print("=" * 60)
-        
-        # Create charts folder
-        charts_dir = create_charts_folder()
-        print(f"Charts will be saved to: {charts_dir}")
-        
-        # Use subset if still large
-        subset_size = min(500, len(X))
-        X_subset = X[:subset_size]
-        y_subset = y[:subset_size]
-        
-        n_trials = config.max_bo_trials
-        print(f"Running {n_trials} BO trials on subset ({subset_size} samples)...")
-        
-        bo_results = run_ai_enhanced_bo(
-            X_subset, y_subset,
-            device=device,
-            n_trials=n_trials
-        )
-        
-        print(f"\nBO Results:")
+    # Generate visualization charts from pipeline results  
+    print(f"\n" + "=" * 60)
+    print("Generating Visualization Charts")
+    print("=" * 60)
+    
+    # Create charts folder
+    charts_dir = create_charts_folder()
+    print(f"Charts will be saved to: {charts_dir}")
+    
+    # The new pipeline already includes BO, so extract those results
+    if 'bo_results' in result['pipeline_results']:
+        bo_results = result['pipeline_results']['bo_results']
+        print(f"BO was already executed in pipeline:")
         print(f"  Best F1 score: {bo_results['best_value']:.4f}")
         print(f"  Best parameters: {bo_results['best_params']}")
-        print(f"  AI recommended model: {bo_results['ai_recommendation']['model_name']}")
         
-        # Generate charts
-        generate_bo_charts(bo_results, save_folder="charts")
-        print(f"\n[SUCCESS] BO charts saved to charts/ folder")
-        
-        # Final evaluation: retrain best model on full dataset
-        print(f"\n" + "=" * 60)
-        print("Final Evaluation: Retraining Best Model on Full Dataset")
-        print("=" * 60)
-        
-        best_params = bo_results['best_params']
-        print(f"Best hyperparameters from BO: {best_params}")
-        
-        # Import train/test split for proper evaluation
-        from sklearn.model_selection import train_test_split
-        
-        # Split full dataset for final evaluation
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
-        
-        print(f"Training set: {X_train.shape}, Test set: {X_test.shape}")
-        
-        # Retrain with best BO parameters on full training set
-        final_result = process_data_with_ai_enhanced_evaluation(
-            X_train, y_train,
-            device=device,
-            epochs=best_params.get('epochs', 8),
-            lr=best_params.get('lr', 0.001),
-            hidden=best_params.get('hidden', 64),
-            max_model_attempts=1  # Use the model we know works
-        )
-        
-        # Evaluate on held-out test set
-        final_model = final_result['model']
-        final_dataset = final_result['dataset']
-        final_loader = final_result['data_loader']
-        
-        # Get test loader
-        from torch.utils.data import DataLoader, TensorDataset
-        test_dataset = TensorDataset(
-            torch.tensor(X_test, dtype=torch.float32), 
-            torch.tensor(y_test, dtype=torch.long)
-        )
-        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
-        
-        # Evaluate on test set
-        from evaluation.ai_enhanced_evaluate import AIEnhancedEvaluator
-        from models.ai_model_selector import ModelRecommendation
-        
-        # Create a simple model recommendation for evaluation
-        mock_recommendation = ModelRecommendation(
-            model_name="TabMLP",
-            model_type="tabular",
-            architecture="Multi-layer perceptron",
-            input_shape=(2000,),
-            reasoning="Optimized TabMLP with best BO parameters",
-            confidence=0.95,
-            hyperparameters=best_params
-        )
-        
-        evaluator = AIEnhancedEvaluator(
-            data_profile=result['data_profile'].to_dict(),
-            model_recommendation=mock_recommendation
-        )
-        final_analysis = evaluator.evaluate_with_ai_analysis(final_model, test_loader, device)
-        final_test_metrics = final_analysis.metrics
-        
-        # Performance comparison
-        print(f"\n" + "=" * 60)
-        print("PERFORMANCE COMPARISON")
-        print("=" * 60)
-        print("Initial AI-selected model performance:")
-        print(f"  Accuracy: {result['final_metrics']['acc']:.4f}")
-        print(f"  Macro F1: {result['final_metrics']['macro_f1']:.4f}")
-        
-        print(f"\nBO-optimized model performance on test set:")
-        print(f"  Accuracy: {final_test_metrics['acc']:.4f}")
-        print(f"  Macro F1: {final_test_metrics['macro_f1']:.4f}")
-        
-        # Calculate improvement
-        acc_improvement = final_test_metrics['acc'] - result['final_metrics']['acc']
-        f1_improvement = final_test_metrics['macro_f1'] - result['final_metrics']['macro_f1']
-        
-        print(f"\nImprovement from Bayesian Optimization:")
-        print(f"  Accuracy: {acc_improvement:+.4f} ({acc_improvement*100:+.2f}%)")
-        print(f"  Macro F1: {f1_improvement:+.4f} ({f1_improvement*100:+.2f}%)")
-        
-        if acc_improvement > 0 or f1_improvement > 0:
-            print(f"\n✓ Bayesian Optimization improved model performance!")
-        else:
-            print(f"\n- Initial model was already quite good (no improvement from BO)")
-        
-        # Save final results (convert numpy types to Python types for JSON)
-        def convert_numpy_types(obj):
-            if hasattr(obj, 'item'):
-                return obj.item()
-            elif isinstance(obj, dict):
-                return {k: convert_numpy_types(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_numpy_types(v) for v in obj]
-            else:
-                return obj
-        
-        final_summary = {
-            'initial_performance': result['final_metrics'],
-            'bo_optimized_performance': final_test_metrics,
-            'best_hyperparameters': convert_numpy_types(best_params),
-            'accuracy_improvement': float(acc_improvement),
-            'f1_improvement': float(f1_improvement),
-            'total_bo_trials': int(bo_results['total_trials'])
-        }
-        
-        import json
-        with open("charts/final_comparison.json", 'w') as f:
-            json.dump(final_summary, f, indent=2)
-        
-        print(f"\n[SUCCESS] Complete pipeline results saved to charts/final_comparison.json")
-    
+        # Generate charts from pipeline BO results with timestamp
+        from datetime import datetime
+        timestamp_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
+        generate_bo_charts(bo_results, save_folder="charts", timestamp_suffix=timestamp_suffix)
+        print(f"\n[SUCCESS] BO charts saved to charts/ folder with timestamp: {timestamp_suffix}")
     else:
-        print(f"\n[WARNING] Dataset too large ({X.shape[0]} samples) for BO demo, skipping...")
+        print(f"No BO results found in pipeline - charts will show pipeline summary only")
+    
+    # Save pipeline summary
+    import json
+    
+    def convert_numpy_types(obj):
+        if hasattr(obj, 'item'):
+            return obj.item()
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {k: convert_numpy_types(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_numpy_types(v) for v in obj]
+        elif hasattr(obj, '__dict__'):
+            return convert_numpy_types(obj.__dict__)
+        else:
+            return obj
+    
+    pipeline_summary = {
+        'pipeline_type': 'AI Code Generation with BO and Feedback Loop',
+        'final_performance': convert_numpy_types(result['final_metrics']),
+        'pipeline_history': result['pipeline_results'].get('pipeline_history', []),
+        'total_attempts': result['attempt_summary']['total_attempts'],
+        'successful_attempts': result['attempt_summary']['successful_attempts'],
+        'final_success': result['attempt_summary']['final_success'],
+        'best_model': result['pipeline_results']['model_name']
+    }
+    
+    with open(f"charts/pipeline_summary_{timestamp_suffix}.json", 'w') as f:
+        json.dump(pipeline_summary, f, indent=2)
+    
+    print(f"\n[SUCCESS] Pipeline summary saved to charts/pipeline_summary_{timestamp_suffix}.json")
     
     return True
 
 if __name__ == "__main__":
     print("AI-Enhanced Machine Learning Pipeline")
+    print("Template-Based Flow: Template Selection → BO → Evaluation → Feedback Loop")
     print("=" * 80)
     
     # Process real data from data/ directory
@@ -490,12 +399,13 @@ if __name__ == "__main__":
         print("  - CSV: dataset.csv (with target column named 'target', 'label', 'class', 'y', or 'output')")
         print("  - NumPy: X.npy + y.npy (or features.npy + labels.npy)")
         print("  - NPZ: data.npz (containing 'X' and 'y' arrays)")
-        print("\nThe pipeline will automatically:")
+        print("\nThe NEW pipeline will automatically:")
         print("  1. Load and analyze your data")
-        print("  2. Use AI to select optimal model architecture")
-        print("  3. Train with iterative model improvement")
-        print("  4. Run Bayesian Optimization with visualization")
-        print("  5. Generate charts in charts/ folder")
+        print("  2. Select and configure model template using AI")
+        print("  3. Run Bayesian Optimization for hyperparameter tuning")
+        print("  4. Evaluate final model performance")
+        print("  5. Feedback loop: if performance is poor, try different model")
+        print("  6. Generate charts and summaries in charts/ folder")
         print("\nExample file structure:")
         print("  data/")
         print("    └── my_dataset.csv  # with features + target column")

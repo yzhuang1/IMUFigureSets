@@ -1,0 +1,13 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9716943308475664,
+    "macro_f1": 0.8986807744790506
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "template_name": "LSTM",
+      "model_name": "SequenceClassifier",
+      "bo_best_params": {
+        "hidden_size": 

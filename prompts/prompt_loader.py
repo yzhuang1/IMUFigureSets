@@ -80,6 +80,41 @@ class PromptLoader:
         
         return formatted_prompt
     
+    def format_code_generation_prompt(self, data_profile: Dict[str, Any], exclude_models: list = None) -> str:
+        """
+        Load and format the code generation prompt
+        
+        Args:
+            data_profile: Data profile dictionary
+            exclude_models: List of model names to exclude from selection
+        
+        Returns:
+            str: Formatted prompt
+        """
+        template = self.load_prompt("code_generation_prompt")
+        
+        # Add exclusion information if provided
+        exclusion_text = ""
+        if exclude_models:
+            exclusion_text = f"\n\n**EXCLUDED ARCHITECTURES (DO NOT GENERATE):**\n{', '.join(exclude_models)}\n\nPlease generate a different architecture than the ones listed above."
+        
+        # Format the template with data profile values
+        formatted_prompt = template.format(
+            data_profile_json=json.dumps(data_profile, indent=2, ensure_ascii=False),
+            data_type=data_profile.get('data_type', 'unknown'),
+            data_shape=data_profile.get('shape', 'unknown'),
+            sample_count=data_profile.get('sample_count', 0),
+            feature_count=data_profile.get('feature_count', 0),
+            has_labels=data_profile.get('has_labels', False),
+            label_count=data_profile.get('label_count', 0),
+            is_sequence=data_profile.get('is_sequence', False),
+            is_image=data_profile.get('is_image', False),
+            is_tabular=data_profile.get('is_tabular', False),
+            exclusion_text=exclusion_text
+        )
+        
+        return formatted_prompt
+
     def load_system_prompt(self) -> str:
         """
         Load the system prompt

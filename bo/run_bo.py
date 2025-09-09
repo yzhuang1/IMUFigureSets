@@ -133,8 +133,7 @@ class BayesianOptimizer:
             logger.info(f"Updated GP surrogate model with observation: {value:.4f}")
         
         logger.info(f"Recorded observation #{len(self.y_observed)}: "
-                   f"lr={hparams['lr']:.6f}, epochs={hparams['epochs']}, "
-                   f"hidden={hparams['hidden']}, value={value:.4f}")
+                   f"hparams={hparams}, value={value:.4f}")
     
     def get_best_params(self) -> Tuple[Dict[str, Any], float]:
         """

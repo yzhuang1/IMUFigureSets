@@ -18,7 +18,7 @@ def create_charts_folder():
     charts_dir.mkdir(exist_ok=True)
     return charts_dir
 
-def generate_bo_charts(bo_results: Dict[str, Any], save_folder: str = "charts"):
+def generate_bo_charts(bo_results: Dict[str, Any], save_folder: str = "charts", timestamp_suffix: str = None):
     """
     Generate BO visualization charts from results
     
@@ -77,21 +77,26 @@ def generate_bo_charts(bo_results: Dict[str, Any], save_folder: str = "charts"):
     # Generate charts
     logger.info(f"Generating BO visualization charts with {len(trials)} trials...")
     
+    # Create timestamp suffix if not provided
+    if timestamp_suffix is None:
+        from datetime import datetime
+        timestamp_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
     # Chart 1: Accuracy Progression
-    _plot_accuracy_progression(trials, accuracies, best_so_far, charts_dir)
+    _plot_accuracy_progression(trials, accuracies, best_so_far, charts_dir, timestamp_suffix)
     
     # Chart 2: Hyperparameter Analysis
-    _plot_hyperparameter_analysis(trials, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir)
+    _plot_hyperparameter_analysis(trials, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir, timestamp_suffix)
     
     # Chart 3: Convergence Analysis
-    _plot_convergence_analysis(trials, accuracies, best_so_far, charts_dir)
+    _plot_convergence_analysis(trials, accuracies, best_so_far, charts_dir, timestamp_suffix)
     
     # Generate summary stats
-    _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir)
+    _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir, timestamp_suffix)
     
     logger.info(f"BO charts saved to: {charts_dir}")
 
-def _plot_accuracy_progression(trials, accuracies, best_so_far, charts_dir):
+def _plot_accuracy_progression(trials, accuracies, best_so_far, charts_dir, timestamp_suffix):
     """Plot accuracy progression over BO trials"""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
     
@@ -125,10 +130,10 @@ def _plot_accuracy_progression(trials, accuracies, best_so_far, charts_dir):
     ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig(charts_dir / "accuracy_progression.png", dpi=300, bbox_inches='tight')
+    plt.savefig(charts_dir / f"accuracy_progression_{timestamp_suffix}.png", dpi=300, bbox_inches='tight')
     plt.close()
 
-def _plot_hyperparameter_analysis(trials, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir):
+def _plot_hyperparameter_analysis(trials, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir, timestamp_suffix):
     """Plot hyperparameter vs accuracy analysis"""
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     
@@ -169,10 +174,10 @@ def _plot_hyperparameter_analysis(trials, accuracies, learning_rates, epochs_lis
     axes[1, 1].legend()
     
     plt.tight_layout()
-    plt.savefig(charts_dir / "hyperparameter_analysis.png", dpi=300, bbox_inches='tight')
+    plt.savefig(charts_dir / f"hyperparameter_analysis_{timestamp_suffix}.png", dpi=300, bbox_inches='tight')
     plt.close()
 
-def _plot_convergence_analysis(trials, accuracies, best_so_far, charts_dir):
+def _plot_convergence_analysis(trials, accuracies, best_so_far, charts_dir, timestamp_suffix):
     """Plot BO convergence analysis"""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
     
@@ -210,10 +215,10 @@ def _plot_convergence_analysis(trials, accuracies, best_so_far, charts_dir):
     ax2.legend()
     
     plt.tight_layout()
-    plt.savefig(charts_dir / "convergence_analysis.png", dpi=300, bbox_inches='tight')
+    plt.savefig(charts_dir / f"convergence_analysis_{timestamp_suffix}.png", dpi=300, bbox_inches='tight')
     plt.close()
 
-def _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir):
+def _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir, timestamp_suffix):
     """Generate and save summary statistics"""
     if not accuracies:
         return
@@ -237,7 +242,7 @@ def _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list,
     }
     
     # Save to text file
-    summary_file = charts_dir / "bo_summary.txt"
+    summary_file = charts_dir / f"bo_summary_{timestamp_suffix}.txt"
     with open(summary_file, 'w') as f:
         f.write("BAYESIAN OPTIMIZATION SUMMARY\n")
         f.write("=" * 60 + "\n")

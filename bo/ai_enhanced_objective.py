@@ -10,8 +10,8 @@ from torch.utils.data import DataLoader
 import logging
 
 from adapters.universal_converter import convert_to_torch_dataset
-from models.ai_model_selector import select_model_for_data
-from models.dynamic_model_registry import build_model_from_recommendation
+from models.ai_template_selector import select_template_for_data
+from models.model_templates import create_model_from_template
 from train import train_one_model
 from evaluation.evaluate import evaluate_model
 
@@ -38,8 +38,8 @@ class AIEnhancedObjective:
         # Preprocess data
         self._preprocess_data()
         
-        # Get AI recommendation
-        self._get_ai_recommendation()
+        # Get AI template selection
+        self._get_ai_template_selection()
     
     def _preprocess_data(self):
         """Preprocess data"""
@@ -52,19 +52,31 @@ class AIEnhancedObjective:
         
         logger.info(f"Data preprocessing completed: {self.data_profile}")
     
-    def _get_ai_recommendation(self):
-        """Get AI model recommendation"""
-        logger.info("Getting AI model recommendation...")
+    def _get_ai_template_selection(self):
+        """Get AI template selection"""
+        logger.info("Getting AI template selection...")
         
-        self.recommendation = select_model_for_data(self.data_profile.to_dict())
+        # Determine input shape and num classes for template selection
+        input_shape = self._determine_input_shape()
+        num_classes = self.data_profile.label_count if self.data_profile.has_labels else 2
         
-        logger.info(f"AI recommended model: {self.recommendation.model_name}")
-        logger.info(f"Recommendation reason: {self.recommendation.reasoning}")
+        self.template_rec = select_template_for_data(
+            self.data_profile.to_dict(),
+            input_shape,
+            num_classes
+        )
+        
+        logger.info(f"AI selected template: {self.template_rec.template_name} -> {self.template_rec.model_name}")
+        logger.info(f"Selection reason: {self.template_rec.reasoning}")
     
     def _determine_input_shape(self) -> tuple:
         """Determine input shape"""
         if self.data_profile.is_sequence:
-            return (self.data_profile.feature_count,)
+            # For sequence data like ECG (samples, seq_len, features), use (seq_len, features)
+            if len(self.data_profile.shape) == 3:
+                return self.data_profile.shape[1:]  # (seq_len, features)
+            else:
+                return (self.data_profile.feature_count,)
         elif self.data_profile.is_image:
             if (self.data_profile.channels and 
                 self.data_profile.height and 
@@ -80,19 +92,18 @@ class AIEnhancedObjective:
             return (self.data_profile.feature_count,)
     
     def _create_model(self, hparams: Dict[str, Any]) -> torch.nn.Module:
-        """Create model"""
-        # Determine input shape and number of classes
-        input_shape = self._determine_input_shape()
-        num_classes = self.data_profile.label_count if self.data_profile.has_labels else 2
+        """Create model using template"""
+        # Create model from template with configuration
+        config = self.template_rec.config.copy()
         
-        # Merge hyperparameters
-        model_params = self.recommendation.hyperparameters.copy()
-        model_params.update(hparams)
+        # Update config with any BO hyperparameters that are model params
+        for param, value in hparams.items():
+            if param in ['lr', 'batch_size', 'epochs']:
+                continue  # These are training params, not model params
+            if param in config:
+                config[param] = value
         
-        # Build model
-        model = build_model_from_recommendation(
-            self.recommendation, input_shape, num_classes
-        )
+        model = create_model_from_template(self.template_rec.template_name, config)
         
         return model
     
@@ -136,8 +147,9 @@ class AIEnhancedObjective:
             
             # Add extra information
             metrics.update({
-                "model_name": self.recommendation.model_name,
-                "confidence": self.recommendation.confidence,
+                "template_name": self.template_rec.template_name,
+                "model_name": self.template_rec.model_name,
+                "confidence": self.template_rec.confidence,
                 "data_type": self.data_profile.data_type,
                 "sample_count": self.data_profile.sample_count,
                 "feature_count": self.data_profile.feature_count

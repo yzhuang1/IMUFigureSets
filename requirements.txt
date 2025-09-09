@@ -1,4 +1,5 @@
-torch>=2.1
+# Install with: pip install torch --index-url https://download.pytorch.org/whl/cu121
+# torch>=2.1  # Use CUDA installation command above instead
 numpy
 pandas
 scikit-learn

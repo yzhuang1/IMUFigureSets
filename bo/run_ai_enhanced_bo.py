@@ -11,7 +11,7 @@ import json
 import time
 
 from adapters.universal_converter import convert_to_torch_dataset
-from models.ai_model_selector import select_model_for_data
+from models.ai_template_selector import select_template_for_data
 from bo.ai_enhanced_objective import create_ai_enhanced_objective
 from bo.run_bo import suggest, observe, reset_optimizer, get_optimizer_info
 
@@ -74,14 +74,31 @@ class AIEnhancedBO:
         logger.info(f"Data preprocessing completed: {self.data_profile}")
     
     def _get_ai_recommendation(self):
-        """Get AI model recommendation"""
-        logger.info("Getting AI model recommendation...")
+        """Get AI template recommendation"""
+        logger.info("Getting AI template recommendation...")
         
-        self.recommendation = select_model_for_data(self.data_profile.to_dict())
+        # We need input_shape and num_classes for template selection
+        if self.data_profile.is_sequence:
+            input_shape = (self.data_profile.feature_count,)
+        elif self.data_profile.is_image:
+            if self.data_profile.channels and self.data_profile.height and self.data_profile.width:
+                input_shape = (self.data_profile.channels, self.data_profile.height, self.data_profile.width)
+            else:
+                input_shape = (3, 32, 32)  # Default
+        else:
+            input_shape = (self.data_profile.feature_count,)
         
-        logger.info(f"AI recommended model: {self.recommendation.model_name}")
-        logger.info(f"Recommendation reason: {self.recommendation.reasoning}")
-        logger.info(f"Confidence: {self.recommendation.confidence:.2f}")
+        num_classes = self.data_profile.label_count if self.data_profile.has_labels else 2
+        
+        self.template_rec = select_template_for_data(
+            self.data_profile.to_dict(),
+            input_shape,
+            num_classes
+        )
+        
+        logger.info(f"AI selected template: {self.template_rec.template_name} -> {self.template_rec.model_name}")
+        logger.info(f"Selection reason: {self.template_rec.reasoning}")
+        logger.info(f"Confidence: {self.template_rec.confidence:.2f}")
     
     def run_optimization(self) -> Dict[str, Any]:
         """
@@ -146,11 +163,13 @@ class AIEnhancedBO:
             'bo_convergence': convergence_info,
             'data_profile': self.data_profile.to_dict(),
             'ai_recommendation': {
-                'model_name': self.recommendation.model_name,
-                'model_type': self.recommendation.model_type,
-                'architecture': self.recommendation.architecture,
-                'reasoning': self.recommendation.reasoning,
-                'confidence': self.recommendation.confidence
+                'template_name': self.template_rec.template_name,
+                'model_name': self.template_rec.model_name,
+                'model_type': 'template_based',
+                'architecture': f'{self.template_rec.template_name} template',
+                'reasoning': self.template_rec.reasoning,
+                'confidence': self.template_rec.confidence,
+                'config': self.template_rec.config
             },
             'all_results': self.results
         }
