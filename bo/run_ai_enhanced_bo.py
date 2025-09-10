@@ -42,9 +42,8 @@ class AIEnhancedBO:
         
         logger.info(f"AIEnhancedBO initialized with n_trials={self.n_trials}")
         
-        # Reset BO optimizer for clean start
-        reset_optimizer()
-        logger.info("Reset Bayesian Optimizer for new optimization run")
+        # Reset BO optimizer for clean start (will be done after AI recommendation)
+        logger.info("Will reset Bayesian Optimizer after AI template selection")
         
         # Preprocess data
         self._preprocess_data()
@@ -99,6 +98,10 @@ class AIEnhancedBO:
         logger.info(f"AI selected template: {self.template_rec.template_name} -> {self.template_rec.model_name}")
         logger.info(f"Selection reason: {self.template_rec.reasoning}")
         logger.info(f"Confidence: {self.template_rec.confidence:.2f}")
+        
+        # Now reset BO optimizer with template-aware search space
+        reset_optimizer(self.template_rec.template_name)
+        logger.info(f"Reset BO optimizer with template-aware search space for {self.template_rec.template_name}")
     
     def run_optimization(self) -> Dict[str, Any]:
         """
@@ -114,8 +117,8 @@ class AIEnhancedBO:
         for trial in range(self.n_trials):
             logger.info(f"Trial {trial + 1}/{self.n_trials}")
             
-            # Suggest hyperparameters
-            hparams = suggest()
+            # Suggest hyperparameters (template-aware)
+            hparams = suggest(self.template_rec.template_name)
             
             # Evaluate objective function
             try:

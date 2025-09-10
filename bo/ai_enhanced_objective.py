@@ -92,16 +92,31 @@ class AIEnhancedObjective:
             return (self.data_profile.feature_count,)
     
     def _create_model(self, hparams: Dict[str, Any]) -> torch.nn.Module:
-        """Create model using template"""
-        # Create model from template with configuration
+        """Create model using template with properly mapped parameters"""
+        # Start with template's base configuration
         config = self.template_rec.config.copy()
         
-        # Update config with any BO hyperparameters that are model params
+        # Separate training params from model params
+        training_params = ['lr', 'batch_size', 'epochs']
+        
+        # Update config with BO hyperparameters that are model params
         for param, value in hparams.items():
-            if param in ['lr', 'batch_size', 'epochs']:
-                continue  # These are training params, not model params
+            if param in training_params:
+                continue  # Skip training params
+            
+            # Direct mapping for matching parameter names
             if param in config:
                 config[param] = value
+            # Handle special cases for parameter name mapping
+            elif param == 'hidden' and 'hidden_size' in config:
+                config['hidden_size'] = value
+            elif self.template_rec.template_name == "MLP" and param == 'hidden_size':
+                # For MLP, map hidden_size to hidden_sizes list
+                if 'hidden_sizes' in config:
+                    config['hidden_sizes'] = [value, value // 2, value // 4]
+        
+        # Log the final configuration for debugging
+        logger.info(f"Creating {self.template_rec.template_name} with config: {config}")
         
         model = create_model_from_template(self.template_rec.template_name, config)
         
@@ -122,11 +137,12 @@ class AIEnhancedObjective:
             model = self._create_model(hparams)
             model.to(self.device)
             
-            # Split dataset into train/validation (80/20 split)
+            # Split dataset into train/validation (80/20 split) with FIXED seed
             from torch.utils.data import random_split
             train_size = int(0.8 * len(self.dataset))
             val_size = len(self.dataset) - train_size
-            train_dataset, val_dataset = random_split(self.dataset, [train_size, val_size])
+            generator = torch.Generator().manual_seed(42)  # Fixed seed for reproducible splits
+            train_dataset, val_dataset = random_split(self.dataset, [train_size, val_size], generator=generator)
             
             # Create separate data loaders
             batch_size = hparams.get('batch_size', 64)

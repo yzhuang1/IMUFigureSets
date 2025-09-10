@@ -22,6 +22,23 @@ from visualization import generate_bo_charts, create_charts_folder
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from datetime import datetime
+
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+
+log_filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log")
+log_path = os.path.join(LOG_DIR, log_filename)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    handlers=[
+        logging.FileHandler(log_path, mode="w", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
+
 def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, max_model_attempts=None, **kwargs):
     """
     Train model with AI-enhanced pipeline: Model Generation → BO → Evaluation → Feedback
@@ -198,7 +215,11 @@ def load_data_from_files():
             elif file_path.suffix == '.npy':
                 # Check for X.npy and y.npy pair
                 if 'X' in file_path.stem or 'features' in file_path.stem.lower():
-                    X = np.load(file_path)
+                    try:
+                        X = np.load(file_path, allow_pickle=True)
+                    except Exception as e:
+                        logger.error(f"Failed to load {file_path.name}: {e}")
+                        continue
                     
                     # Look for corresponding y file
                     y_candidates = [
@@ -210,23 +231,31 @@ def load_data_from_files():
                     
                     for y_path in y_candidates:
                         if y_path.exists():
-                            y = np.load(y_path)
-                            
-                            data_info = {
-                                'source': f"{file_path.name} + {y_path.name}",
-                                'format': 'NPY',
-                                'shape': X.shape,
-                                'classes': len(np.unique(y)) if y.ndim == 1 else 'varied'
-                            }
-                            
-                            logger.info(f"Successfully loaded NPY data: X{X.shape}, y{y.shape}")
-                            return X.astype('float32'), y, data_info
+                            try:
+                                y = np.load(y_path, allow_pickle=True)
+                                
+                                data_info = {
+                                    'source': f"{file_path.name} + {y_path.name}",
+                                    'format': 'NPY',
+                                    'shape': X.shape,
+                                    'classes': len(np.unique(y)) if y.ndim == 1 else 'varied'
+                                }
+                                
+                                logger.info(f"Successfully loaded NPY data: X{X.shape}, y{y.shape}")
+                                return X.astype('float32'), y, data_info
+                            except Exception as e:
+                                logger.error(f"Failed to load {y_path.name}: {e}")
+                                continue
                     
                     logger.warning(f"Found {file_path.name} but no corresponding target file")
                 
                 else:
                     # Single NPY file - assume it contains both X and y
-                    data = np.load(file_path, allow_pickle=True)
+                    try:
+                        data = np.load(file_path, allow_pickle=True)
+                    except Exception as e:
+                        logger.error(f"Failed to load {file_path.name}: {e}")
+                        continue
                     if isinstance(data, dict) and 'X' in data and 'y' in data:
                         X, y = data['X'], data['y']
                         
@@ -242,21 +271,25 @@ def load_data_from_files():
             
             elif file_path.suffix == '.npz':
                 # NPZ file
-                data = np.load(file_path)
-                if 'X' in data.files and 'y' in data.files:
-                    X, y = data['X'], data['y']
-                    
-                    data_info = {
-                        'source': file_path.name,
-                        'format': 'NPZ',
-                        'shape': X.shape,
-                        'classes': len(np.unique(y)) if y.ndim == 1 else 'varied'
-                    }
-                    
-                    logger.info(f"Successfully loaded NPZ data: X{X.shape}, y{y.shape}")
-                    return X.astype('float32'), y, data_info
-                else:
-                    logger.warning(f"NPZ file {file_path.name} missing 'X' or 'y' keys")
+                try:
+                    data = np.load(file_path, allow_pickle=True)
+                    if 'X' in data.files and 'y' in data.files:
+                        X, y = data['X'], data['y']
+                        
+                        data_info = {
+                            'source': file_path.name,
+                            'format': 'NPZ',
+                            'shape': X.shape,
+                            'classes': len(np.unique(y)) if y.ndim == 1 else 'varied'
+                        }
+                        
+                        logger.info(f"Successfully loaded NPZ data: X{X.shape}, y{y.shape}")
+                        return X.astype('float32'), y, data_info
+                    else:
+                        logger.warning(f"NPZ file {file_path.name} missing 'X' or 'y' keys")
+                except Exception as e:
+                    logger.error(f"Failed to load {file_path.name}: {e}")
+                    continue
         
         except Exception as e:
             logger.error(f"Failed to load {file_path.name}: {e}")
@@ -378,7 +411,7 @@ def process_real_data():
     }
     
     with open(f"charts/pipeline_summary_{timestamp_suffix}.json", 'w') as f:
-        json.dump(pipeline_summary, f, indent=2)
+        json.dump(pipeline_summary, f, indent=2, default=str)
     
     print(f"\n[SUCCESS] Pipeline summary saved to charts/pipeline_summary_{timestamp_suffix}.json")
     

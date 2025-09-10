@@ -77,10 +77,16 @@ def generate_bo_charts(bo_results: Dict[str, Any], save_folder: str = "charts", 
     # Generate charts
     logger.info(f"Generating BO visualization charts with {len(trials)} trials...")
     
-    # Create timestamp suffix if not provided
+    # Create timestamp suffix if not provided, or use empty string for subfolder approach
     if timestamp_suffix is None:
-        from datetime import datetime
-        timestamp_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Check if we're already in a timestamped subfolder
+        if "BO_" in str(charts_dir) and any(char.isdigit() for char in str(charts_dir)):
+            # We're in a subfolder, use simple names
+            timestamp_suffix = ""
+        else:
+            # We're in root charts/, use timestamp
+            from datetime import datetime
+            timestamp_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Chart 1: Accuracy Progression
     _plot_accuracy_progression(trials, accuracies, best_so_far, charts_dir, timestamp_suffix)
@@ -130,7 +136,8 @@ def _plot_accuracy_progression(trials, accuracies, best_so_far, charts_dir, time
     ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig(charts_dir / f"accuracy_progression_{timestamp_suffix}.png", dpi=300, bbox_inches='tight')
+    filename = "accuracy_progression.png" if timestamp_suffix == "" else f"accuracy_progression_{timestamp_suffix}.png"
+    plt.savefig(charts_dir / filename, dpi=300, bbox_inches='tight')
     plt.close()
 
 def _plot_hyperparameter_analysis(trials, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir, timestamp_suffix):
@@ -174,7 +181,8 @@ def _plot_hyperparameter_analysis(trials, accuracies, learning_rates, epochs_lis
     axes[1, 1].legend()
     
     plt.tight_layout()
-    plt.savefig(charts_dir / f"hyperparameter_analysis_{timestamp_suffix}.png", dpi=300, bbox_inches='tight')
+    filename = "hyperparameter_analysis.png" if timestamp_suffix == "" else f"hyperparameter_analysis_{timestamp_suffix}.png"
+    plt.savefig(charts_dir / filename, dpi=300, bbox_inches='tight')
     plt.close()
 
 def _plot_convergence_analysis(trials, accuracies, best_so_far, charts_dir, timestamp_suffix):
@@ -215,7 +223,8 @@ def _plot_convergence_analysis(trials, accuracies, best_so_far, charts_dir, time
     ax2.legend()
     
     plt.tight_layout()
-    plt.savefig(charts_dir / f"convergence_analysis_{timestamp_suffix}.png", dpi=300, bbox_inches='tight')
+    filename = "convergence_analysis.png" if timestamp_suffix == "" else f"convergence_analysis_{timestamp_suffix}.png"
+    plt.savefig(charts_dir / filename, dpi=300, bbox_inches='tight')
     plt.close()
 
 def _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir, timestamp_suffix):
@@ -242,7 +251,8 @@ def _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list,
     }
     
     # Save to text file
-    summary_file = charts_dir / f"bo_summary_{timestamp_suffix}.txt"
+    filename = "bo_summary.txt" if timestamp_suffix == "" else f"bo_summary_{timestamp_suffix}.txt"
+    summary_file = charts_dir / filename
     with open(summary_file, 'w') as f:
         f.write("BAYESIAN OPTIMIZATION SUMMARY\n")
         f.write("=" * 60 + "\n")

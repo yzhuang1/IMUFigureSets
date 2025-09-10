@@ -13,6 +13,7 @@ from models.model_templates import create_model_from_template
 from models.template_trainer import train_template_model
 from bo.run_ai_enhanced_bo import run_ai_enhanced_bo
 from evaluation.evaluate import evaluate_model
+from visualization import generate_bo_charts, create_charts_folder
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -228,39 +229,16 @@ class TemplatePipelineOrchestrator:
                     batch_size = int(hparams.get('batch_size', 64))  # Full batch size with GPU
                     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
                     
-                    # Train model with more realistic epochs for BO
+                    # Train model with sufficient epochs for BO
                     training_params = {
                         'lr': hparams.get('lr', 0.001),
-                        'epochs': min(int(hparams.get('epochs', 5)), 3)  # Even shorter epochs for more variation
+                        'epochs': int(hparams.get('epochs', 8))  # Allow proper training time
                     }
                     
                     trained_model, metrics = train_template_model(model, loader, device, **training_params)
                     
-                    # Return F1 score as objective with more aggressive noise for realism
-                    base_f1 = metrics.get('macro_f1', 0.0)
-                    
-                    # Add more aggressive realistic variation based on hyperparameters
-                    # Poor hyperparameter combinations should get worse scores
-                    lr = hparams.get('lr', 0.001)
-                    dropout = hparams.get('dropout', 0.1)
-                    hidden_size = hparams.get('hidden_size', 64)
-                    
-                    # Penalty for extreme learning rates
-                    if lr > 0.01 or lr < 0.0001:
-                        base_f1 *= 0.85  # 15% penalty
-                    
-                    # Penalty for extreme dropout
-                    if dropout > 0.4 or dropout < 0.05:
-                        base_f1 *= 0.9   # 10% penalty
-                    
-                    # Penalty for very small hidden sizes with complex data
-                    if hidden_size < 50:
-                        base_f1 *= 0.88  # 12% penalty
-                    
-                    # Add noise based on training instability
-                    noise_factor = 0.15 + 0.05 * abs(lr - 0.001) * 1000  # More noise for extreme LRs
-                    noise = random.uniform(-noise_factor, noise_factor) * base_f1
-                    objective_value = max(0.1, min(0.95, base_f1 + noise))  # Keep in realistic range
+                    # Return F1 score as objective - NO ARTIFICIAL NOISE!
+                    objective_value = metrics.get('macro_f1', 0.0)
                     
                     return float(objective_value), metrics
                     
@@ -366,6 +344,9 @@ class TemplatePipelineOrchestrator:
         logger.info(f"BO completed - Best score: {bo_results['best_value']:.4f}")
         logger.info(f"Best params: {bo_results['best_params']}")
         
+        # Generate BO charts immediately after completion
+        self._generate_bo_charts(bo_results, template_rec.template_name)
+        
         return bo_results
     
     def _final_evaluation(
@@ -470,6 +451,36 @@ class TemplatePipelineOrchestrator:
         logger.info(f"  Acc: {accuracy:.4f} ≥ {self.min_acceptable_accuracy} ? {acceptable_acc}")
         
         return acceptable_f1 and acceptable_acc
+    
+    def _generate_bo_charts(self, bo_results: Dict[str, Any], template_name: str):
+        """Generate BO charts immediately after BO completion"""
+        try:
+            from datetime import datetime
+            from pathlib import Path
+            
+            # Create timestamp for unique subfolder
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Create subfolder: charts/BO_LSTM_20250909_223108/
+            subfolder_name = f"BO_{template_name}_{timestamp}"
+            charts_subfolder = Path("charts") / subfolder_name
+            charts_subfolder.mkdir(parents=True, exist_ok=True)
+            
+            # Create a complete BO results structure for chart generation
+            chart_results = {
+                'all_results': bo_results.get('all_results', []),
+                'best_value': bo_results.get('best_value', 0),
+                'best_params': bo_results.get('best_params', {}),
+                'template_name': template_name
+            }
+            
+            # Generate the charts in the subfolder (no timestamp suffix needed for filenames)
+            generate_bo_charts(chart_results, save_folder=str(charts_subfolder), timestamp_suffix=None)
+            
+            logger.info(f"📊 BO charts saved to subfolder: {charts_subfolder}")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate BO charts: {e}")
     
     def get_pipeline_summary(self) -> Dict[str, Any]:
         """Get summary of entire pipeline execution"""

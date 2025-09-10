@@ -1,0 +1,34 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9332852217143773,
+    "macro_f1": 0.556029556358107
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "template_name": "LSTM",
+      "model_name": "SequenceClassifier",
+      "bo_best_params": {
+        "hidden_size": "126",
+        "dropout": 0.35189670470558765,
+        "num_layers": "1",
+        "lr": 0.0029175317316421,
+        "batch_size": "32",
+        "epochs": "13"
+      },
+      "bo_best_score": 0.3095814931539492,
+      "final_metrics": {
+        "acc": 0.9332852217143773,
+        "macro_f1": 0.556029556358107
+      },
+      "performance_score": 0.556029556358107,
+      "acceptable": true,
+      "reasoning": "LSTM is chosen because it is best suited for sequence data with temporal dependencies"
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "SequenceClassifier"
+}
