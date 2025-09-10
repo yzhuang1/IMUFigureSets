@@ -122,25 +122,37 @@ class AIEnhancedObjective:
             model = self._create_model(hparams)
             model.to(self.device)
             
-            # Create data loader
+            # Split dataset into train/validation (80/20 split)
+            from torch.utils.data import random_split
+            train_size = int(0.8 * len(self.dataset))
+            val_size = len(self.dataset) - train_size
+            train_dataset, val_dataset = random_split(self.dataset, [train_size, val_size])
+            
+            # Create separate data loaders
             batch_size = hparams.get('batch_size', 64)
-            loader = DataLoader(
-                self.dataset, 
+            train_loader = DataLoader(
+                train_dataset, 
                 batch_size=batch_size, 
                 shuffle=True, 
                 collate_fn=self.collate_fn
             )
+            val_loader = DataLoader(
+                val_dataset, 
+                batch_size=batch_size, 
+                shuffle=False, 
+                collate_fn=self.collate_fn
+            )
             
-            # Train model
+            # Train model on training set
             epochs = hparams.get('epochs', 3)
             lr = hparams.get('lr', 1e-3)
             
             trained_model = train_one_model(
-                model, loader, device=self.device, epochs=epochs, lr=lr
+                model, train_loader, device=self.device, epochs=epochs, lr=lr
             )
             
-            # Evaluate model
-            metrics = evaluate_model(trained_model, loader, device=self.device)
+            # Evaluate model on validation set (unseen data)
+            metrics = evaluate_model(trained_model, val_loader, device=self.device)
             
             # Return objective value (using macro_f1 as main metric)
             objective_value = metrics.get("macro_f1", 0.0)
