@@ -13,7 +13,6 @@ import os
 from pathlib import Path
 
 from adapters.universal_converter import convert_to_torch_dataset
-from evaluation.template_pipeline_orchestrator import TemplatePipelineOrchestrator
 from evaluation.code_generation_pipeline_orchestrator import CodeGenerationPipelineOrchestrator
 from visualization import generate_bo_charts, create_charts_folder
 
