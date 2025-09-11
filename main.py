@@ -14,14 +14,10 @@ from pathlib import Path
 
 from adapters.universal_converter import convert_to_torch_dataset
 from evaluation.template_pipeline_orchestrator import TemplatePipelineOrchestrator
-from train import train_one_model
-from bo.run_ai_enhanced_bo import run_ai_enhanced_bo
+from evaluation.code_generation_pipeline_orchestrator import CodeGenerationPipelineOrchestrator
 from visualization import generate_bo_charts, create_charts_folder
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 from datetime import datetime
 
 LOG_DIR = "logs"
@@ -38,6 +34,8 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+logger = logging.getLogger(__name__)
 
 def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, max_model_attempts=None, **kwargs):
     """
@@ -83,8 +81,8 @@ def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, ma
     
     num_classes = data_profile.label_count if data_profile.has_labels else 2
     
-    # Create template-based orchestrator for complete pipeline
-    orchestrator = TemplatePipelineOrchestrator(
+    # Create code generation orchestrator for complete pipeline
+    orchestrator = CodeGenerationPipelineOrchestrator(
         data_profile=data_profile.to_dict(),
         max_model_attempts=max_model_attempts
     )
@@ -337,9 +335,9 @@ def process_real_data():
     print(f"  OpenAI: {config.openai_model}")
     
     print("\n" + "=" * 60)
-    print("Running AI-Enhanced Pipeline with New Flow")
+    print("Running AI-Enhanced Pipeline with Code Generation")
     print("=" * 60)
-    print("Flow: Template Selection → BO → Evaluation → Feedback Loop")
+    print("Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation")
     
     # Process with AI-enhanced evaluation
     result = process_data_with_ai_enhanced_evaluation(
@@ -407,7 +405,8 @@ def process_real_data():
         'total_attempts': result['attempt_summary']['total_attempts'],
         'successful_attempts': result['attempt_summary']['successful_attempts'],
         'final_success': result['attempt_summary']['final_success'],
-        'best_model': result['pipeline_results']['model_name']
+        'best_model': result['pipeline_results']['model_name'],
+        'generated_functions': result['pipeline_results'].get('generated_functions', [])
     }
     
     with open(f"charts/pipeline_summary_{timestamp_suffix}.json", 'w') as f:
@@ -419,7 +418,7 @@ def process_real_data():
 
 if __name__ == "__main__":
     print("AI-Enhanced Machine Learning Pipeline")
-    print("Template-Based Flow: Template Selection → BO → Evaluation → Feedback Loop")
+    print("Code Generation Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation")
     print("=" * 80)
     
     # Process real data from data/ directory
@@ -434,11 +433,13 @@ if __name__ == "__main__":
         print("  - NPZ: data.npz (containing 'X' and 'y' arrays)")
         print("\nThe NEW pipeline will automatically:")
         print("  1. Load and analyze your data")
-        print("  2. Select and configure model template using AI")
-        print("  3. Run Bayesian Optimization for hyperparameter tuning")
-        print("  4. Evaluate final model performance")
-        print("  5. Feedback loop: if performance is poor, try different model")
-        print("  6. Generate charts and summaries in charts/ folder")
+        print("  2. Generate complete training function code using AI")
+        print("  3. Save training function to JSON file")
+        print("  4. Run Bayesian Optimization for hyperparameter tuning")
+        print("  5. Execute training using generated code with optimized parameters")
+        print("  6. Evaluate final model performance")
+        print("  7. Feedback loop: if performance is poor, generate new training function")
+        print("  8. Generate charts and summaries in charts/ folder")
         print("\nExample file structure:")
         print("  data/")
         print("    └── my_dataset.csv  # with features + target column")

@@ -103,7 +103,7 @@ _search_space_bounds = {
 class BayesianOptimizer:
     """Bayesian Optimization implementation with Gaussian Process surrogate model"""
     
-    def __init__(self, search_space=None, template_name=None, n_initial_points=3, acquisition_func='EI'):
+    def __init__(self, search_space=None, template_name=None, n_initial_points=8, acquisition_func='EI'):
         """
         Initialize Bayesian Optimizer
         

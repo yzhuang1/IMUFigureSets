@@ -11,7 +11,6 @@ from torch.utils.data import DataLoader
 from models.ai_template_selector import select_template_for_data, TemplateRecommendation
 from models.model_templates import create_model_from_template
 from models.template_trainer import train_template_model
-from bo.run_ai_enhanced_bo import run_ai_enhanced_bo
 from evaluation.evaluate import evaluate_model
 from visualization import generate_bo_charts, create_charts_folder
 from config import config
