@@ -91,6 +91,7 @@ IMPORTANT GUIDELINES:
 - All hyperparameters should be tunable via function parameters
 - Code should be production-ready and error-free
 - Return both model and metrics dictionary
+- **CRITICAL: Keep model size small - final compressed model must be under 256K. Choose lightweight architectures with fewer parameters, smaller hidden sizes, and fewer layers.**
 """
 
         return prompt
