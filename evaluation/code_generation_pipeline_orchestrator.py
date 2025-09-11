@@ -9,6 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 from models.ai_code_generator import generate_training_code_for_data, ai_code_generator
 from models.training_function_executor import training_executor, BO_TrainingObjective
@@ -63,31 +64,43 @@ class CodeGenerationPipelineOrchestrator:
         best_results = None
         best_score = -float('inf')
         
-        for attempt in range(self.max_model_attempts):
+        # Progress bar for pipeline attempts
+        pipeline_pbar = tqdm(range(self.max_model_attempts), 
+                            desc="🚀 ML Pipeline", 
+                            unit="attempt",
+                            position=0,
+                            leave=True)
+        
+        for attempt in pipeline_pbar:
             logger.info(f"\n{'='*60}")
             logger.info(f"PIPELINE ATTEMPT {attempt + 1}/{self.max_model_attempts}")
             logger.info(f"{'='*60}")
             
             try:
                 # STEP 1: AI Code Generation
+                pipeline_pbar.set_description(f"🤖 AI Code Generation [{attempt + 1}/{self.max_model_attempts}]")
                 logger.info("🤖 STEP 1: AI Training Code Generation")
                 code_rec = self._generate_training_code(input_shape, num_classes)
                 
                 # STEP 2: Save to JSON
+                pipeline_pbar.set_description(f"💾 Saving Function [{attempt + 1}/{self.max_model_attempts}]")
                 logger.info("💾 STEP 2: Save Training Function to JSON")
                 json_filepath = self._save_training_function(code_rec)
                 
                 # STEP 3: Bayesian Optimization
+                pipeline_pbar.set_description(f"🔍 Bayesian Optimization [{attempt + 1}/{self.max_model_attempts}]")
                 logger.info("🔍 STEP 3: Bayesian Optimization")
                 bo_results = self._run_bayesian_optimization(X, y, device, code_rec)
                 
                 # STEP 4: Final Training with Optimized Parameters
+                pipeline_pbar.set_description(f"🚀 Final Training [{attempt + 1}/{self.max_model_attempts}]")
                 logger.info("🚀 STEP 4: Final Training Execution")
                 final_model, training_results = self._execute_final_training(
                     X, y, device, json_filepath, bo_results
                 )
                 
                 # STEP 5: Performance Analysis
+                pipeline_pbar.set_description(f"📊 Performance Analysis [{attempt + 1}/{self.max_model_attempts}]")
                 logger.info("📊 STEP 5: Performance Analysis")
                 performance_score = training_results['final_metrics']['macro_f1']
                 is_acceptable = self._is_performance_acceptable(training_results['final_metrics'])
@@ -141,6 +154,9 @@ class CodeGenerationPipelineOrchestrator:
                 }
                 self.pipeline_history.append(attempt_record)
                 continue
+        
+        # Close pipeline progress bar
+        pipeline_pbar.close()
         
         if best_model is None:
             raise RuntimeError("Pipeline failed: No successful code generation after all attempts")
@@ -258,7 +274,17 @@ class CodeGenerationPipelineOrchestrator:
         
         # Run BO optimization
         results = []
-        for trial in range(config.max_bo_trials):
+        best_score = 0.0
+        
+        # Progress bar for BO trials
+        pbar = tqdm(range(config.max_bo_trials), 
+                   desc="🔍 Bayesian Optimization", 
+                   unit="trial",
+                   position=1,
+                   leave=False,
+                   bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] Best: {postfix}")
+        
+        for trial in pbar:
             # Get next hyperparameters
             hparams = bo_optimizer.suggest()
             
@@ -272,12 +298,20 @@ class CodeGenerationPipelineOrchestrator:
                 })
                 
                 bo_optimizer.observe(hparams, value)
+                
+                # Update best score for progress bar
+                best_score = max(best_score, value)
+                pbar.set_postfix_str(f"{best_score:.4f}")
+                
                 logger.info(f"BO Trial {trial + 1}: {hparams} -> {value:.4f}")
                 
             except Exception as e:
                 logger.error(f"BO Trial {trial + 1} failed: {e}")
                 bo_optimizer.observe(hparams, 0.0)
+                pbar.set_postfix_str(f"{best_score:.4f} (Failed)")
                 continue
+        
+        pbar.close()
         
         # Get best results
         if results:

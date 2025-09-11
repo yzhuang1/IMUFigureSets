@@ -1,6 +1,6 @@
 """
 Proper Bayesian Optimization implementation using scikit-optimize
-Uses Gaussian Process surrogate model with Expected Improvement acquisition function
+Uses Random Forest surrogate model with Expected Improvement acquisition function
 - suggest() -> dict of hyperparameters based on surrogate model and acquisition function
 - objective(hparams) -> returns scalar or dict of metrics (you can convert multi-objective to scalar)
 - observe(hparams, value) -> updates the surrogate model with new observations
@@ -9,13 +9,11 @@ Uses Gaussian Process surrogate model with Expected Improvement acquisition func
 import numpy as np
 from typing import Dict, Any, List, Tuple
 import logging
+import time
 
 # Try to import scikit-optimize for proper BO, fallback to random if not available
 try:
-    from skopt import gp_minimize
     from skopt.space import Real, Integer, Categorical
-    from skopt.acquisition import gaussian_ei
-    from skopt.utils import use_named_args
     from skopt import Optimizer
     SKOPT_AVAILABLE = True
 except ImportError:
@@ -87,21 +85,9 @@ def get_search_space_for_template(template_name: str):
             Real(0.1, 0.5, name='dropout')
         ]
 
-# Legacy search space for backward compatibility
-_search_space_skopt = [
-    Real(1e-4, 3e-3, prior='log-uniform', name='lr'),
-    Integer(3, 10, name='epochs'), 
-    Categorical([32, 64, 128, 256], name='hidden'),
-]
-
-_search_space_bounds = {
-    "lr": (1e-4, 3e-3),
-    "epochs": (3, 10), 
-    "hidden": [32, 64, 128, 256],
-}
 
 class BayesianOptimizer:
-    """Bayesian Optimization implementation with Gaussian Process surrogate model"""
+    """Bayesian Optimization implementation with Random Forest surrogate model"""
     
     def __init__(self, search_space=None, template_name=None, n_initial_points=8, acquisition_func='EI'):
         """
@@ -117,8 +103,17 @@ class BayesianOptimizer:
         if search_space is None and template_name:
             self.search_space = get_search_space_for_template(template_name)
             logger.info(f"Using template-aware search space for {template_name}")
+        elif search_space:
+            self.search_space = search_space
         else:
-            self.search_space = search_space or _search_space_skopt
+            # Default generic search space if nothing specified
+            self.search_space = [
+                Real(1e-4, 1e-2, prior='log-uniform', name='lr'),
+                Integer(5, 20, name='epochs'),
+                Categorical([32, 64, 128], name='batch_size'),
+                Integer(64, 256, name='hidden_size'),
+                Real(0.1, 0.5, name='dropout')
+            ]
             
         self.template_name = template_name
         self.n_initial_points = n_initial_points
@@ -136,12 +131,12 @@ class BayesianOptimizer:
         if SKOPT_AVAILABLE:
             self.optimizer = Optimizer(
                 dimensions=self.search_space,
-                base_estimator="GP",  # Gaussian Process
+                base_estimator="RF",  # Random Forest
                 acq_func="EI",       # Expected Improvement
                 n_initial_points=self.n_initial_points,
                 random_state=42
             )
-            logger.info("Initialized Gaussian Process Bayesian Optimizer")
+            logger.info("Initialized Random Forest Bayesian Optimizer")
         else:
             logger.warning("Using random search fallback (install scikit-optimize for proper BO)")
     
@@ -152,6 +147,8 @@ class BayesianOptimizer:
         Returns:
             Dict: Suggested hyperparameters
         """
+        t0 = time.time()
+        
         self.n_calls += 1
         
         if SKOPT_AVAILABLE and self.optimizer:
@@ -161,9 +158,9 @@ class BayesianOptimizer:
                 suggested = self.optimizer.ask()
                 logger.info(f"BO Trial {self.n_calls}: Initial random exploration")
             else:
-                # BO with GP surrogate and acquisition function
+                # BO with RF surrogate and acquisition function
                 suggested = self.optimizer.ask()
-                logger.info(f"BO Trial {self.n_calls}: Using GP surrogate + Expected Improvement")
+                logger.info(f"BO Trial {self.n_calls}: Using RF surrogate + Expected Improvement")
             
             # Convert to parameter dict
             hparams = dict(zip(self.param_names, suggested))
@@ -181,6 +178,9 @@ class BayesianOptimizer:
         # Store parameter vector for observation later
         self._last_suggested = [hparams[name] for name in self.param_names]
         
+        suggest_time = time.time() - t0
+        logger.info(f"[PROFILE] suggest() took {suggest_time:.3f}s")
+        
         return hparams
     
     def observe(self, hparams: Dict[str, Any], value: float):
@@ -191,6 +191,8 @@ class BayesianOptimizer:
             hparams: Hyperparameters that were evaluated
             value: Objective function value (higher is better)
         """
+        t0 = time.time()
+        
         # Convert hparams to parameter vector
         param_vector = [hparams[name] for name in self.param_names]
         
@@ -199,9 +201,12 @@ class BayesianOptimizer:
         self.y_observed.append(value)
         
         if SKOPT_AVAILABLE and self.optimizer:
-            # Update GP surrogate model
+            # Update RF surrogate model
             self.optimizer.tell(param_vector, -value)  # Minimize negative (since we maximize)
-            logger.info(f"Updated GP surrogate model with observation: {value:.4f}")
+            logger.info(f"Updated RF surrogate model with observation: {value:.4f}")
+        
+        observe_time = time.time() - t0
+        logger.info(f"[PROFILE] observe()->tell took {observe_time:.3f}s")
         
         logger.info(f"Recorded observation #{len(self.y_observed)}: "
                    f"hparams={hparams}, value={value:.4f}")
@@ -331,11 +336,15 @@ def suggest(template_name: str = None) -> Dict[str, Any]:
     Returns:
         Dict: Suggested and validated hyperparameters
     """
+    t0 = time.time()
     hparams = _global_optimizer.suggest()
     
     # Validate parameters if template provided
     if template_name:
         hparams = _global_optimizer.validate_params(hparams, template_name)
+    
+    suggest_time = time.time() - t0
+    logger.info(f"[PROFILE] global suggest() took {suggest_time:.3f}s")
     
     return hparams
 
@@ -347,7 +356,10 @@ def observe(hparams: Dict[str, Any], value: float):
         hparams: Hyperparameters that were evaluated  
         value: Objective function value (higher is better)
     """
+    t0 = time.time()
     _global_optimizer.observe(hparams, value)
+    observe_time = time.time() - t0
+    logger.info(f"[PROFILE] global observe() took {observe_time:.3f}s")
 
 def reset_optimizer(template_name: str = None):
     """

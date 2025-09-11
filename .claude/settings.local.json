@@ -8,7 +8,11 @@
       "Bash(nvidia-smi:*)",
       "Bash(pip uninstall:*)",
       "Bash(pip install:*)",
-      "Bash(dir prompts)"
+      "Bash(dir prompts)",
+      "Bash(conda activate:*)",
+      "Bash(top:*)",
+      "Bash(ls:*)",
+      "Bash(rg:*)"
     ],
     "deny": [],
     "ask": []

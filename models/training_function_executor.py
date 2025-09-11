@@ -11,6 +11,7 @@ from pathlib import Path
 import importlib.util
 import tempfile
 import os
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,12 @@ class TrainingFunctionExecutor:
     def __init__(self):
         self.code_storage_dir = Path("generated_training_functions")
         self.code_storage_dir.mkdir(exist_ok=True)
+        # Auto-detect best available device
+        self.default_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if self.default_device == 'cuda':
+            logger.info(f"GPU available: {torch.cuda.get_device_name(0)}")
+        else:
+            logger.info("Using CPU for training")
     
     def load_training_function(self, filepath: str) -> Dict[str, Any]:
         """Load training function data from JSON file"""
@@ -42,12 +49,24 @@ class TrainingFunctionExecutor:
         y_train: torch.Tensor, 
         X_val: torch.Tensor,
         y_val: torch.Tensor,
-        device: str = 'cpu',
+        device: str = None,
         **hyperparams
     ) -> Tuple[torch.nn.Module, Dict[str, Any]]:
         """Execute training function with given data and hyperparameters"""
         
         try:
+            # Use GPU if available, otherwise fall back to provided device or CPU
+            if device is None:
+                device = self.default_device
+            
+            logger.info(f"Using device: {device}")
+            
+            # Move tensors to device
+            X_train = X_train.to(device)
+            y_train = y_train.to(device)
+            X_val = X_val.to(device)
+            y_val = y_val.to(device)
+            
             # Extract training code
             training_code = training_data['training_code']
             model_name = training_data['model_name']
@@ -173,7 +192,7 @@ class TrainingFunctionExecutor:
                 training_data,
                 X_train_test, y_train_test,
                 X_val_test, y_val_test,
-                device='cpu',
+                device=self.default_device,
                 **test_hyperparams
             )
             
@@ -246,12 +265,13 @@ class BO_TrainingObjective:
         training_data: Dict[str, Any],
         X_subset: torch.Tensor,
         y_subset: torch.Tensor,
-        device: str = 'cpu'
+        device: str = None
     ):
         self.training_data = training_data
         self.X_subset = X_subset
         self.y_subset = y_subset
-        self.device = device
+        # Auto-detect device if not specified
+        self.device = device if device is not None else ('cuda' if torch.cuda.is_available() else 'cpu')
         self.executor = TrainingFunctionExecutor()
         
         # Split data for train/val
@@ -263,13 +283,16 @@ class BO_TrainingObjective:
             X_array, y_array, test_size=0.2, random_state=42, stratify=y_array
         )
         
-        self.X_train = torch.tensor(X_train, dtype=torch.float32)
-        self.y_train = torch.tensor(y_train, dtype=torch.long)
-        self.X_val = torch.tensor(X_val, dtype=torch.float32)
-        self.y_val = torch.tensor(y_val, dtype=torch.long)
+        # Create tensors on the correct device
+        self.X_train = torch.tensor(X_train, dtype=torch.float32, device=self.device)
+        self.y_train = torch.tensor(y_train, dtype=torch.long, device=self.device)
+        self.X_val = torch.tensor(X_val, dtype=torch.float32, device=self.device)
+        self.y_val = torch.tensor(y_val, dtype=torch.long, device=self.device)
     
     def __call__(self, hparams: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
         """Execute training function with given hyperparameters"""
+        t0 = time.time()
+        
         try:
             # Convert numpy types to Python types
             processed_hparams = {}
@@ -297,10 +320,15 @@ class BO_TrainingObjective:
             # Return objective value (F1 score or accuracy)
             objective_value = metrics.get('macro_f1', metrics.get('val_accuracy', 0.0))
             
+            objective_time = time.time() - t0
+            logger.info(f"[PROFILE] objective(train+eval) took {objective_time:.3f}s")
+            
             return float(objective_value), metrics
             
         except Exception as e:
             logger.error(f"BO training objective failed: {e}")
+            objective_time = time.time() - t0
+            logger.info(f"[PROFILE] objective(train+eval) FAILED took {objective_time:.3f}s")
             return 0.0, {"error": str(e)}
 
 # Global instance
