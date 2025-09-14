@@ -1,0 +1,36 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.7746772512228369,
+    "macro_f1": 0.3260302241763145
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "FallbackLSTM",
+      "json_filepath": "generated_training_functions\\training_function_numpy_array_FallbackLSTM_1757887166.json",
+      "bo_best_params": {
+        "lr": 0.0014281825914998886,
+        "epochs": "12",
+        "batch_size": "128",
+        "hidden_size": "114",
+        "dropout": 0.1509754639506391,
+        "num_layers": "1"
+      },
+      "bo_best_score": 0.721,
+      "final_metrics": {
+        "acc": 0.7746772512228369,
+        "macro_f1": 0.3260302241763145
+      },
+      "performance_score": 0.3260302241763145,
+      "acceptable": true,
+      "reasoning": "Fallback: LSTM selected for sequence data",
+      "confidence": 0.7
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "FallbackLSTM",
+  "generated_functions": []
+}

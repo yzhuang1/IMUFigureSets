@@ -1,0 +1,64 @@
+LITERATURE REVIEW
+=================
+
+Query: sequence classification time series machine learning multiclass sequence classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-14 17:15:43
+Confidence: 0.72
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+From 2023–2025, time‑series sequence classification has seen strong progress along three lines: (1) convolutional feature-transforms that remain extremely strong baselines (ROCKET/MiniROCKET/MultiRocket); (2) lightweight patch/mixer and transformer families adapted from forecasting (PatchTST, iTransformer, TSMixer) to classification; and (3) state‑space models (SSMs), especially Mamba variants tailored to multivariate sequences. Recent papers report that Mamba-based backbones and multi‑view (time–frequency) fusions can outperform prior deep classifiers on standard UCR/UEA datasets while being more memory efficient than self‑attention at long sequence lengths like L=1000. Surveys in 2024 also consolidate evidence that model choice should match the task: convolutional kernels and mixers shine when data is limited, while attention/SSM backbones benefit from longer contexts and pretraining. ([arxiv.org](https://arxiv.org/abs/2102.00457?utm_source=openai))
+
+For your setting (numpy arrays shaped [1000, 2], five classes), competitive and efficient choices include: MultiROCKET with a linear classifier; compact CNNs like InceptionTime/LITE; patch‑based transformers (PatchTST) or iTransformer with a classification head; and Mamba‑style 1D SSMs. MultiROCKET remains a speed/accuracy favorite on UCR/UEA; InceptionTime and newer light variants trade a modest compute increase for end‑to‑end learning; patch transformers can leverage masked pretraining; and Mamba backbones reduce quadratic attention costs while modeling long‑range dependencies. With standard normalization, modest augmentation, and careful class‑imbalance handling, you can expect strong results even with unknown sample size, scaling from small‑n regimes (where ROCKET‑family methods excel) to larger datasets (where deep end‑to‑end models pull ahead). ([arxiv.org](https://arxiv.org/abs/2102.00457?utm_source=openai))
+
+KEY FINDINGS:
+1. Convolutional transform methods (MiniROCKET/MultiROCKET) are still state‑of‑the‑art on many UCR/UEA tasks, offering excellent accuracy–time trade‑offs and strong small‑data performance. ([paperswithcode.com](https://paperswithcode.com/paper/multirocket-effective-summary-statistics-for?utm_source=openai))
+2. Patch‑based and mixer architectures (PatchTST/TSMixer) adapted from forecasting transfer well to classification, especially when combined with masked pretraining or patch tokenization. ([huggingface.co](https://huggingface.co/ibm-research/patchtst-etth1-pretrain?utm_source=openai))
+3. State‑space models (Mamba) provide near‑linear sequence scaling and have emerging TSC variants that rival transformer/CNN baselines at L≈1000. ([arxiv.org](https://arxiv.org/abs/2406.04419?utm_source=openai))
+4. Compact CNNs (InceptionTime, LITE) remain very competitive while reducing parameters and energy, useful when compute is constrained. ([arxiv.org](https://arxiv.org/abs/1909.04939?utm_source=openai))
+5. Augmentations such as mixup/cutmix, window warp, and time‑frequency masking improve robustness for multivariate TSC, notably when labeled data is limited. ([arxiv.org](https://arxiv.org/abs/2201.11739?utm_source=openai))
+6. For transformers, memory grows with L^2; Flash/SDPA backends in PyTorch mitigate this, but patching and smaller heads are often necessary at L=1000. ([docs.pytorch.org](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention?utm_source=openai))
+7. Retrieval‑augmented or MIL‑style heads can help when class patterns are sparse/localized in time, sometimes surpassing FC+softmax heads. ([arxiv.org](https://arxiv.org/abs/2407.14735?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. {'name': 'MultiROCKET + linear classifier', 'why': 'Fast transform (10k–50k features) with ridge/logistic gives strong accuracy, especially for small/medium n and fixed L=1000; trivially handles 2 channels.', 'typical_hyperparams': 'num_kernels: 10k–50k; use differences + multiple poolings; classifier: Ridge(LogReg) with C in [0.1, 10].', 'notes': 'Scale each channel (z‑score). Parallelizable CPU/GPU.', 'citations': ['turn1search3', 'turn1search5']}
+2. {'name': 'InceptionTime or LITE (compact CNN)', 'why': 'End‑to‑end learned multiscale 1D convs; LITE reduces params 97% vs InceptionTime while retaining accuracy.', 'typical_hyperparams': 'num_blocks: 3–5; filters per conv: 32–64; bottleneck: 16–32; dropout: 0.1–0.3; lr: 1e‑3 AdamW.', 'notes': 'Great default when you want learned features and moderate compute.', 'citations': ['turn1search0', 'turn5academia12']}
+3. {'name': 'PatchTST (classification head) or iTransformer', 'why': 'Patch tokens stabilize attention at L=1000; iTransformer models channel correlations via “inverted” attention; both benefit from masked pretraining.', 'typical_hyperparams': 'patch_len: 16–32; stride: 8–16; d_model: 128–256; n_heads: 4–8; depth: 2–4; lr: 3e‑4 AdamW; wd: 0.01.', 'notes': 'Use channel‑independent tokenizer or add channel‑mixing; enable PyTorch SDPA/Flash.', 'citations': ['turn3search4', 'turn3search3', 'turn3academia13']}
+4. {'name': 'Mamba‑based 1D SSM (e.g., TSCMamba/SiMBA‑style)', 'why': 'Captures long‑range dependencies with near‑linear scaling; emerging results show gains on multivariate TSC.', 'typical_hyperparams': 'd_model: 128–256; n_layers: 4–8; selective SSM block with conv proj 3–7; dropout: 0.1; lr: 1e‑3 AdamW.', 'notes': 'Good fit for L=1000 and limited GPU memory.', 'citations': ['turn0search3', 'turn0academia14']}
+5. {'name': 'Augmented head variants (ECRTime retrieval / TimeMIL pooling)', 'why': 'When class evidence is sparse in the sequence, retrieval‑augmented or time‑aware MIL heads can outperform plain FC+softmax.', 'typical_hyperparams': 'Backbone: CNN/Transformer; k‑NN or metric head temperature: 0.05–0.2; MIL window: 8–64; pooling temperature: 1–5.', 'notes': 'Use when events occupy short intervals within 1000 steps.', 'citations': ['turn5academia14', 'turn5academia15']}
+
+RECENT PAPERS:
+- MultiROCKET: Multiple pooling operators and transformations for fast and effective time series classification (2022, often cited 2023–2025): Improves MiniROCKET with multiple poolings and first‑difference transforms; competitive with HIVE‑COTE 2.0 at a fraction of the time.
+- InceptionTime: Finding AlexNet for Time Series Classification (2019, widely used baseline): Ensembled multiscale CNN reaching HIVE‑COTE‑level accuracy with far better scalability.
+- TSMixer (KDD 2023) and PatchTSMixer (Hugging Face model card, 2023): All‑MLP patch/mixer backbone; efficient alternative to transformers; practical pretraining pipelines.
+- PatchTST (ICLR 2023) with classification support (HF model card, 2023): Patch tokenization for long sequences; modular training supports forecasting, classification, regression.
+- iTransformer: Inverted Transformers Are Effective for Time Series (2023–2024): Operates attention over variate tokens to better capture channel correlations; strong backbone for multivariate tasks.
+- TSCMamba: Mamba Meets Multi‑View Learning for Time Series Classification (2024): Combines CWT spectral features with Mamba SSM for efficient multivariate TSC; reports ~6.5% average gains over prior deep baselines.
+- SiMBA: Simplified Mamba‑Based Architecture for Vision and Multivariate Time Series (2024): Integrates Mamba blocks with efficient channel modeling; strong results across several TS benchmarks.
+- ECRTime (2024): Ensembles retrieval with classification to address inter‑class similarity/intra‑class inconsistency; SOTA vs deep baselines on 112 UCR datasets.
+- TimeMIL (2024): Time‑aware multiple‑instance learning with tokenized transformer and wavelet positional tokens; excels when discriminative events are local.
+- Deep Learning for Time Series Classification and Extrinsic Regression: A Current Survey (2023, ACM Computing Surveys 2024 record): Comprehensive survey of deep TSC methods and design choices.
+
+==================================================

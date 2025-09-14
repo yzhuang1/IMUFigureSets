@@ -1,0 +1,61 @@
+LITERATURE REVIEW
+=================
+
+Query: sequence classification time series machine learning multiclass sequence classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-14 16:59:26
+Confidence: 0.79
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+From 2023–2025, empirical bake-offs and new architectures have clarified the state of the art for sequence (time-series) classification. The most decisive update is the 2024 “Bake off redux,” which re-ran a broad evaluation on the expanded UCR archive and concluded that MultiROCKET+Hydra (a feature-based convolutional pipeline) and HIVE-COTE v2 (a large, heterogeneous meta-ensemble) lead accuracy, with MultiROCKET+Hydra offering a particularly favorable accuracy–speed tradeoff. In this line, ROCKET-family methods (MiniROCKET, MultiROCKET) generate tens of thousands of features with random/deterministic 1D kernels and simple pooling, then use a linear classifier; MultiROCKET specifically yields 50k features per series via five pooling operators and often trains in minutes, while Hydra adds dictionary-style “winner-counts” that further lift accuracy. These results are robust and reproducible, and they highlight that carefully engineered convolutional features plus a linear head are still extremely competitive in 2024–2025. ([ueaeprints.uea.ac.uk](https://ueaeprints.uea.ac.uk/id/eprint/97804/1/Middlehurst_etal_2024_DataMinKnowlDisc.pdf))
+
+For multivariate TSC (your case: length 1000, 2 channels, 5 classes), modern deep learners remain strong but mixed: InceptionTime and efficient variants (e.g., LITE) are reliable 1D-CNN baselines that scale well to long sequences and small channel counts, while specialized Transformers have begun to surpass generic ones by injecting time-series priors. Recent MTSC-focused Transformers such as ShapeFormer (class-specific shapelet filtering + Transformer) and VSFormer (value- and shape-aware attention with class-prior-enhanced encodings) report top ranks across the 30 UEA multivariate datasets. Meanwhile, new learning paradigms—rank-supervised contrastive learning and retrieval–classification ensembles—improve representation quality or decision robustness and can be especially useful when labels are scarce or inter-class similarity is high. Practically, for (1000, 2) inputs, ROCKET-family pipelines and compact CNNs deliver excellent accuracy with modest compute; Transformers can offer incremental gains but typically need more tuning and data. ([arxiv.org](https://arxiv.org/abs/2405.14608?utm_source=openai))
+
+KEY FINDINGS:
+1. ROCKET-family pipelines remain state-of-the-art in accuracy–speed tradeoffs; MultiROCKET+Hydra is the most accurate convolutional pipeline in recent bake-offs, while HIVE-COTE v2 is typically the absolute-accuracy leader at much higher compute cost. ([ueaeprints.uea.ac.uk](https://ueaeprints.uea.ac.uk/id/eprint/97804/1/Middlehurst_etal_2024_DataMinKnowlDisc.pdf))
+2. MultiROCKET’s five pooling operators over 10k kernels produce ~50k features per sample and consistently outperform MiniROCKET/ROCKET; combining with Hydra’s dictionary-style winner-counts yields further gains. ([ueaeprints.uea.ac.uk](https://ueaeprints.uea.ac.uk/id/eprint/97804/1/Middlehurst_etal_2024_DataMinKnowlDisc.pdf))
+3. For multivariate classification, specialized Transformers that encode class- or shape information (e.g., ShapeFormer, VSFormer) report top ranks on the UEA 30-dataset suite, though gains may depend on data volume and careful regularization. ([arxiv.org](https://arxiv.org/abs/2405.14608?utm_source=openai))
+4. Compact 1D CNNs (InceptionTime; LITE) remain strong baselines for long sequences with few channels, offering competitive accuracy with far fewer parameters and faster training than large Transformers. ([timeseriesai.github.io](https://timeseriesai.github.io/tsai/models.inceptiontime.html?utm_source=openai))
+5. Representation learning helps when labels are limited or classes are subtle: rank-supervised contrastive learning and universal SSL encoders (e.g., TS2Vec) improve linear-probe performance and downstream classification. ([arxiv.org](https://arxiv.org/abs/2401.18057?utm_source=openai))
+6. Benchmarks emphasize correct evaluation: use UCR/UEA-style resampling, avoid test-driven model selection, and report balanced accuracy/AUROC when classes are imbalanced. ([ueaeprints.uea.ac.uk](https://ueaeprints.uea.ac.uk/id/eprint/97804/1/Middlehurst_etal_2024_DataMinKnowlDisc.pdf))
+
+RECOMMENDED APPROACHES:
+1. {'name': 'MultiROCKET + Hydra + Ridge/Logistic head', 'why_it_works': 'Random/deterministic convolutions plus diverse pooling capture frequency- and phase-robust local patterns; Hydra adds dictionary ‘winner-count’ features. Linear heads generalize well and train fast.', 'typical_hyperparams': 'MultiROCKET: 10k kernels, pooling={PPV, MPV, MIPV, LSPV, (optionally NSPV)}, features≈50k; Hydra: groups g≈64, kernels-per-group k≈8; classifier: Ridge/LogReg with α in 1e−6–1e+2 (log grid).', 'notes': 'Strong first choice for (1000, 2). Memory ≈ 50k features × 4 bytes ≈ ~200 KB per sample (float32). GPU PyTorch implementations available via tsai. ([ueaeprints.uea.ac.uk](https://ueaeprints.uea.ac.uk/id/eprint/97804/1/Middlehurst_etal_2024_DataMinKnowlDisc.pdf))'}
+2. {'name': 'InceptionTime or LITE (efficient 1D-CNN)', 'why_it_works': 'Multi-scale temporal kernels with residual connections handle long contexts; LITE uses depthwise separable convolutions to match InceptionTime accuracy with ~2–3% of parameters.', 'typical_hyperparams': 'Blocks=6, base filters nf=32–64, bottleneck true, kernel sizes per branch ~[10–40]; dropout 0–0.2; AdamW lr=1e−3 (cosine schedule), weight decay 1e−4–1e−3; epochs 100–200; batch 64–256.', 'notes': 'Stable on small-channel inputs; easy to regularize with dropout, label smoothing (≤0.1). PyTorch refs: tsai InceptionTime(+). ([timeseriesai.github.io](https://timeseriesai.github.io/tsai/models.inceptiontime.html?utm_source=openai))'}
+3. {'name': 'Transformer tailored for MTSC (ShapeFormer or VSFormer)', 'why_it_works': 'Injecting class/shape priors (shapelet filters; value-aware attention with class-prior encodings) mitigates generic self-attention’s tendency to attend to task-irrelevant patterns.', 'typical_hyperparams': 'Embed dim 128–256, layers 2–4, heads 4–8, patch/window 16–64, dropout 0.1–0.2; AdamW lr=1e−4–3e−4; strong augmentation/early stopping recommended.', 'notes': 'Use when you can afford more tuning; reported SOTA on UEA 30. For (1000,2), attention cost is manageable. ([arxiv.org](https://arxiv.org/abs/2405.14608?utm_source=openai))'}
+4. {'name': 'Rank-supervised contrastive pretraining + lightweight classifier', 'why_it_works': 'Learns fine-grained class-consistent representations by weighting positives by rank; improves boundaries under inter-class similarity and intra-class variance.', 'typical_hyperparams': 'Encoder can be 1D-CNN/Transformer; temperature τ≈0.07–0.2; rank-loss weight 0.2–0.6; linear head or small MLP.', 'notes': 'Good when labels are limited; can warm-start any of the above classifiers. ([arxiv.org](https://arxiv.org/abs/2401.18057?utm_source=openai))'}
+5. {'name': 'ECRTime (Ensemble of classification + retrieval)', 'why_it_works': 'Combines a deep classifier with a retrieval component to counter class overlap and tighten decision boundaries.', 'typical_hyperparams': 'Backbone like InceptionTime; retrieval top-k≈5–20; ensemble weights tuned on validation.', 'notes': 'Reported to beat InceptionTime on UCR in accuracy with less training time; promising when classes look similar. ([arxiv.org](https://arxiv.org/abs/2407.14735?utm_source=openai))'}
+
+RECENT PAPERS:
+- Bake off redux: A review and experimental evaluation of recent time series classification algorithms (DMKD, 2024): Comprehensive 2024 benchmark; finds MultiROCKET+Hydra and HIVE-COTE v2 significantly outperform others on UCR; cautions about deep-learning evaluation pitfalls. ([ueaeprints.uea.ac.uk](https://ueaeprints.uea.ac.uk/id/eprint/97804/1/Middlehurst_etal_2024_DataMinKnowlDisc.pdf))
+- MultiROCKET: multiple pooling operators and transformations for fast and effective TSC (DMKD, 2022): Introduces diverse pooling and first-order differences; competitive with HIVE-COTE v2 at a fraction of compute; 50k features from 10k kernels. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-022-00844-1?utm_source=openai))
+- Hydra and MultiROCKET-Hydra (described/benchmarked in Bake off redux, 2024): Hybrid dictionary–convolution features (winner-counts) combined with MultiROCKET features; top-ranked convolutional pipeline. ([ueaeprints.uea.ac.uk](https://ueaeprints.uea.ac.uk/id/eprint/97804/1/Middlehurst_etal_2024_DataMinKnowlDisc.pdf))
+- ShapeFormer: Shapelet Transformer for Multivariate Time Series Classification (2024): Class-specific shapelet filtering plus Transformer; highest accuracy ranking on 30 UEA MTSC datasets. ([arxiv.org](https://arxiv.org/abs/2405.14608?utm_source=openai))
+- VSFormer: Value- and Shape-Aware Transformer with Prior-Enhanced Self-Attention for MTSC (2024): Blends value and shape cues; uses class-specific priors in attention/positional encoding; superior performance on UEA 30. ([arxiv.org](https://arxiv.org/abs/2412.16515?utm_source=openai))
+- Rank Supervised Contrastive Learning for Time Series Classification (2024): Introduces rank-weighted supervised contrastive loss; SOTA across 128 UCR and 30 UEA datasets in representation learning settings. ([arxiv.org](https://arxiv.org/abs/2401.18057?utm_source=openai))
+- ECRTime: Ensemble Integration of Classification and Retrieval for TSC (2024): Unifies retrieval with deep classification; outperforms strong deep baselines like InceptionTime on UCR. ([arxiv.org](https://arxiv.org/abs/2407.14735?utm_source=openai))
+- HIVE-COTE 2.0 (Machine Learning, 2021): Strong absolute accuracy via heterogeneous meta-ensemble across UCR/UEA; still a competitive reference in 2024–2025. ([link.springer.com](https://link.springer.com/article/10.1007/s10994-021-06057-9?utm_source=openai))
+
+==================================================
