@@ -14,27 +14,72 @@ from pathlib import Path
 
 from adapters.universal_converter import convert_to_torch_dataset
 from evaluation.code_generation_pipeline_orchestrator import CodeGenerationPipelineOrchestrator
-from visualization import generate_bo_charts, create_charts_folder
+# from visualization import create_charts_folder  # No longer needed - charts handled by orchestrator
 
-# Setup logging
+# Setup logging with error handling
 from datetime import datetime
 
-LOG_DIR = "logs"
-os.makedirs(LOG_DIR, exist_ok=True)
+def setup_logging():
+    """Setup logging with comprehensive error handling and debugging"""
+    LOG_DIR = "logs"
+    
+    try:
+        # Create logs directory
+        os.makedirs(LOG_DIR, exist_ok=True)
+        print(f"✅ Log directory created/verified: {os.path.abspath(LOG_DIR)}")
+        
+        # Generate log filename
+        log_filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log")
+        log_path = os.path.join(LOG_DIR, log_filename)
+        
+        # Test write permissions
+        test_path = os.path.join(LOG_DIR, "test_write.tmp")
+        with open(test_path, 'w') as f:
+            f.write("test")
+        os.remove(test_path)
+        print(f"✅ Write permissions verified for: {LOG_DIR}")
+        
+        # Clear any existing handlers to avoid conflicts
+        root_logger = logging.getLogger()
+        if root_logger.handlers:
+            print(f"⚠️  Clearing {len(root_logger.handlers)} existing handlers")
+            for handler in root_logger.handlers[:]:
+                root_logger.removeHandler(handler)
+        
+        # Configure logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+            handlers=[
+                logging.FileHandler(log_path, mode="w", encoding="utf-8"),
+                logging.StreamHandler()
+            ],
+            force=True  # Force reconfiguration
+        )
+        
+        print(f"✅ Logging configured successfully")
+        print(f"📝 Log file: {os.path.abspath(log_path)}")
+        
+        # Test logging
+        logger = logging.getLogger(__name__)
+        logger.info("Logging system initialized successfully")
+        print(f"✅ Test log message written")
+        
+        return logger
+        
+    except Exception as e:
+        print(f"❌ Failed to setup logging: {e}")
+        print(f"Current working directory: {os.getcwd()}")
+        # Fallback to console-only logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+            handlers=[logging.StreamHandler()],
+            force=True
+        )
+        return logging.getLogger(__name__)
 
-log_filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log")
-log_path = os.path.join(LOG_DIR, log_filename)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-    handlers=[
-        logging.FileHandler(log_path, mode="w", encoding="utf-8"),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger(__name__)
+logger = setup_logging()
 
 def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, max_model_attempts=None, **kwargs):
     """
@@ -306,7 +351,7 @@ def process_real_data():
     data_result = load_data_from_files()
     
     if data_result is None:
-        print("[ERROR] No data files found or could not load data")
+        print("\n[ERROR] No data files found or could not load data")
         print("\nTo use your own data, place files in the data/ directory:")
         print("  - CSV: dataset.csv (with target column named 'target', 'label', etc.)")
         print("  - NumPy: X.npy + y.npy (or features.npy + labels.npy)")
@@ -328,11 +373,12 @@ def process_real_data():
     # Check OpenAI API key
     from config import config
     if not config.is_openai_configured():
-        print("[ERROR] OpenAI API key required for AI-enhanced processing!")
+        print("\n[ERROR] OpenAI API key required for AI-enhanced processing!")
         return False
     
     print(f"  OpenAI: {config.openai_model}")
     
+    print("\n⏳ Starting AI-enhanced processing...")
     print("\n" + "=" * 60)
     print("Running AI-Enhanced Pipeline with Code Generation")
     print("=" * 60)
@@ -352,32 +398,14 @@ def process_real_data():
     print(f"  Total model attempts: {result['attempt_summary']['total_attempts']}")
     print(f"  Best model: {result['pipeline_results']['model_name']}")
     
-    # Generate visualization charts from pipeline results  
-    print(f"\n" + "=" * 60)
-    print("Generating Visualization Charts")
-    print("=" * 60)
-    
-    # Create charts folder
-    charts_dir = create_charts_folder()
-    print(f"Charts will be saved to: {charts_dir}")
-    
-    # The new pipeline already includes BO, so extract those results
-    if 'bo_results' in result['pipeline_results']:
-        bo_results = result['pipeline_results']['bo_results']
-        print(f"BO was already executed in pipeline:")
-        print(f"  Best F1 score: {bo_results['best_value']:.4f}")
-        print(f"  Best parameters: {bo_results['best_params']}")
-        
-        # Generate charts from pipeline BO results with timestamp
-        from datetime import datetime
-        timestamp_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
-        generate_bo_charts(bo_results, save_folder="charts", timestamp_suffix=timestamp_suffix)
-        print(f"\n[SUCCESS] BO charts saved to charts/ folder with timestamp: {timestamp_suffix}")
-    else:
-        print(f"No BO results found in pipeline - charts will show pipeline summary only")
+    # Charts are automatically generated by the pipeline orchestrator in subfolders
+    print(f"\n📊 BO charts have been automatically generated by the pipeline orchestrator")
     
     # Save pipeline summary
     import json
+    from datetime import datetime
+    
+    timestamp_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     def convert_numpy_types(obj):
         if hasattr(obj, 'item'):
@@ -431,9 +459,9 @@ def process_real_data():
 
         torch.save(model_data, model_save_path)
         print(f"\n[SUCCESS] Final trained model saved to {model_save_path}")
-        print(f"  Model: {result['pipeline_results']['model_name']}")
-        print(f"  Performance: {result['final_metrics']}")
-        print(f"  Best hyperparameters: {result['pipeline_results'].get('optimized_hyperparameters', {})}")
+        print(f"  📊 Model: {result['pipeline_results']['model_name']}")
+        print(f"  📈 Performance: {result['final_metrics']}")
+        print(f"  ⚙️  Best hyperparameters: {result['pipeline_results'].get('optimized_hyperparameters', {})}")
 
         # Update pipeline summary with model save path
         pipeline_summary['saved_model_path'] = model_save_path
@@ -441,11 +469,15 @@ def process_real_data():
         # Re-save pipeline summary with model path
         with open(f"charts/pipeline_summary_{timestamp_suffix}.json", 'w') as f:
             json.dump(pipeline_summary, f, indent=2, default=str)
+    
+    print(f"\n" + "=" * 80)
+    print(f"🎉 AI-ENHANCED PROCESSING COMPLETED SUCCESSFULLY!")
+    print(f"=" * 80)
 
     return True
 
 if __name__ == "__main__":
-    print("AI-Enhanced Machine Learning Pipeline")
+    print("\n🤖 AI-Enhanced Machine Learning Pipeline")
     print("Code Generation Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation")
     print("=" * 80)
     
@@ -455,23 +487,11 @@ if __name__ == "__main__":
     # If no real data found, show instructions
     if not processed_real_data:
         print("\n[ERROR] No data files found in data/ directory")
-        print("\nTo use the AI-enhanced ML pipeline, add your data files to the data/ directory:")
-        print("  - CSV: dataset.csv (with target column named 'target', 'label', 'class', 'y', or 'output')")
-        print("  - NumPy: X.npy + y.npy (or features.npy + labels.npy)")
-        print("  - NPZ: data.npz (containing 'X' and 'y' arrays)")
-        print("\nThe NEW pipeline will automatically:")
-        print("  1. Load and analyze your data")
-        print("  2. Generate complete training function code using AI")
-        print("  3. Save training function to JSON file")
-        print("  4. Run Bayesian Optimization for hyperparameter tuning")
-        print("  5. Execute training using generated code with optimized parameters")
-        print("  6. Evaluate final model performance")
-        print("  7. Feedback loop: if performance is poor, generate new training function")
-        print("  8. Generate charts and summaries in charts/ folder")
-        print("\nExample file structure:")
-        print("  data/")
-        print("    └── my_dataset.csv  # with features + target column")
-        print("  Or:")
-        print("  data/")
-        print("    ├── X.npy          # features array")
-        print("    └── y.npy          # labels array")
+        print("\n📁 To use the AI-enhanced ML pipeline, add your data files to the data/ directory:")
+        print("  • CSV: dataset.csv (with target column named 'target', 'label', 'class', 'y', or 'output')")
+        print("  • NumPy: X.npy + y.npy (or features.npy + labels.npy)")
+        print("  • NPZ: data.npz (containing 'X' and 'y' arrays)")
+        print("\n🚀 The pipeline will automatically:")
+        print("  1. Load and analyze your data → 2. Generate AI training code → 3. Optimize hyperparameters")
+        print("  4. Execute training → 5. Evaluate performance → 6. Generate charts and summaries")
+        print("\n📂 Example: data/my_dataset.csv  or  data/X.npy + data/y.npy")

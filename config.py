@@ -4,6 +4,7 @@ Handles secure loading of API keys and other sensitive configuration
 """
 
 import os
+import logging
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -34,8 +35,9 @@ class Config:
             api_key = os.getenv("OPENAI_API_KEY")
         
         if not api_key:
-            print("Warning: OPENAI_API_KEY not found in environment variables or .env file")
-            print("Please set OPENAI_API_KEY in your environment or create a .env file")
+            logger = logging.getLogger(__name__)
+            logger.warning("OPENAI_API_KEY not found in environment variables or .env file")
+            logger.warning("Please set OPENAI_API_KEY in your environment or create a .env file")
         
         return api_key
     

@@ -1,15 +1,15 @@
 BAYESIAN OPTIMIZATION SUMMARY
 ============================================================
 Total Trials        : 10
-Best Accuracy       : 0.8340
-Final Accuracy      : 0.7320
-Mean Accuracy       : 0.7396
-Std Accuracy        : 0.0325
-Improvement         : 0.1100
-Best Trial          : 8
+Best Accuracy       : 0.7210
+Final Accuracy      : 0.7210
+Mean Accuracy       : 0.7205
+Std Accuracy        : 0.0008
+Improvement         : 0.0000
+Best Trial          : 1
 
 BEST HYPERPARAMETERS:
 ------------------------------
-Learning Rate  : 0.009339
+Learning Rate  : 0.003918
 Epochs         : 15
 Hidden Size    : 64

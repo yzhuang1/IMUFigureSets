@@ -1,0 +1,61 @@
+LITERATURE REVIEW
+=================
+
+Query: sequence classification time series machine learning multiclass sequence classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-14 22:38:46
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+From 2023–2025, time-series sequence classification has seen two parallel trends: (1) continued dominance of strong convolutional baselines and ensembles on broad benchmarks, and (2) rapid emergence of state-space and hybrid architectures that improve efficiency or adapt to low-data regimes. The 2024 DMKD “Bake off redux” provides the most reliable, large-scale comparison and concludes that MultiROCKET+Hydra and HIVE-COTE v2 remain state-of-the-art across the UCR archive, with MultiROCKET-Hydra significantly outranking other convolution-based methods and HIVE-COTE v2 leading among meta-ensembles. This review also notes that newer deep nets rarely surpass InceptionTime/H-InceptionTime, underscoring how well-tuned 1D-CNNs remain for generic TSC. Concurrently, lightweight CNN variants like LITE/LITEMV preserve InceptionTime-level accuracy with orders-of-magnitude fewer parameters, improving speed and energy use. Empirical domain studies (e.g., 2025 manufacturing evaluation) continue to report very high accuracies for top models (ResNet, DrCIF, InceptionTime, Arsenal), albeit on domain-specific datasets. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-024-01022-1))
+
+Emerging directions relevant to your (length=1000, channels=2, classes=5) setting include Mamba-based selective state-space models adapted to classification (TSCMamba), which fuse time- and frequency-domain views and report notable gains over prior baselines; time-aware multiple instance learning (TimeMIL) to localize sparse, class-discriminative segments; and early explorations of aligning TSC with multimodal LLMs (HiTime). For implementation in PyTorch, InceptionTime (or LITE/LITEMV) and TCNs are straightforward, efficient choices; MultiROCKET-Hydra can be combined with PyTorch heads via aeon/sklearn; and Mamba-style classifiers offer linear-time sequence modeling for long inputs. Libraries like tsai provide reliable PyTorch implementations of InceptionTime and variants with sensible defaults. ([arxiv.org](https://arxiv.org/abs/2406.04419?utm_source=openai))
+
+KEY FINDINGS:
+1. On broad benchmarks, MultiROCKET+Hydra and HIVE-COTE v2 remain top performers; deep nets rarely beat tuned CNN baselines like InceptionTime. Use these as reference baselines. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-024-01022-1))
+2. Lightweight CNNs (LITE/LITEMV) can match InceptionTime while using ~2–3% of its parameters, improving speed/energy—useful when data or compute are limited. ([arxiv.org](https://arxiv.org/abs/2409.02869?utm_source=openai))
+3. Selective state-space models (Mamba) adapted to TSC (e.g., TSCMamba) are promising for long sequences, fusing time/frequency features and showing >6% average gains over prior TSC baselines in reported studies. ([arxiv.org](https://arxiv.org/abs/2406.04419?utm_source=openai))
+4. Weak/low-data settings benefit from optimization/loss tweaks like SAM with prototype-based losses (e.g., COSCO), improving generalization in few-shot MTSC. ([arxiv.org](https://arxiv.org/abs/2409.09645?utm_source=openai))
+5. Simple tabular models can outperform sophisticated TSC methods on ~20–30% of datasets; always include a strong non-sequential baseline to detect when temporal order adds little. ([arxiv.org](https://arxiv.org/abs/2308.07886?utm_source=openai))
+6. For length≈1000 with 1–4 channels, 1D-CNNs (InceptionTime/ResNet/TCN) and ROCKET-family methods offer excellent accuracy–efficiency tradeoffs; ensure receptive fields cover most of the sequence via kernel/dilation choices. ([timeseriesai.github.io](https://timeseriesai.github.io/tsai/models.inceptiontime.html?utm_source=openai))
+7. In manufacturing-style datasets, ensembles of top methods (ResNet, DrCIF, InceptionTime, Arsenal) can exceed 96% average accuracy, but such results are domain-dependent; expect wider ranges elsewhere. ([sciencedirect.com](https://www.sciencedirect.com/science/article/abs/pii/S0736584524001261?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. {'name': 'MultiROCKET-Hydra + Linear/Ridge/Logistic Head', 'description': 'Extract MultiROCKET features (≈50k from 10k kernels × pooled stats) and concatenate with Hydra dictionary features; train a linear classifier. Extremely strong accuracy, fast training, robust on varied TSC. Typical: 10k kernels; default Hydra g=64, k=8; ridge/logistic regularization α in 1e-4–1e2. Implement via aeon/sklearn and integrate with PyTorch training loops if needed. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-024-01022-1))'}
+2. {'name': 'InceptionTime (or LITE/LITEMV) in PyTorch', 'description': 'Deep 1D-CNN with multi-scale inception modules. For (1000,2), start with 3–6 blocks, 32–64 filters, bottleneck on, kernel sizes around 10–40 (or OS-CNN prime-based sets). LITE/LITEMV provides ~InceptionTime accuracy with ~2–3% parameters for faster, greener runs. Use tsai for stable PyTorch implementations. ([timeseriesai.github.io](https://timeseriesai.github.io/tsai/models.inceptiontime.html?utm_source=openai))'}
+3. {'name': 'Dilated TCN (non-causal) classifier', 'description': 'Stacked residual temporal convolutions with exponentially increasing dilations to span the full 1000-step context. Typical: 4–8 residual blocks, kernel size 3–7, dilations doubling per block, dropout 0.05–0.2. Non-causal padding for classification. Efficient, stable training; good baseline when compute is constrained. ([github.com](https://github.com/paul-krug/pytorch-tcn?utm_source=openai))'}
+4. {'name': 'Mamba-based classifier (e.g., TSCMamba variants)', 'description': 'Selective state-space blocks offer linear-time context modeling. Combine time-domain CNN/MLP with frequency-domain (e.g., wavelet/CWT) tokens, then Mamba layers; 4–8 layers, d_model 128–256, dropout 0.1–0.3. Promising for long sequences and low latency, with reported average gains over SOTA baselines on MTSC. ([arxiv.org](https://arxiv.org/abs/2406.04419?utm_source=openai))'}
+5. {'name': 'Time-aware MIL with Transformer tokenization (TimeMIL)', 'description': 'Treat the sequence as a bag of time-local instances; learn time-aware pooling to focus on sparse discriminative segments. Useful when only short regions signal class. Combine with 1D-CNN front-end; use learnable wavelet positional tokens; tune segment length 16–64 and MIL temperature/aggregation. ([arxiv.org](https://arxiv.org/abs/2405.03140?utm_source=openai))'}
+
+RECENT PAPERS:
+- Bake off redux: a review and experimental evaluation of recent time series classification algorithms (DMKD, 2024): Largest recent benchmark; identifies MultiROCKET+Hydra and HIVE-COTE v2 as top performers; notes newer deep nets rarely beat InceptionTime/H-InceptionTime. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-024-01022-1))
+- TSCMamba: Mamba Meets Multi-View Learning for Time Series Classification (2024): Introduces Mamba-based multi-view TSC (time + wavelet/frequency), reports ~6.45% average accuracy improvement over SOTA on 10 benchmarks. ([arxiv.org](https://arxiv.org/abs/2406.04419?utm_source=openai))
+- Look Into the LITE in Deep Learning for Time Series Classification (2024): Lightweight Inception variant (LITE/LITEMV) achieving InceptionTime-level performance with ~2–3% parameters; faster and lower energy. ([arxiv.org](https://arxiv.org/abs/2409.02869?utm_source=openai))
+- Time-series classification in smart manufacturing systems: experimental evaluation (RCIM, 2025): Domain study over 22 manufacturing datasets; ResNet, DrCIF, InceptionTime, Arsenal exceed 96.6% mean accuracy, highlighting practical performance of top models in applied settings. ([sciencedirect.com](https://www.sciencedirect.com/science/article/abs/pii/S0736584524001261?utm_source=openai))
+- Back to Basics: A Sanity Check on Modern Time Series Classification Algorithms (2023): Shows tabular models can beat ROCKET-family on ~19% (UTSC) and ~28% (MTSC) UCR/UEA datasets; motivates including strong non-sequential baselines. ([arxiv.org](https://arxiv.org/abs/2308.07886?utm_source=openai))
+- TimeMIL: Time-aware Multiple Instance Learning for MTSC (2024): Weakly supervised framework localizing sparse discriminative patterns; outperforms 26 recent methods on MTSC in authors’ evaluation. ([arxiv.org](https://arxiv.org/abs/2405.03140?utm_source=openai))
+- Foundation Models for Time Series: A Survey (2025): Survey of transformer/patching vs raw-sequence foundation models across tasks including classification; trends and taxonomy of objectives/architectures. ([arxiv.org](https://arxiv.org/abs/2504.04011?utm_source=openai))
+
+==================================================

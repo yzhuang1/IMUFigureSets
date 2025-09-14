@@ -4,6 +4,7 @@ Manages ML pipeline with AI-generated training functions
 """
 
 import logging
+import sys
 from typing import Dict, Any, Tuple, Optional, List
 import torch
 from torch.utils.data import DataLoader
@@ -64,12 +65,20 @@ class CodeGenerationPipelineOrchestrator:
         best_results = None
         best_score = -float('inf')
         
+        # Check if we should disable progress bars due to verbose logging
+        logger_level = logging.getLogger().getEffectiveLevel()
+        disable_progress = logger_level <= logging.INFO
+        
         # Progress bar for pipeline attempts
         pipeline_pbar = tqdm(range(self.max_model_attempts), 
                             desc="🚀 ML Pipeline", 
                             unit="attempt",
                             position=0,
-                            leave=True)
+                            leave=True,
+                            disable=disable_progress,
+                            file=sys.stdout,
+                            dynamic_ncols=True,
+                            ascii=True)
         
         for attempt in pipeline_pbar:
             logger.info(f"\n{'='*60}")
@@ -78,17 +87,26 @@ class CodeGenerationPipelineOrchestrator:
             
             try:
                 # STEP 1: AI Code Generation
-                pipeline_pbar.set_description(f"🤖 AI Code Generation [{attempt + 1}/{self.max_model_attempts}]")
+                if disable_progress:
+                    print(f"\n🤖 AI Code Generation [{attempt + 1}/{self.max_model_attempts}]")
+                else:
+                    pipeline_pbar.set_description(f"🤖 AI Code Generation [{attempt + 1}/{self.max_model_attempts}]")
                 logger.info("🤖 STEP 1: AI Training Code Generation")
                 code_rec = self._generate_training_code(input_shape, num_classes)
                 
                 # STEP 2: Save to JSON
-                pipeline_pbar.set_description(f"💾 Saving Function [{attempt + 1}/{self.max_model_attempts}]")
+                if disable_progress:
+                    print(f"💾 Saving Function [{attempt + 1}/{self.max_model_attempts}]")
+                else:
+                    pipeline_pbar.set_description(f"💾 Saving Function [{attempt + 1}/{self.max_model_attempts}]")
                 logger.info("💾 STEP 2: Save Training Function to JSON")
                 json_filepath = self._save_training_function(code_rec)
                 
                 # STEP 3: Bayesian Optimization
-                pipeline_pbar.set_description(f"🔍 Bayesian Optimization [{attempt + 1}/{self.max_model_attempts}]")
+                if disable_progress:
+                    print(f"🔍 Bayesian Optimization [{attempt + 1}/{self.max_model_attempts}]")
+                else:
+                    pipeline_pbar.set_description(f"🔍 Bayesian Optimization [{attempt + 1}/{self.max_model_attempts}]")
                 logger.info("🔍 STEP 3: Bayesian Optimization")
                 bo_results = self._run_bayesian_optimization(X, y, device, code_rec)
                 
@@ -100,7 +118,10 @@ class CodeGenerationPipelineOrchestrator:
                 )
                 
                 # STEP 5: Performance Analysis
-                pipeline_pbar.set_description(f"📊 Performance Analysis [{attempt + 1}/{self.max_model_attempts}]")
+                if disable_progress:
+                    print(f"📊 Performance Analysis [{attempt + 1}/{self.max_model_attempts}]")
+                else:
+                    pipeline_pbar.set_description(f"📊 Performance Analysis [{attempt + 1}/{self.max_model_attempts}]")
                 logger.info("📊 STEP 5: Performance Analysis")
                 performance_score = training_results['final_metrics']['macro_f1']
                 is_acceptable = self._is_performance_acceptable(training_results['final_metrics'])
@@ -166,7 +187,14 @@ class CodeGenerationPipelineOrchestrator:
         best_results['total_attempts'] = len(self.pipeline_history)
         best_results['successful_attempts'] = len([a for a in self.pipeline_history if a.get('acceptable', False)])
         
-        logger.info(f"\n🎉 CODE GENERATION PIPELINE COMPLETE!")
+        # Clean completion message
+        print(f"\n🎉 CODE GENERATION PIPELINE COMPLETE!")
+        print(f"📊 Best model: {best_results.get('model_name', 'Unknown')}")
+        print(f"🏆 Best score: {best_score:.4f}")
+        print(f"🔄 Total attempts: {len(self.pipeline_history)}")
+        
+        # Also log for records
+        logger.info(f"CODE GENERATION PIPELINE COMPLETE!")
         logger.info(f"Best model: {best_results.get('model_name', 'Unknown')}")
         logger.info(f"Best score: {best_score:.4f}")
         logger.info(f"Total attempts: {len(self.pipeline_history)}")
@@ -276,17 +304,28 @@ class CodeGenerationPipelineOrchestrator:
         results = []
         best_score = 0.0
         
-        # Progress bar for BO trials
+        # Progress bar for BO trials  
+        logger_level = logging.getLogger().getEffectiveLevel()
+        disable_progress = logger_level <= logging.INFO
+        
         pbar = tqdm(range(config.max_bo_trials), 
                    desc="🔍 Bayesian Optimization", 
                    unit="trial",
                    position=1,
                    leave=False,
+                   disable=disable_progress,
+                   file=sys.stdout,
+                   dynamic_ncols=True,
+                   ascii=True,
                    bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] Best: {postfix}")
         
         for trial in pbar:
             # Get next hyperparameters
             hparams = bo_optimizer.suggest()
+            
+            # Show trial progress when progress bars are disabled (every 3rd trial to reduce noise)
+            if disable_progress and (trial + 1) % 3 == 0:
+                print(f"  BO Trial {trial + 1}/{config.max_bo_trials}: {hparams}")
             
             try:
                 value, metrics = objective_func(hparams)
@@ -303,7 +342,9 @@ class CodeGenerationPipelineOrchestrator:
                 best_score = max(best_score, value)
                 pbar.set_postfix_str(f"{best_score:.4f}")
                 
-                logger.info(f"BO Trial {trial + 1}: {hparams} -> {value:.4f}")
+                # Only log every 3rd trial or best scores to reduce noise
+                if (trial + 1) % 3 == 0 or value >= best_score:
+                    logger.info(f"BO Trial {trial + 1}: {hparams} -> {value:.4f}")
                 
             except Exception as e:
                 logger.error(f"BO Trial {trial + 1} failed: {e}")
@@ -447,7 +488,7 @@ class CodeGenerationPipelineOrchestrator:
                 'model_name': model_name
             }
             
-            generate_bo_charts(chart_results, save_folder=str(charts_subfolder), timestamp_suffix=None)
+            generate_bo_charts(chart_results, save_folder=str(charts_subfolder))
             logger.info(f"📊 BO charts saved to: {charts_subfolder}")
             
         except Exception as e:

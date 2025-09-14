@@ -1,0 +1,65 @@
+LITERATURE REVIEW
+=================
+
+Query: sequence classification time series machine learning multiclass sequence classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-14 23:06:18
+Confidence: 0.74
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+Between 2023 and 2025, multivariate sequence classification has been shaped by two converging trends: (a) patch-based and class-aware Transformers tailored to classification, and (b) time-series foundation models that enable zero/few-shot transfer and more data-efficient fine-tuning. Recent classification-focused Transformers such as VSFormer and ShapeFormer report state-of-the-art accuracy across the 30 UEA multivariate classification datasets by injecting value/shape priors and class-specific shapelets into self-attention, respectively. In parallel, ROCKET-family methods (MultiRocket and pruning variants like Detach-ROCKET) remain the strongest scalable baselines—often approaching the accuracy of heavyweight ensembles (HIVE-COTE 2.0) at a fraction of the compute—making them indispensable for benchmarking and for low-data or resource-constrained settings. Foundation-model efforts for time series (e.g., FORMED for medical TS; Mantis for general TSC; broader FM surveys) show that pretraining plus lightweight adapters can deliver strong out-of-the-box performance and better calibration, particularly when labeled data are scarce. ([arxiv.org](https://arxiv.org/abs/2412.16515?utm_source=openai))
+
+For your setting—numpy arrays shaped (1000, 2) with five classes—the most effective families are: MultiRocket-style feature transforms with a linear head; compact CNNs such as InceptionTime or its 2024 lightweight LITE-MV variant; and patch-based Transformers (PatchTST-style backbones adapted to classification, or the recent VSFormer/ShapeFormer) with small patch lengths. These handle long contexts (L=1000) efficiently and capture both local motifs and global dependencies. If labeled data are limited, consider initializing with a classification-oriented FM (e.g., Mantis) or self-supervised representations (e.g., TS2Vec) before fine-tuning a small head; recent reports show consistent gains from FM-based or contrastive pretraining, especially on UEA-like tasks. On UEA benchmarks with sequence lengths in the ~400–1200 range and multivariate inputs, top models achieve widely varying accuracies depending on dataset complexity—for example, SpokenArabicDigits ≈0.98–0.99, JapaneseVowels ≈0.95–0.98, PEMS-SF ≈0.77–0.96, FaceDetection ≈0.65–0.67—highlighting the importance of architecture/data fit and regularization. ([github.com](https://github.com/ChangWeiTan/MultiRocket?utm_source=openai))
+
+KEY FINDINGS:
+1. Patch-based/class-aware Transformers are the leading deep models for MTSC (e.g., VSFormer, ShapeFormer) and are particularly effective for long sequences by balancing local shape and global context. ([arxiv.org](https://arxiv.org/abs/2412.16515?utm_source=openai))
+2. ROCKET-family methods (MultiRocket; Detach-ROCKET) are must-have baselines: near–state-of-the-art accuracy with orders-of-magnitude less compute than meta-ensembles like HIVE-COTE 2.0. ([github.com](https://github.com/ChangWeiTan/MultiRocket?utm_source=openai))
+3. Foundation models for time series classification (e.g., Mantis; FORMED) and FM surveys indicate substantial gains in low-data regimes via pretraining and lightweight adapters, plus improved calibration. ([arxiv.org](https://arxiv.org/abs/2502.15637?utm_source=openai))
+4. On UEA-like datasets with L≈400–1200 and multivariate inputs, achievable accuracy ranges are broad (≈0.65–0.99) depending on task; selection of architecture and augmentation materially affects outcomes. ([arxiv.org](https://arxiv.org/html/2403.00131v1?utm_source=openai))
+5. Mix-based and spectrum-preserving augmentations (MixUp++/LatentMixUp++, SimPSI) reliably improve generalization for TSC when labels are limited; time/frequency masking from audio can also help. ([paperswithcode.com](https://paperswithcode.com/paper/embarrassingly-simple-mixup-for-time-series?utm_source=openai))
+6. Self-supervised pretraining (e.g., TS2Vec) remains a strong option when domain FMs are unavailable, improving MTSC performance across UCR/UEA. ([arxiv.org](https://arxiv.org/abs/2106.10466?utm_source=openai))
+7. Practical PyTorch tip: for (1000,2) inputs, format tensors as [batch, channels=2, length=1000]; patch lengths 16–64 with stride 8–32 keep attention tokens ≲60–120, making Transformers trainable on 8–16 GB GPUs with mixed precision.
+
+RECOMMENDED APPROACHES:
+1. MultiRocket (or Detach-ROCKET) + linear/Ridge classifier: Fast CPU feature extraction (10k–50k features/series), strong accuracy and stability; start with 10k features, scale to 50k if classes are hard to separate. Ideal baseline and often production-ready with minimal tuning. ([github.com](https://github.com/ChangWeiTan/MultiRocket?utm_source=openai))
+2. InceptionTime or LITE-MV (lightweight CNN): 1D Inception blocks capture multi-scale motifs; typical settings: 3–5 stacks, 32–64 base filters, kernel sizes like [5, 11, 23], dropout 0.1–0.3. LITE-MV achieves similar accuracy with ≈2–3% of parameters. ([paperswithcode.com](https://paperswithcode.com/method/inceptiontime?utm_source=openai))
+3. Patch-based Transformer for classification (PatchTST-style backbone with class token) or VSFormer/ShapeFormer: Use patch_len 16–64, stride 8–32, d_model 128–256, 2–6 layers, 4–8 heads, dropout 0.1–0.3. Prefer VSFormer when absolute values are discriminative; ShapeFormer when class-specific local patterns dominate. ([github.com](https://github.com/GISWLH/TransformerTimeSeries?utm_source=openai))
+4. Foundation-model fine-tuning for TSC (e.g., Mantis) or domain FM repurposing (e.g., FORMED for medical): Freeze most layers, add small adapter/linear head; effective with small labeled sets and provides better calibration. ([arxiv.org](https://arxiv.org/abs/2502.15637?utm_source=openai))
+5. Self-supervised pretrain + linear head (TS2Vec): Contrastive pretraining on unlabeled windows followed by a lightweight classifier; strong in low-label regimes and compatible with PyTorch backbones. ([arxiv.org](https://arxiv.org/abs/2106.10466?utm_source=openai))
+
+RECENT PAPERS:
+- VSFormer: Value and Shape-Aware Transformer with Prior-Enhanced Self-Attention for Multivariate Time Series Classification (2024): No description
+- ShapeFormer: Shapelet Transformer for Multivariate Time Series Classification (2024): No description
+- Mantis: Lightweight Calibrated Foundation Model for User-Friendly Time Series Classification (2025): No description
+- FORMED: Repurposing Foundation Model for Generalizable Medical Time Series Classification (2024): No description
+- Toward a Foundation Model for Time Series Data (CIKM 2023): No description
+- Foundation Models for Time Series Analysis: A Tutorial and Survey (2024): No description
+- Foundation Models for Time Series: A Survey (2025): No description
+- Detach-ROCKET: Sequential feature selection for time series classification with random convolutional kernels (2023): No description
+- MultiRocket: Multiple pooling operators and transformations for fast and effective TSC (code + results): No description
+- HIVE-COTE 2.0: a new meta-ensemble for time series classification (2021; reference baseline): No description
+- UniTS: Building a Unified Time Series Model (2024): No description
+
+==================================================
