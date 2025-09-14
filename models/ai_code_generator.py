@@ -12,6 +12,7 @@ from openai import OpenAI
 from config import config
 import os
 from pathlib import Path
+from models.literature_review import literature_review_generator, LiteratureReview
 
 logger = logging.getLogger(__name__)
 
@@ -42,25 +43,44 @@ class AICodeGenerator:
         self.code_storage_dir = Path("generated_training_functions")
         self.code_storage_dir.mkdir(exist_ok=True)
     
-    def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int) -> str:
-        """Create simplified prompt for GPT-5 code generation"""
-        
-        # Simplified prompt for GPT-5 to reduce reasoning token usage
-        prompt = f"""Generate PyTorch training function for {num_classes}-class classification.
+    def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None) -> str:
+        """Create enhanced prompt for GPT-5 code generation with literature review insights"""
 
-Data: {data_profile['data_type']}, shape {input_shape}, {data_profile['num_samples']} samples
+        # Base prompt
+        base_prompt = f"""Generate PyTorch training function for {num_classes}-class classification.
+
+Data: {data_profile['data_type']}, shape {input_shape}, {data_profile['num_samples']} samples"""
+
+        # Add literature review insights if available
+        if literature_review:
+            base_prompt += f"""
+
+LITERATURE REVIEW INSIGHTS:
+Query: {literature_review.query}
+Confidence: {literature_review.confidence:.2f}
+
+Key Findings:
+{chr(10).join('- ' + finding for finding in literature_review.key_findings[:5])}
+
+Recommended Approaches:
+{chr(10).join('- ' + approach for approach in literature_review.recommended_approaches[:3])}
+
+Please consider these recent research insights when generating your training function."""
+
+        prompt = base_prompt + f"""
 
 Requirements:
 - Function: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
 - Build model from scratch, include training loop, return model and metrics
 - Lightweight architecture (<256K parameters)
+- Incorporate relevant insights from literature review if provided
 
 Response JSON format:
 {{
     "model_name": "ModelName",
     "training_code": "def train_model(...):\\n    # Complete PyTorch training code here",
     "hyperparameters": {{"lr": 0.001, "epochs": 10, "batch_size": 64}},
-    "reasoning": "Brief explanation",
+    "reasoning": "Brief explanation incorporating literature insights",
     "confidence": 0.9,
     "bo_parameters": ["lr", "batch_size", "epochs"]
 }}"""
@@ -182,16 +202,37 @@ Response JSON format:
             logger.error(f"Original response: {response}")
             raise ValueError(f"Failed to parse AI code recommendation: {e}")
     
-    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int) -> CodeRecommendation:
-        """Generate training function code based on data characteristics"""
-        prompt = self._create_prompt(data_profile, input_shape, num_classes)
+    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = True) -> CodeRecommendation:
+        """Generate training function code based on data characteristics with optional literature review"""
+
+        literature_review = None
+
+        # Generate literature review if requested
+        if include_literature_review:
+            try:
+                logger.info("Conducting literature review before code generation...")
+                literature_review = literature_review_generator.generate_literature_review(data_profile, input_shape, num_classes)
+
+                # Save literature review
+                review_file = literature_review_generator.save_literature_review(literature_review, data_profile)
+                logger.info(f"Literature review saved to: {review_file}")
+
+            except Exception as e:
+                logger.warning(f"Literature review failed: {e}, proceeding without it")
+                literature_review = None
+
+        # Generate training function with literature review insights
+        prompt = self._create_prompt(data_profile, input_shape, num_classes, literature_review)
         response = self._call_openai_api(prompt)
         recommendation = self._parse_recommendation(response)
-        
+
         logger.info(f"AI generated training function: {recommendation.model_name}")
         logger.info(f"Confidence: {recommendation.confidence:.2f}")
         logger.info(f"Reasoning: {recommendation.reasoning}")
-        
+
+        if literature_review:
+            logger.info(f"Literature review informed code generation (confidence: {literature_review.confidence:.2f})")
+
         return recommendation
     
     def save_training_function(self, recommendation: CodeRecommendation, data_profile: Dict[str, Any]) -> str:
@@ -489,23 +530,25 @@ ai_code_generator = AICodeGenerator()
 code_validator = CodeValidator()
 fallback_code_generator = FallbackCodeGenerator()
 
-def generate_training_code_for_data(data_profile: Dict[str, Any], input_shape: tuple, num_classes: int) -> CodeRecommendation:
+def generate_training_code_for_data(data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = True) -> CodeRecommendation:
     """
-    Convenience function: Generate training code for data with fallback
+    Convenience function: Generate training code for data with literature review and fallback
     """
     try:
-        # Try AI generation
-        recommendation = ai_code_generator.generate_training_function(data_profile, input_shape, num_classes)
-        
+        # Try AI generation with literature review
+        recommendation = ai_code_generator.generate_training_function(
+            data_profile, input_shape, num_classes, include_literature_review
+        )
+
         # Validate the generated code
         if code_validator.validate_code(recommendation.training_code):
             return recommendation
         else:
             logger.warning("AI generated code failed validation, using fallback")
             raise ValueError("AI generated code failed validation")
-        
+
     except Exception as e:
-        logger.warning(f"AI code generation failed: {e}, using fallback")
+        logger.warning(f"AI code generation with literature review failed: {e}, using fallback")
         # Use rule-based fallback
         fallback_recommendation = fallback_code_generator.generate_fallback_code(data_profile, input_shape, num_classes)
         return fallback_recommendation
