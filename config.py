@@ -16,7 +16,7 @@ class Config:
     def __init__(self):
         self.openai_api_key = self._get_openai_api_key()
         self.openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-5")
         
         # API call limits to prevent infinite loops and excessive costs
         # These values should be set in .env file, fallback values provided as backup

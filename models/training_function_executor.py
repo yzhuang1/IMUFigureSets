@@ -6,6 +6,7 @@ Loads and executes training functions from JSON files
 import json
 import logging
 import torch
+import numpy as np
 from typing import Dict, Any, Tuple, Optional, List
 from pathlib import Path
 import importlib.util
@@ -27,6 +28,24 @@ class TrainingFunctionExecutor:
             logger.info(f"GPU available: {torch.cuda.get_device_name(0)}")
         else:
             logger.info("Using CPU for training")
+    
+    def _convert_numpy_types(self, hyperparams: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert NumPy types to native Python types for PyTorch compatibility"""
+        converted = {}
+        for key, value in hyperparams.items():
+            if isinstance(value, np.integer):
+                converted[key] = int(value)
+            elif isinstance(value, np.floating):
+                converted[key] = float(value)
+            elif isinstance(value, np.ndarray):
+                converted[key] = value.tolist()
+            elif isinstance(value, np.bool_):
+                converted[key] = bool(value)
+            else:
+                converted[key] = value
+        
+        logger.debug(f"Converted hyperparameters: {converted}")
+        return converted
     
     def load_training_function(self, filepath: str) -> Dict[str, Any]:
         """Load training function data from JSON file"""
@@ -89,6 +108,9 @@ class TrainingFunctionExecutor:
             # Merge default hyperparameters with provided ones
             default_hyperparams = training_data.get('hyperparameters', {})
             final_hyperparams = {**default_hyperparams, **hyperparams}
+            
+            # Convert NumPy types to native Python types (required for PyTorch)
+            final_hyperparams = self._convert_numpy_types(final_hyperparams)
             
             # Execute training
             logger.info(f"Starting training with hyperparameters: {final_hyperparams}")
@@ -294,19 +316,8 @@ class BO_TrainingObjective:
         t0 = time.time()
         
         try:
-            # Convert numpy types to Python types
-            processed_hparams = {}
-            for key, value in hparams.items():
-                if hasattr(value, 'item'):
-                    value = value.item()
-                
-                # Type conversion
-                if key in ['epochs', 'batch_size', 'hidden_size', 'num_layers']:
-                    value = int(value)
-                elif key in ['lr', 'dropout']:
-                    value = float(value)
-                
-                processed_hparams[key] = value
+            # Convert numpy types to Python types using centralized method
+            processed_hparams = self.executor._convert_numpy_types(hparams)
             
             # Execute training
             model, metrics = self.executor.execute_training_function(

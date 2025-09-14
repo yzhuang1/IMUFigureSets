@@ -43,7 +43,7 @@ def setup_api_key():
             f.write(f"\n")
             f.write(f"# Optional: Customize OpenAI settings\n")
             f.write(f"OPENAI_BASE_URL=https://api.openai.com/v1\n")
-            f.write(f"OPENAI_MODEL=gpt-4\n")
+            f.write(f"OPENAI_MODEL=gpt-5\n")
         
         print("✅ .env file created successfully!")
         print("🔒 Your API key is now securely stored in .env (this file is gitignored)")

@@ -43,71 +43,105 @@ class AICodeGenerator:
         self.code_storage_dir.mkdir(exist_ok=True)
     
     def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int) -> str:
-        """Create prompt for code generation"""
+        """Create simplified prompt for GPT-5 code generation"""
         
-        prompt = f"""You are a machine learning expert. Generate a complete PyTorch training function for this data.
+        # Simplified prompt for GPT-5 to reduce reasoning token usage
+        prompt = f"""Generate PyTorch training function for {num_classes}-class classification.
 
-DATA CHARACTERISTICS:
-{json.dumps(data_profile, indent=2)}
+Data: {data_profile['data_type']}, shape {input_shape}, {data_profile['num_samples']} samples
 
-INPUT SHAPE: {input_shape}
-NUM CLASSES: {num_classes}
+Requirements:
+- Function: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
+- Build model from scratch, include training loop, return model and metrics
+- Lightweight architecture (<256K parameters)
 
-TASK: Generate a complete training function that takes PyTorch tensors as input.
-
-REQUIREMENTS:
-1. Function signature: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
-2. Function should build the model architecture from scratch
-3. Include training loop with validation
-4. Return trained model and training metrics
-5. Use appropriate model architecture for the data type
-6. Include proper error handling
-7. Use hyperparameters as function parameters with defaults
-
-RESPONSE FORMAT (JSON only, no other text):
+Response JSON format:
 {{
-    "model_name": "CustomLSTMClassifier",
-    "training_code": "def train_model(X_train, y_train, X_val, y_val, device='cpu', lr=0.001, epochs=10, batch_size=64, hidden_size=128, dropout=0.2, num_layers=2):\\n    import torch\\n    import torch.nn as nn\\n    import torch.optim as optim\\n    from torch.utils.data import TensorDataset, DataLoader\\n    \\n    # Model definition\\n    class CustomModel(nn.Module):\\n        def __init__(self, input_size, hidden_size, num_classes, num_layers, dropout):\\n            super().__init__()\\n            self.lstm = nn.LSTM(input_size, hidden_size, num_layers, dropout=dropout, batch_first=True)\\n            self.fc = nn.Linear(hidden_size, num_classes)\\n            self.dropout = nn.Dropout(dropout)\\n        \\n        def forward(self, x):\\n            lstm_out, _ = self.lstm(x)\\n            last_output = lstm_out[:, -1, :]\\n            output = self.dropout(last_output)\\n            return self.fc(output)\\n    \\n    # Data preparation\\n    train_dataset = TensorDataset(X_train, y_train)\\n    val_dataset = TensorDataset(X_val, y_val)\\n    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)\\n    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)\\n    \\n    # Model initialization\\n    input_size = X_train.shape[-1]\\n    model = CustomModel(input_size, hidden_size, {num_classes}, num_layers, dropout)\\n    model.to(device)\\n    \\n    # Training setup\\n    criterion = nn.CrossEntropyLoss()\\n    optimizer = optim.Adam(model.parameters(), lr=lr)\\n    \\n    # Training loop\\n    model.train()\\n    train_losses = []\\n    val_accuracies = []\\n    \\n    for epoch in range(epochs):\\n        epoch_loss = 0\\n        for batch_X, batch_y in train_loader:\\n            batch_X, batch_y = batch_X.to(device), batch_y.to(device)\\n            \\n            optimizer.zero_grad()\\n            outputs = model(batch_X)\\n            loss = criterion(outputs, batch_y)\\n            loss.backward()\\n            optimizer.step()\\n            \\n            epoch_loss += loss.item()\\n        \\n        # Validation\\n        model.eval()\\n        correct = 0\\n        total = 0\\n        with torch.no_grad():\\n            for batch_X, batch_y in val_loader:\\n                batch_X, batch_y = batch_X.to(device), batch_y.to(device)\\n                outputs = model(batch_X)\\n                _, predicted = torch.max(outputs.data, 1)\\n                total += batch_y.size(0)\\n                correct += (predicted == batch_y).sum().item()\\n        \\n        val_acc = correct / total\\n        train_losses.append(epoch_loss / len(train_loader))\\n        val_accuracies.append(val_acc)\\n        model.train()\\n    \\n    # Final metrics\\n    model.eval()\\n    final_metrics = {{'val_accuracy': val_accuracies[-1], 'final_loss': train_losses[-1]}}\\n    \\n    return model, final_metrics",
-    "hyperparameters": {{
-        "lr": 0.001,
-        "epochs": 10,
-        "batch_size": 64,
-        "hidden_size": 128,
-        "dropout": 0.2,
-        "num_layers": 2
-    }},
-    "reasoning": "LSTM architecture chosen for sequence data with temporal dependencies. Custom implementation allows for flexible hyperparameter tuning.",
+    "model_name": "ModelName",
+    "training_code": "def train_model(...):\\n    # Complete PyTorch training code here",
+    "hyperparameters": {{"lr": 0.001, "epochs": 10, "batch_size": 64}},
+    "reasoning": "Brief explanation",
     "confidence": 0.9,
-    "bo_parameters": ["lr", "epochs", "batch_size", "hidden_size", "dropout", "num_layers"]
-}}
-
-IMPORTANT GUIDELINES:
-- Generate complete, executable Python code
-- Use proper PyTorch conventions
-- Include validation during training
-- Handle different data types (sequence, tabular, image)
-- Use appropriate model architectures for data characteristics
-- Include proper tensor shapes and device handling
-- All hyperparameters should be tunable via function parameters
-- Code should be production-ready and error-free
-- Return both model and metrics dictionary
-- **CRITICAL: Keep model size small - final compressed model must be under 256K. Choose lightweight architectures with fewer parameters, smaller hidden sizes, and fewer layers.**
-"""
+    "bo_parameters": ["lr", "batch_size", "epochs"]
+}}"""
 
         return prompt
     
     def _call_openai_api(self, prompt: str) -> str:
-        """Call OpenAI API"""
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You are a machine learning expert. Generate complete, executable PyTorch training code. Respond only with valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=3000
-        )
-        return response.choices[0].message.content
+        """Call OpenAI API with GPT-5 using the latest method"""
+        logger.info(f"Making API call to {self.model}")
+        
+        # Try the client.responses.create method first (if it exists and works)
+        if hasattr(self.client, 'responses') and hasattr(self.client.responses, 'create'):
+            try:
+                logger.info("Attempting client.responses.create method")
+                response = self.client.responses.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a machine learning expert. Generate complete, executable PyTorch training code. Respond only with valid JSON."},
+                        {"role": "user", "content": prompt}
+                    ]
+                    # Note: GPT-5 uses default temperature=1, no custom temperature parameter
+                )
+                result = response.choices[0].message.content if hasattr(response, 'choices') else response.text
+                if result:
+                    logger.info("Successfully used client.responses.create")
+                    return result
+            except Exception as resp_error:
+                logger.warning(f"client.responses.create method failed: {resp_error}, falling back to standard method")
+        
+        # Standard chat completions API (with GPT-5 compatibility)
+        try:
+            logger.info("Using standard chat.completions.create method")
+            
+            # Create API call parameters - adjust for GPT-5
+            api_params = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": "You are a machine learning expert. Generate complete, executable PyTorch training code. Respond only with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+            }
+            
+            # GPT-5 only supports temperature=1 (default), older models support custom temperature
+            if not (self.model.startswith('gpt-5') or self.model == 'gpt-5'):
+                api_params["temperature"] = 0.3
+            
+            # Use max_completion_tokens for GPT-5, max_tokens for older models
+            if self.model.startswith('gpt-5') or self.model == 'gpt-5':
+                api_params["max_completion_tokens"] = 8000  # Increased for GPT-5 reasoning tokens
+            else:
+                api_params["max_tokens"] = 3000
+            
+            # Add JSON format for supported models
+            try:
+                api_params["response_format"] = {"type": "json_object"}
+                response = self.client.chat.completions.create(**api_params)
+            except Exception:
+                # Remove JSON format if not supported
+                logger.info("JSON format not supported, using standard format")
+                api_params.pop("response_format", None)
+                response = self.client.chat.completions.create(**api_params)
+            
+            result = response.choices[0].message.content
+            logger.debug(f"API response: {response}")
+            logger.debug(f"Response content: {result}")
+            
+            if result:
+                return result
+            else:
+                # Check if there's a refusal or other message
+                if hasattr(response.choices[0], 'message') and hasattr(response.choices[0].message, 'refusal'):
+                    refusal = response.choices[0].message.refusal
+                    if refusal:
+                        raise ValueError(f"API refused to respond: {refusal}")
+                
+                logger.error(f"Empty response from API. Full response: {response}")
+                raise ValueError("Empty response from API")
+                
+        except Exception as e:
+            logger.error(f"Standard API call failed: {e}")
+            raise
     
     def _parse_recommendation(self, response: str) -> CodeRecommendation:
         """Parse API response as code recommendation"""
