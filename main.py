@@ -412,7 +412,36 @@ def process_real_data():
         json.dump(pipeline_summary, f, indent=2, default=str)
     
     print(f"\n[SUCCESS] Pipeline summary saved to charts/pipeline_summary_{timestamp_suffix}.json")
-    
+
+    # Save the final trained model with best parameters to trained_models folder
+    if 'model' in result and result['model'] is not None:
+        model_filename = f"best_model_{result['pipeline_results']['model_name']}_{timestamp_suffix}.pth"
+        model_save_path = f"trained_models/{model_filename}"
+
+        # Save model state dict and metadata
+        model_data = {
+            'model_state_dict': result['model'].state_dict(),
+            'model_name': result['pipeline_results']['model_name'],
+            'final_metrics': convert_numpy_types(result['final_metrics']),
+            'best_hyperparameters': result['pipeline_results'].get('optimized_hyperparameters', {}),
+            'data_profile': result['data_profile'].to_dict() if hasattr(result['data_profile'], 'to_dict') else str(result['data_profile']),
+            'timestamp': timestamp_suffix,
+            'bo_best_score': result['pipeline_results'].get('bo_results', {}).get('best_value', 0.0)
+        }
+
+        torch.save(model_data, model_save_path)
+        print(f"\n[SUCCESS] Final trained model saved to {model_save_path}")
+        print(f"  Model: {result['pipeline_results']['model_name']}")
+        print(f"  Performance: {result['final_metrics']}")
+        print(f"  Best hyperparameters: {result['pipeline_results'].get('optimized_hyperparameters', {})}")
+
+        # Update pipeline summary with model save path
+        pipeline_summary['saved_model_path'] = model_save_path
+
+        # Re-save pipeline summary with model path
+        with open(f"charts/pipeline_summary_{timestamp_suffix}.json", 'w') as f:
+            json.dump(pipeline_summary, f, indent=2, default=str)
+
     return True
 
 if __name__ == "__main__":
