@@ -1,0 +1,64 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-15 19:31:15
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+From 2023 to 2025, ECG arrhythmia classification on MIT‑BIH has been driven by hybrid 1D CNN–Transformer designs, lightweight attention models, dilated temporal convolutions, and the first wave of ECG “foundation” models. Notable examples include CAT‑Net, which couples a convolutional stem with Transformer encoders and explicit class‑imbalance handling to set strong 5‑class MIT‑BIH results (99.14% accuracy; 94.69% macro‑F1), and several compact Transformers tailored for deployment that still report ≈99% accuracy on 5‑class MIT‑BIH. Parallel lines of work fuse local–global temporal features via hierarchical or bidirectional attention, or via multi‑branch dilated TCNs with focal loss, which improve minority‑class recognition. Time‑frequency pipelines that convert beats or short segments into CWT/STFT images and apply Swin/2D‑CNNs remain competitive, particularly when paired with multimodal feature fusion. Finally, self‑supervised and foundation‑model pretraining (masked/contrastive or HuBERT‑style objectives) trained on large ECG corpora has emerged as a practical way to boost downstream arrhythmia classification when labeled data are limited. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+
+For your setting—numpy arrays shaped (1000, 2) from the two MIT‑BIH leads, five AAMI superclasses (N, S, V, F, Q), and sequence length ≈2.78 s at 360 Hz—modern 1D CNN+Transformer hybrids or multi‑branch dilated TCNs provide the best accuracy/efficiency trade‑off and map cleanly to PyTorch. Adhering to AAMI EC57 grouping and inter‑patient evaluation (the DS1/DS2 split) is critical to avoid optimistic estimates; MIT‑BIH contains ≈110k annotated beats across 48 two‑lead records, and patient‑mixing can inflate results. Expect well‑tuned, patient‑disjoint 5‑class models to reach ≈98–99.5% overall accuracy with macro‑F1 in the mid‑90s; lightweight models can approach these numbers, while self‑supervised pretraining can improve robustness/generalization, especially for minority classes. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))
+
+KEY FINDINGS:
+1. Hybrid CNN+Transformer encoders are the most consistent recent winners on 5‑class MIT‑BIH, capturing local morphology and long‑range context; CAT‑Net exemplifies this trend. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+2. Lightweight attention models (tiny Transformers, hierarchical attention) achieve near‑SOTA accuracy with orders‑of‑magnitude fewer parameters—useful for deployment or large‑scale inference. ([emergentmind.com](https://www.emergentmind.com/papers/2402.10748?utm_source=openai))
+3. Dilated multi‑branch TCNs with attention and focal‑style losses improve recall for rare classes (S, F), yielding macro‑F1 ≈95–97% on MIT‑BIH. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39771858/?utm_source=openai))
+4. Time–frequency representations (CWT/STFT) combined with Swin/2D‑CNNs or multimodal fusion remain competitive on MIT‑BIH but add preprocessing overhead. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full?utm_source=openai))
+5. Self‑supervised/foundation pretraining (masked + contrastive) on large ECG corpora transfers well and can increase robustness under distribution shift or missing/noisy leads. ([arxiv.org](https://arxiv.org/abs/2405.19348?utm_source=openai))
+6. Strict inter‑patient evaluation (e.g., DS1→DS2) and AAMI EC57 5‑class mapping are essential; patient overlap or inconsistent label regrouping can materially inflate metrics. ([frontiersin.org](https://www.frontiersin.org/journals/physiology/articles/10.3389/fphys.2023.1247587/full?utm_source=openai))
+7. MIT‑BIH provides two synchronized leads at 360 Hz with ≈110k beat annotations; segments of length 1000 samples capture ≈2.8 s windows around beats or rhythm snippets. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. {'name': 'CNN+Transformer hybrid (e.g., CAT‑Net‑style)', 'description': '1D conv stem (3–5 blocks, kernels 7–15, 64–128 channels) → 2–4 Transformer encoders (d_model 128–256, 4–8 heads, dropout 0.1–0.3) → global pooling → classifier; class‑imbalance handled with SMOTE‑Tomek or focal loss; strong 5‑class MIT‑BIH macro‑F1. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))'}
+2. {'name': 'Multi‑branch dilated TCN with attention', 'description': 'Parallel dilated Conv1D branches (dilations 1–16/32; kernels 3–9), squeeze‑and‑excitation or attention fusion, focal loss (γ≈2) and mixup; excels on S/F classes with high throughput. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39771858/?utm_source=openai))'}
+3. {'name': 'Lightweight attention model (Tiny Transformer or Hierarchical Attention Network)', 'description': 'Parameter‑efficient encoder (≤1–2 M params; even ~6k for MCU‑class) with positional encodings and small heads (H=2–4); near‑SOTA accuracy and easy deployment on edge devices. ([emergentmind.com](https://www.emergentmind.com/papers/2402.10748?utm_source=openai))'}
+4. {'name': 'Self‑supervised pretrain + fine‑tune', 'description': 'Pretrain an encoder on large ECGs using masked reconstruction + non/contrastive loss; fine‑tune on MIT‑BIH with class‑weighted CE or focal; improves generalization and noise/missing‑lead robustness. ([arxiv.org](https://arxiv.org/abs/2405.19348?utm_source=openai))'}
+5. {'name': 'Time–frequency image pipeline (CWT/STFT) + Swin/2D‑CNN', 'description': 'Transform (1000,2) into 2‑D scalograms/spectrograms, apply Swin Transformer or multi‑branch 2D‑CNN with feature fusion; strong accuracy when compute allows. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full?utm_source=openai))'}
+
+RECENT PAPERS:
+- CAT‑Net: Convolution, attention, and transformer based network for single‑lead ECG arrhythmia classification (BSPC, 2024): No description
+- A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (arXiv, 2024): No description
+- ECGTransForm: Bidirectional Transformer with multi‑scale convolutions (BSPC, 2024): No description
+- Accurate Arrhythmia Classification with Multi‑Branch, Multi‑Head Attention Temporal Convolutional Networks (2024): No description
+- Swin Transformer with time‑frequency characteristics for ECG (Frontiers in Cardiovascular Medicine, 2024): No description
+- Enhancing ECG classification with continuous wavelet transform and multi‑branch transformer (2024): No description
+- Hierarchical Attention Network for Interpretable ECG‑based Classification (arXiv, 2025): No description
+- NERULA: Dual‑pathway self‑supervised learning for ECG (arXiv, 2024): No description
+- HuBERT‑ECG: a self‑supervised foundation model for broad cardiac applications (medRxiv, 2024): No description
+- TolerantECG: A Foundation Model for Imperfect Electrocardiogram (arXiv, 2025): No description
+
+==================================================

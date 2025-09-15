@@ -23,6 +23,9 @@ class Config:
         self.dataset_name = os.getenv("DATASET_NAME", "Unknown Dataset")
         self.dataset_source = os.getenv("DATASET_SOURCE", "Unknown Source")
         
+        # Literature review configuration
+        self.skip_literature_review = os.getenv("SKIP_LITERATURE_REVIEW", "false").lower() == "true"
+        
         # API call limits to prevent infinite loops and excessive costs
         # These values should be set in .env file, fallback values provided as backup
         self.max_model_selection_attempts = int(os.getenv("MAX_MODEL_ATTEMPTS") or "4")

@@ -167,7 +167,7 @@ class CodeGenerationPipelineOrchestrator:
                 if is_acceptable:
                     logger.info("✅ Model performance is acceptable! Stopping pipeline.")
                     logger.info(f"Final model: {code_rec.model_name}")
-                    logger.info(f"Final metrics: {training_results['final_metrics']}")
+                    logger.info(f"Final metrics: {dict(training_results['final_metrics']) if training_results['final_metrics'] else 'None'}")
                     break
                 else:
                     logger.info("❌ Model performance below threshold. Generating new training function...")
@@ -226,7 +226,7 @@ class CodeGenerationPipelineOrchestrator:
         
         logger.info(f"Generated training function: {code_rec.model_name}")
         logger.info(f"Reasoning: {code_rec.reasoning}")
-        logger.info(f"BO parameters: {code_rec.bo_parameters}")
+        logger.info(f"BO parameters: {list(code_rec.bo_parameters) if code_rec.bo_parameters else 'None'}")
         logger.info(f"Confidence: {code_rec.confidence:.2f}")
         
         return code_rec
@@ -384,7 +384,7 @@ class CodeGenerationPipelineOrchestrator:
             }
         
         logger.info(f"BO completed - Best score: {bo_results['best_value']:.4f}")
-        logger.info(f"Best params: {bo_results['best_params']}")
+        logger.info(f"Best params: {dict(bo_results['best_params']) if bo_results['best_params'] else 'None'}")
         
         # Generate BO charts
         self._generate_bo_charts(bo_results, code_rec.model_name)
@@ -436,7 +436,7 @@ class CodeGenerationPipelineOrchestrator:
         best_params = bo_results['best_params']
         
         # Execute training with optimized parameters
-        logger.info(f"Executing final training with optimized params: {best_params}")
+        logger.info(f"Executing final training with optimized params: {dict(best_params) if best_params else 'None'}")
         
         trained_model, training_metrics = training_executor.execute_training_function(
             training_data,
@@ -453,7 +453,7 @@ class CodeGenerationPipelineOrchestrator:
         
         final_metrics = evaluate_model(trained_model, test_loader, device)
         
-        logger.info(f"Final test metrics: {final_metrics}")
+        logger.info(f"Final test metrics: {dict(final_metrics) if final_metrics else 'None'}")
         
         results = {
             'model': trained_model,
@@ -463,8 +463,8 @@ class CodeGenerationPipelineOrchestrator:
             'training_metrics': training_metrics,
             'final_metrics': final_metrics,
             'train_test_split': {
-                'train_size': len(X_train),
-                'test_size': len(X_test)
+                'train_size': len(X_train_final),
+                'test_size': len(X_test_tensor)
             },
             'optimized_hyperparameters': best_params
         }

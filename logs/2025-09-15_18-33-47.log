@@ -1,0 +1,36 @@
+2025-09-15 18:33:47,022 - INFO - __main__ - Logging system initialized successfully
+2025-09-15 18:33:47,024 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'y.npy', 'X.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-15 18:33:47,025 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-15 18:33:47,025 - INFO - __main__ - Attempting to load: y.npy
+2025-09-15 18:33:47,026 - INFO - __main__ - Attempting to load: X.npy
+2025-09-15 18:33:47,332 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-15 18:33:47,621 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-15 18:33:47,622 - INFO - __main__ - Starting AI-enhanced training with new pipeline flow
+2025-09-15 18:33:47,622 - INFO - __main__ - Flow: Template Selection → BO → Evaluation → Feedback Loop
+2025-09-15 18:33:47,640 - INFO - __main__ - Data profile: {'data_type': 'numpy_array', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-15 18:33:47,642 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized with max 4 attempts
+2025-09-15 18:33:47,642 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution
+2025-09-15 18:33:47,642 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-15 18:33:47,642 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-15 18:33:47,642 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-15 18:33:47,642 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-15 18:33:47,643 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-15 18:33:48,264 - INFO - data_splitting - Computed class weights: {0: 0.27775728256708315, 1: 1.3057591623036648, 2: 10.37815344603381, 3: 10.0640605296343, 4: 2.282184729768373}
+2025-09-15 18:33:48,269 - INFO - class_balancing - Class imbalance analysis:
+2025-09-15 18:33:48,269 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-15 18:33:48,270 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-15 18:33:48,270 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-15 18:33:48,270 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-15 18:33:48,271 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-15 18:33:48,271 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-15 18:33:48,271 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-15 18:33:48,271 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-15 18:33:49,568 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-15 18:33:49,570 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-15 18:33:49,573 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-15 18:33:49,577 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE ATTEMPT 1/4
+2025-09-15 18:33:49,577 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-15 18:33:49,577 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-15 18:33:49,578 - INFO - models.ai_code_generator - Conducting literature review before code generation...
+2025-09-15 18:33:49,578 - INFO - models.literature_review - Making GPT-5 literature review call with query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods

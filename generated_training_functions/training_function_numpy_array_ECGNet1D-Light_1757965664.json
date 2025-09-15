@@ -1,0 +1,78 @@
+{
+  "model_name": "ECGNet1D-Light",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    import numpy as np\n    import torch\n    import torch.nn as nn\n    import torch.nn.functional as F\n    from torch.utils.data import Dataset, DataLoader\n    from sklearn.utils.class_weight import compute_class_weight\n    from sklearn.metrics import f1_score, accuracy_score\n    import math\n    \n    # -------------------- Hyperparameters (with defaults) --------------------\n    cfg = {\n        'lr': 1e-3,\n        'epochs': 25,\n        'batch_size': 64,\n        'weight_decay': 1e-4,\n        'hidden_size': 32,            # base channels (keeps params < 256K)\n        'dropout': 0.2,\n        'label_smoothing': 0.05,\n        'early_stopping_patience': 8,\n        'scheduler_patience': 3,\n        'scheduler_factor': 0.5,\n        'min_lr': 1e-6,\n        'seed': 42,\n        'amp': True,\n        'grad_clip': 1.0,\n        'num_classes': 5\n    }\n    cfg.update(hyperparams or {})\n    \n    # -------------------- Reproducibility --------------------\n    torch.manual_seed(cfg['seed'])\n    np.random.seed(cfg['seed'])\n    if isinstance(device, str):\n        device = torch.device(device)\n    \n    # -------------------- Utilities --------------------\n    def ensure_ch_first(x):\n        # Expect shape either (N, C, L) or (N, L, C)\n        if x.ndim != 3:\n            raise ValueError(f\"Expected X to have shape (N, L, C) or (N, C, L), got {x.shape}\")\n        # If the second dim is small (like 1-8) and last is large (~1000), we assume (N, C, L)\n        # If last dim is small (<=8), assume (N, L, C) and transpose\n        if x.shape[1] <= 8 and x.shape[2] >= 32:\n            return x  # (N, C, L)\n        elif x.shape[2] <= 8 and x.shape[1] >= 32:\n            return np.transpose(x, (0, 2, 1))  # (N, C, L)\n        else:\n            # Fallback: if last dim is 2 or 1 (typical ECG leads), put it as channels\n            if x.shape[-1] in (1, 2, 3, 4):\n                return np.transpose(x, (0, 2, 1))\n            return x\n    \n    def to_long_labels(y):\n        y = np.asarray(y)\n        if y.ndim == 2:  # possibly one-hot\n            return y.argmax(axis=1).astype(np.int64)\n        return y.astype(np.int64)\n    \n    # -------------------- Prepare data --------------------\n    # Convert tensors to numpy if needed\n    if hasattr(X_train, 'cpu'):\n        X_train = X_train.cpu().numpy()\n    else:\n        X_train = np.asarray(X_train)\n    \n    if hasattr(X_val, 'cpu'):\n        X_val = X_val.cpu().numpy()\n    else:\n        X_val = np.asarray(X_val)\n    \n    if hasattr(y_train, 'cpu'):\n        y_train = y_train.cpu().numpy()\n    if hasattr(y_val, 'cpu'):\n        y_val = y_val.cpu().numpy()\n    \n    y_train = to_long_labels(y_train)\n    y_val = to_long_labels(y_val)\n    \n    X_train = ensure_ch_first(X_train)\n    X_val = ensure_ch_first(X_val)\n    \n    if X_train.shape[1] > 16:\n        raise ValueError(\"Channel dimension seems too large. Expected small number of ECG leads (e.g., 1-2).\")\n    \n    # Standardize per-channel using train stats (robust for ECG)\n    # Compute mean/std over (N, L) for each channel\n    train_mean = X_train.mean(axis=(0, 2), keepdims=True)\n    train_std = X_train.std(axis=(0, 2), keepdims=True)\n    train_std = np.where(train_std < 1e-6, 1.0, train_std)\n    X_train = (X_train - train_mean) / train_std\n    X_val = (X_val - train_mean) / train_std\n    \n    X_train = X_train.astype(np.float32)\n    X_val = X_val.astype(np.float32)\n    \n    num_classes = int(cfg.get('num_classes', 5))\n    \n    # Class weights to handle imbalance (common in arrhythmia datasets)\n    classes = np.arange(num_classes)\n    # Ensure all classes are present for compute_class_weight; fall back if missing\n    present_classes = np.unique(y_train)\n    if len(present_classes) < num_classes:\n        # Compute on present classes, then map back\n        cw_present = compute_class_weight(class_weight='balanced', classes=present_classes, y=y_train)\n        class_weight = np.ones(num_classes, dtype=np.float32)\n        for c, w in zip(present_classes, cw_present):\n            class_weight[c] = float(w)\n    else:\n        class_weight = compute_class_weight(class_weight='balanced', classes=classes, y=y_train).astype(np.float32)\n    \n    class_weight_t = torch.tensor(class_weight, dtype=torch.float32, device=device)\n    \n    # -------------------- Dataset & DataLoader --------------------\n    class NumpyECGDataset(Dataset):\n        def __init__(self, X, y):\n            self.X = X\n            self.y = y\n        def __len__(self):\n            return self.y.shape[0]\n        def __getitem__(self, idx):\n            return torch.from_numpy(self.X[idx]), torch.tensor(self.y[idx], dtype=torch.long)\n    \n    train_ds = NumpyECGDataset(X_train, y_train)\n    val_ds = NumpyECGDataset(X_val, y_val)\n    \n    train_loader = DataLoader(train_ds, batch_size=cfg['batch_size'], shuffle=True, num_workers=0, pin_memory=(device.type=='cuda'))\n    val_loader = DataLoader(val_ds, batch_size=cfg['batch_size'], shuffle=False, num_workers=0, pin_memory=(device.type=='cuda'))\n    \n    # -------------------- Model --------------------\n    class ConvBlock(nn.Module):\n        def __init__(self, in_ch, out_ch, k, pool=True, dropout=0.0):\n            super().__init__()\n            pad = k // 2\n            self.seq = nn.Sequential(\n                nn.Conv1d(in_ch, out_ch, kernel_size=k, padding=pad, bias=False),\n                nn.BatchNorm1d(out_ch),\n                nn.ReLU(inplace=True),\n                nn.Conv1d(out_ch, out_ch, kernel_size=k, padding=pad, bias=False),\n                nn.BatchNorm1d(out_ch),\n                nn.ReLU(inplace=True),\n                nn.Dropout(p=dropout) if dropout > 0 else nn.Identity(),\n                nn.MaxPool1d(kernel_size=2) if pool else nn.Identity(),\n            )\n        def forward(self, x):\n            return self.seq(x)\n    \n    class ECGNet1DLight(nn.Module):\n        def __init__(self, in_ch=2, num_classes=5, base=32, dropout=0.2):\n            super().__init__()\n            c1, c2, c3 = base, base*2, base*4\n            self.feature = nn.Sequential(\n                ConvBlock(in_ch, c1, k=7, pool=True, dropout=dropout),   # L/2\n                ConvBlock(c1, c2, k=5, pool=True, dropout=dropout),      # L/4\n                nn.Conv1d(c2, c3, kernel_size=3, padding=1, bias=False),\n                nn.BatchNorm1d(c3),\n                nn.ReLU(inplace=True),\n                nn.Dropout(p=dropout),\n            )\n            self.gap = nn.AdaptiveAvgPool1d(1)\n            self.head = nn.Linear(c3, num_classes)\n        def forward(self, x):\n            x = self.feature(x)\n            x = self.gap(x).squeeze(-1)\n            return self.head(x)\n    \n    in_channels = X_train.shape[1]\n    model = ECGNet1DLight(in_ch=in_channels, num_classes=num_classes, base=int(cfg['hidden_size']), dropout=float(cfg['dropout']))\n    model.to(device)\n    \n    # Parameter count check (<256K)\n    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)\n    if n_params >= 256_000:\n        raise RuntimeError(f\"Model has {n_params} parameters, exceeds 256K limit. Reduce hidden_size.\")\n    \n    # -------------------- Optimization --------------------\n    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])\n    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=cfg['scheduler_factor'], patience=cfg['scheduler_patience'], min_lr=cfg['min_lr'], verbose=False)\n    criterion = nn.CrossEntropyLoss(weight=class_weight_t, label_smoothing=cfg['label_smoothing'])\n    scaler = torch.cuda.amp.GradScaler(enabled=(cfg['amp'] and device.type == 'cuda'))\n    \n    # -------------------- Training Loop --------------------\n    history = []\n    best_state = None\n    best_metric = -float('inf')  # track best macro-F1\n    epochs_no_improve = 0\n    \n    for epoch in range(1, cfg['epochs'] + 1):\n        model.train()\n        train_loss_sum = 0.0\n        n_train = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n            optimizer.zero_grad(set_to_none=True)\n            with torch.cuda.amp.autocast(enabled=(cfg['amp'] and device.type == 'cuda')):\n                logits = model(xb)\n                loss = criterion(logits, yb)\n            scaler.scale(loss).backward()\n            if cfg['grad_clip'] is not None and cfg['grad_clip'] > 0:\n                scaler.unscale_(optimizer)\n                nn.utils.clip_grad_norm_(model.parameters(), cfg['grad_clip'])\n            scaler.step(optimizer)\n            scaler.update()\n            bs = yb.size(0)\n            train_loss_sum += float(loss.item()) * bs\n            n_train += bs\n        train_loss = train_loss_sum / max(1, n_train)\n        \n        # Validation\n        model.eval()\n        val_loss_sum = 0.0\n        n_val = 0\n        all_preds = []\n        all_targets = []\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                with torch.cuda.amp.autocast(enabled=(cfg['amp'] and device.type == 'cuda')):\n                    logits = model(xb)\n                    loss = criterion(logits, yb)\n                val_loss_sum += float(loss.item()) * yb.size(0)\n                n_val += yb.size(0)\n                preds = logits.argmax(dim=1)\n                all_preds.append(preds.cpu())\n                all_targets.append(yb.cpu())\n        val_loss = val_loss_sum / max(1, n_val)\n        y_true = torch.cat(all_targets).numpy()\n        y_pred = torch.cat(all_preds).numpy()\n        val_acc = float(accuracy_score(y_true, y_pred))\n        val_f1_macro = float(f1_score(y_true, y_pred, average='macro', zero_division=0))\n        f1_per_class = f1_score(y_true, y_pred, average=None, labels=np.arange(num_classes), zero_division=0)\n        f1_per_class = [float(x) for x in f1_per_class]\n        \n        scheduler.step(val_loss)\n        \n        epoch_rec = {\n            'epoch': epoch,\n            'train_loss': float(train_loss),\n            'val_loss': float(val_loss),\n            'val_acc': float(val_acc),\n            'val_f1_macro': float(val_f1_macro),\n            'f1_per_class': f1_per_class,\n            'lr': float(optimizer.param_groups[0]['lr'])\n        }\n        history.append(epoch_rec)\n        \n        # Early stopping on macro-F1 (more robust for imbalance)\n        if val_f1_macro > best_metric + 1e-6:\n            best_metric = val_f1_macro\n            best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}\n            epochs_no_improve = 0\n        else:\n            epochs_no_improve += 1\n            if epochs_no_improve >= cfg['early_stopping_patience']:\n                break\n    \n    # Load best\n    if best_state is not None:\n        model.load_state_dict(best_state)\n        model.to(device)\n    \n    metrics = {\n        'history': history,\n        'best_epoch': int(max(history, key=lambda e: e['val_f1_macro'])['epoch']) if history else 0,\n        'best_val_f1_macro': float(max(h['val_f1_macro'] for h in history)) if history else 0.0,\n        'param_count': int(n_params),\n        'class_weight': [float(x) for x in class_weight],\n        'norm_stats': {\n            'mean': [float(m) for m in train_mean.reshape(-1)],\n            'std': [float(s) for s in train_std.reshape(-1)]\n        }\n    }\n    \n    # Attach normalization params for inference convenience\n    model.norm_mean = torch.tensor(train_mean.reshape(-1), dtype=torch.float32)\n    model.norm_std = torch.tensor(train_std.reshape(-1), dtype=torch.float32)\n    model.input_format = 'NCL'  # channels-first\n    \n    return model, metrics\n",
+  "hyperparameters": {
+    "lr": 0.001,
+    "epochs": 25,
+    "batch_size": 64
+  },
+  "reasoning": "The model is a lightweight 1D CNN tailored for ECG sequences (1000 samples, 2 leads). Literature on MIT-BIH arrhythmia classification shows 1D CNNs with small kernels (3–7), batch normalization, and global average pooling are effective while keeping parameter counts low. Class imbalance is notable in arrhythmia datasets; thus, class-weighted cross-entropy and early stopping on macro-F1 are used. Channel-wise standardization and GAP minimize overfitting and parameters (<256K).",
+  "confidence": 0.88,
+  "bo_parameters": [
+    "lr",
+    "batch_size",
+    "epochs",
+    "hidden_size",
+    "dropout"
+  ],
+  "bo_search_space": {
+    "lr": {
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.1,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32,
+        64,
+        128
+      ]
+    },
+    "epochs": {
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "hidden_size": {
+      "type": "Integer",
+      "low": 32,
+      "high": 512
+    },
+    "dropout": {
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.7
+    }
+  },
+  "data_profile": {
+    "data_type": "numpy_array",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1757965664,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

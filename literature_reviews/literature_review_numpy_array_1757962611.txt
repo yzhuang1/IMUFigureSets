@@ -1,0 +1,62 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-15 18:56:51
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+The MIT-BIH Arrhythmia Database contains 48 half-hour, two-lead ECG records (360 Hz) with cardiologist-confirmed beat annotations and is the canonical benchmark for heartbeat classification using the AAMI 5-class scheme (N, S, V, F, Q). For fair evaluation, recent literature stresses the inter-patient DS1/DS2 split proposed by De Chazal et al., to prevent patient leakage; using intra-patient splits often inflates reported accuracy. Under DS1/DS2, minority classes (S, F, and Q) are scarce, which makes macro-F1 a more informative metric than overall accuracy. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))
+
+From 2023–2025, the strongest trends for ECG beat classification include: hybrid CNN+Transformer encoders that fuse local morphology and long-range context (e.g., ECGTransForm’s bidirectional transformer and CAT-Net’s CNN+attention+Transformer with SMOTE-Tomek balancing); efficient attention and patching tailored to time series (e.g., Medformer); compact models for deployment such as a 6k-parameter Tiny Transformer with 8-bit inference; and emerging state-space models (S4D, Mamba-based ECGMamba) that scale linearly in sequence length while retaining long-range dependencies. Inter-patient performance remains challenging: while some papers report ~99% accuracy on MIT-BIH (typically with intra-patient or less stringent protocols), inter-patient studies report lower macro-F1/accuracy (e.g., ~91% accuracy with improved focal loss), emphasizing the importance of splits, class imbalance handling, and robust validation. ([github.com](https://github.com/emadeldeen24/ECGTransForm))
+
+KEY FINDINGS:
+1. Use inter-patient DS1 (train) vs DS2 (test) to avoid leakage; report per-class and macro-F1 in addition to accuracy. ([frontiersin.org](https://www.frontiersin.org/journals/physiology/articles/10.3389/fphys.2023.1247587/full?utm_source=openai))
+2. MIT-BIH specifics matter: 2 channels at 360 Hz; beat-centric windows (e.g., ~1000 samples) around R-peaks are common and compatible with your (1000, 2) input; consistent AAMI mapping is required. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))
+3. Class imbalance is severe (S, F, Q are rare). Techniques that help include SMOTE/SMOTE-Tomek, focal or class-balanced losses, and context-aware losses. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+4. Hybrid CNN+Transformer models achieve strong local-global modeling with manageable compute; bidirectional transformers and multi-scale convolutions are particularly effective. ([github.com](https://github.com/emadeldeen24/ECGTransForm))
+5. Efficient sequence learners (S4D, Mamba/BiSSM) offer linear-time modeling and competitive accuracy with small footprints—useful for longer windows or edge deployment. ([link.springer.com](https://link.springer.com/article/10.1007/s13239-024-00716-3?utm_source=openai))
+6. Reported 98–99% accuracies on MIT-BIH are often from intra-patient or non-standard splits; inter-patient studies typically observe lower results (e.g., ~91% accuracy), so set expectations accordingly. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+7. Noise robustness can be improved via augmentation (time masking, jitter, scaling) and quantization-aware training; tiny models with 8-bit inference have been demonstrated on MIT-BIH. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. {'name': 'Hybrid 1D CNN + Transformer encoder (e.g., ECGTransForm/CAT-Net)', 'description': 'Stack 1D residual/dilated conv blocks to extract morphology, followed by a lightweight Transformer encoder for global context; use class-imbalance mitigation (SMOTE-Tomek or focal/class-balanced loss). Typical: 3–6 conv stages (64–256 ch, kernel 7–17, dilation 1–8), Transformer d_model 128–256, 2–4 heads, 2–4 layers; lr 1e-3→1e-4 with AdamW, wd 1e-4, dropout 0.1–0.3. Works well for (1000, 2) inputs and 5 AAMI classes. ([github.com](https://github.com/emadeldeen24/ECGTransForm))'}
+2. {'name': 'State Space Models (S4D/Mamba-style linear-time sequence encoders)', 'description': 'Replace self-attention with SSM blocks (e.g., S4D, Mamba/BiSSM) to capture long-range dependencies with O(L) compute/memory. For L=1000 and 2 channels, use 3–6 SSM blocks (hidden 128–256), residual conv front-end, dropout 0.1–0.2; lr 1e-3 AdamW. Particularly attractive for latency/edge constraints and when scaling to longer contexts. ([link.springer.com](https://link.springer.com/article/10.1007/s13239-024-00716-3?utm_source=openai))'}
+3. {'name': 'Strong CNN baseline with multi-scale/dilated kernels + attention', 'description': 'InceptionTime/ResNet1D-style stacks with mixed kernel sizes and dilations plus squeeze-and-excitation or channel attention. Typical: 4–8 residual blocks (64–256 ch), kernels {5, 9, 17}, dilation up to 16; combine with weighted CE or focal loss; optional RR-interval as an auxiliary input. Competitive, simpler, and robust. ([aimspress.com](https://www.aimspress.com/article/doi/10.3934/mbe.2024243?utm_source=openai))'}
+4. {'name': 'Patching/Windowed Transformers tailored for medical time series', 'description': 'Reduce sequence length via non-overlapping patches (e.g., patch size 8–16 → 125–62 tokens) and use shallow Transformer layers; enables attention while controlling O(L^2). Useful for (1000, 2) windows and multi-lead scenarios via cross-channel patching. ([arxiv.org](https://arxiv.org/abs/2405.19363?utm_source=openai))'}
+5. {'name': 'Time–frequency 2D pipeline (optional baseline/ensemble)', 'description': 'Convert beats/windows to scalograms or spectrograms and finetune lightweight 2D backbones (e.g., ResNet18/50). Effective with careful augmentation but adds preprocessing; best as an ensemble complement. ([mdpi.com](https://www.mdpi.com/1424-8220/24/8/2484?utm_source=openai))'}
+
+RECENT PAPERS:
+- ECGTransForm: Empowering adaptive ECG arrhythmia classification framework with bidirectional transformer (BSPC, 2024): Bidirectional Transformer with multi-scale convolutions and a context-aware loss; open-source PyTorch code; strong results on MIT-BIH/PTB.
+- CAT-Net: Convolution, attention, and transformer based network for single-lead ECG arrhythmia classification (BSPC, 2024): CNN + attention + Transformer hybrid; systematically evaluates class balancing and adopts SMOTE-Tomek; reports state-of-the-art results on 5-class MIT-BIH.
+- A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (arXiv, 2024): 6k-parameter transformer with 8-bit inference; ~99% accuracy on 5-class MIT-BIH; demonstrates practical deployment on GAP9 MCU with ms-level latency.
+- Medformer: A Multi-Granularity Patching Transformer for Medical Time-Series Classification (arXiv, 2024): Multi-granularity patching and cross-channel attention for medical time series (ECG/EEG); template for patch-based ECG Transformers.
+- ECGMamba: Towards Efficient ECG Classification with BiSSM (arXiv, 2024): Mamba-based bidirectional state-space blocks for efficient, accurate ECG classification with linear complexity.
+- S4D-ECG: A Shallow State-of-the-Art Model for Cardiac Abnormality Classification (CVET, 2024): Applies S4D state-space modules to 12-lead ECG with competitive performance and low complexity; highlights SSM viability for ECG.
+- Arrhythmia classification based on multi-feature multi-path parallel deep CNNs and improved focal loss (MBE, 2024): Addresses class imbalance with dynamic focal loss; reports ~91% accuracy under inter-patient evaluation, underscoring realistic performance bounds.
+- Leveraging Visibility Graphs for Enhanced Arrhythmia Classification with Graph Convolutional Networks (arXiv, 2024): Transforms ECG to graphs (visibility) and applies GCNs; discusses inter-patient DS1/DS2 and class imbalance statistics.
+
+==================================================

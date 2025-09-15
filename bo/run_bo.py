@@ -22,91 +22,30 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Template-aware search spaces
-def get_search_space_for_template(template_name: str):
-    """Get search space configuration for specific template"""
-    
-    # Common training parameters - EXPANDED RANGES
-    common_params = [
-        Real(1e-5, 1e-1, prior='log-uniform', name='lr'),
-        Integer(3, 30, name='epochs'),
-        Categorical([8, 16, 32, 64, 128, 256], name='batch_size'),
-    ]
-    
-    # Template-specific architecture parameters
-    if template_name == "LSTM":
-        return common_params + [
-            Integer(16, 512, name='hidden_size'),
-            Integer(1, 5, name='num_layers'),
-            Real(0.0, 0.7, name='dropout'),
-            Categorical([True, False], name='bidirectional')
-        ]
-    
-    elif template_name == "GRU":
-        return common_params + [
-            Integer(16, 512, name='hidden_size'),
-            Integer(1, 5, name='num_layers'),
-            Real(0.0, 0.7, name='dropout'),
-            Categorical([True, False], name='bidirectional')
-        ]
-    
-    elif template_name == "CNN1D":
-        return common_params + [
-            Integer(16, 256, name='num_filters'),
-            Real(0.0, 0.7, name='dropout'),
-            Integer(1, 6, name='pool_size')
-        ]
-    
-    elif template_name == "Transformer":
-        return common_params + [
-            Categorical([32, 64, 128, 256, 512], name='d_model'),
-            Categorical([2, 4, 8, 16], name='nhead'),
-            Integer(1, 6, name='num_layers'),
-            Real(0.0, 0.5, name='dropout')
-        ]
-    
-    elif template_name == "MLP":
-        return common_params + [
-            Real(0.0, 0.7, name='dropout'),
-            Categorical(['relu', 'tanh', 'gelu'], name='activation')
-        ]
-    
-    elif template_name == "HybridCNNLSTM":
-        return common_params + [
-            Integer(16, 256, name='cnn_filters'),
-            Integer(32, 512, name='lstm_hidden'),
-            Real(0.0, 0.7, name='dropout')
-        ]
-    
-    else:
-        # Fallback to generic search space
-        return common_params + [
-            Integer(16, 512, name='hidden_size'),
-            Real(0.0, 0.7, name='dropout')
-        ]
 
 
 class BayesianOptimizer:
     """Bayesian Optimization implementation with Random Forest surrogate model"""
     
-    def __init__(self, search_space=None, template_name=None, n_initial_points=8, acquisition_func='EI'):
+    def __init__(self, search_space=None, gpt_search_space=None, n_initial_points=8, acquisition_func='EI'):
         """
         Initialize Bayesian Optimizer
         
         Args:
-            search_space: Search space definition (if None, uses template_name)
-            template_name: Template name to get search space automatically
+            search_space: Search space definition (if None, uses gpt_search_space or default)
+            gpt_search_space: GPT-generated search space definition
             n_initial_points: Number of random initial points before using GP
             acquisition_func: Acquisition function ('EI' for Expected Improvement)
         """
-        # Use template-aware search space if template_name provided
-        if search_space is None and template_name:
-            self.search_space = get_search_space_for_template(template_name)
-            logger.info(f"Using template-aware search space for {template_name}")
-        elif search_space:
+        # Priority: explicit search_space > gpt_search_space > default
+        if search_space:
             self.search_space = search_space
+            logger.info("Using explicitly provided search space")
+        elif gpt_search_space:
+            self.search_space = self._convert_gpt_search_space(gpt_search_space)
+            logger.info("Using GPT-generated search space")
         else:
-            # Default generic search space if nothing specified - EXPANDED RANGES
+            # Default generic search space if nothing specified
             self.search_space = [
                 Real(1e-5, 1e-1, prior='log-uniform', name='lr'),
                 Integer(3, 30, name='epochs'),
@@ -114,8 +53,7 @@ class BayesianOptimizer:
                 Integer(16, 512, name='hidden_size'),
                 Real(0.0, 0.7, name='dropout')
             ]
-            
-        self.template_name = template_name
+            logger.info("Using default search space")
         self.n_initial_points = n_initial_points
         self.acquisition_func = acquisition_func
         
@@ -139,6 +77,46 @@ class BayesianOptimizer:
             logger.info("Initialized Random Forest Bayesian Optimizer")
         else:
             logger.warning("Using random search fallback (install scikit-optimize for proper BO)")
+    
+    def _convert_gpt_search_space(self, gpt_search_space: Dict[str, Dict[str, Any]]) -> List:
+        """
+        Convert GPT-generated search space format to scikit-optimize format
+        
+        Args:
+            gpt_search_space: GPT format like {"lr": {"type": "Real", "low": 1e-5, "high": 1e-1, "prior": "log-uniform"}}
+            
+        Returns:
+            List: scikit-optimize search space dimensions
+        """
+        search_space = []
+        
+        for param_name, param_config in gpt_search_space.items():
+            param_type = param_config.get("type", "Real")
+            
+            if param_type == "Real":
+                low = param_config.get("low", 0.0)
+                high = param_config.get("high", 1.0)
+                prior = param_config.get("prior", "uniform")
+                search_space.append(Real(low, high, prior=prior, name=param_name))
+                
+            elif param_type == "Integer":
+                low = param_config.get("low", 1)
+                high = param_config.get("high", 100)
+                search_space.append(Integer(low, high, name=param_name))
+                
+            elif param_type == "Categorical":
+                categories = param_config.get("categories", [])
+                if categories:
+                    search_space.append(Categorical(categories, name=param_name))
+                else:
+                    logger.warning(f"No categories specified for {param_name}, skipping")
+                    
+            else:
+                logger.warning(f"Unknown parameter type '{param_type}' for {param_name}, defaulting to Real(0, 1)")
+                search_space.append(Real(0.0, 1.0, name=param_name))
+        
+        logger.info(f"Converted GPT search space: {len(search_space)} parameters")
+        return search_space
     
     def suggest(self) -> Dict[str, Any]:
         """
@@ -228,70 +206,26 @@ class BayesianOptimizer:
         best_params = dict(zip(self.param_names, best_vector))
         return best_params, best_value
     
-    def validate_params(self, hparams: Dict[str, Any], template_name: str = None) -> Dict[str, Any]:
+    def validate_params(self, hparams: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Validate and map parameters for specific template
+        Validate and convert parameter types
         
         Args:
             hparams: Raw hyperparameters from BO
-            template_name: Template name for validation
             
         Returns:
-            Dict: Validated and mapped parameters
+            Dict: Validated parameters with correct types
         """
         validated = hparams.copy()
-        template = template_name or self.template_name
         
-        # Parameter mapping and validation
-        if template in ["LSTM", "GRU"]:
-            # Ensure integer types for specific parameters
-            if 'hidden_size' in validated:
-                validated['hidden_size'] = int(validated['hidden_size'])
-            if 'num_layers' in validated:
-                validated['num_layers'] = int(validated['num_layers'])
-            if 'epochs' in validated:
-                validated['epochs'] = int(validated['epochs'])
-            if 'batch_size' in validated:
-                validated['batch_size'] = int(validated['batch_size'])
-                
-        elif template == "CNN1D":
-            if 'num_filters' in validated:
-                validated['num_filters'] = int(validated['num_filters'])
-            if 'pool_size' in validated:
-                validated['pool_size'] = int(validated['pool_size'])
-            if 'epochs' in validated:
-                validated['epochs'] = int(validated['epochs'])
-            if 'batch_size' in validated:
-                validated['batch_size'] = int(validated['batch_size'])
-                
-        elif template == "Transformer":
-            if 'd_model' in validated:
-                validated['d_model'] = int(validated['d_model'])
-            if 'nhead' in validated:
-                validated['nhead'] = int(validated['nhead'])
-            if 'num_layers' in validated:
-                validated['num_layers'] = int(validated['num_layers'])
-            if 'epochs' in validated:
-                validated['epochs'] = int(validated['epochs'])
-            if 'batch_size' in validated:
-                validated['batch_size'] = int(validated['batch_size'])
-                
-        elif template == "HybridCNNLSTM":
-            if 'cnn_filters' in validated:
-                validated['cnn_filters'] = int(validated['cnn_filters'])
-            if 'lstm_hidden' in validated:
-                validated['lstm_hidden'] = int(validated['lstm_hidden'])
-            if 'epochs' in validated:
-                validated['epochs'] = int(validated['epochs'])
-            if 'batch_size' in validated:
-                validated['batch_size'] = int(validated['batch_size'])
+        # Convert common integer parameters
+        int_params = ['epochs', 'batch_size', 'hidden_size', 'num_layers', 'num_filters', 
+                     'pool_size', 'd_model', 'nhead', 'cnn_filters', 'lstm_hidden', 'hidden_units']
         
-        # Common validations
-        if 'epochs' in validated:
-            validated['epochs'] = int(validated['epochs'])
-        if 'batch_size' in validated:
-            validated['batch_size'] = int(validated['batch_size'])
-            
+        for param in int_params:
+            if param in validated:
+                validated[param] = int(validated[param])
+                
         return validated
     
     def get_convergence_info(self) -> Dict[str, Any]:
@@ -326,12 +260,9 @@ class BayesianOptimizer:
 # Global optimizer instance
 _global_optimizer = BayesianOptimizer()
 
-def suggest(template_name: str = None) -> Dict[str, Any]:
+def suggest() -> Dict[str, Any]:
     """
     Suggest next hyperparameters using Bayesian Optimization
-    
-    Args:
-        template_name: Template name for validation
     
     Returns:
         Dict: Suggested and validated hyperparameters
@@ -339,9 +270,8 @@ def suggest(template_name: str = None) -> Dict[str, Any]:
     t0 = time.time()
     hparams = _global_optimizer.suggest()
     
-    # Validate parameters if template provided
-    if template_name:
-        hparams = _global_optimizer.validate_params(hparams, template_name)
+    # Validate parameters
+    hparams = _global_optimizer.validate_params(hparams)
     
     suggest_time = time.time() - t0
     logger.info(f"[PROFILE] global suggest() took {suggest_time:.3f}s")
@@ -361,30 +291,55 @@ def observe(hparams: Dict[str, Any], value: float):
     observe_time = time.time() - t0
     logger.info(f"[PROFILE] global observe() took {observe_time:.3f}s")
 
-def reset_optimizer(template_name: str = None):
+def reset_optimizer(gpt_search_space: Dict[str, Dict[str, Any]] = None):
     """
     Reset the global optimizer (useful for new optimization runs)
     
     Args:
-        template_name: Template name for template-aware search space
+        gpt_search_space: GPT-generated search space definition
     """
     global _global_optimizer
-    _global_optimizer = BayesianOptimizer(template_name=template_name)
-    logger.info(f"Reset Bayesian Optimizer for template: {template_name}")
+    _global_optimizer = BayesianOptimizer(gpt_search_space=gpt_search_space)
+    if gpt_search_space:
+        logger.info("Reset Bayesian Optimizer with GPT-generated search space")
+    else:
+        logger.info("Reset Bayesian Optimizer with default search space")
 
 def get_optimizer_info() -> Dict[str, Any]:
     """Get information about the current optimization state"""
     return _global_optimizer.get_convergence_info()
 
-def validate_hyperparams(hparams: Dict[str, Any], template_name: str) -> Dict[str, Any]:
+def validate_hyperparams(hparams: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Validate hyperparameters for a specific template
+    Validate hyperparameters
     
     Args:
         hparams: Raw hyperparameters
-        template_name: Template name
         
     Returns:
         Dict: Validated hyperparameters
     """
-    return _global_optimizer.validate_params(hparams, template_name)
+    return _global_optimizer.validate_params(hparams)
+
+def create_optimizer_from_code_recommendation(code_recommendation) -> BayesianOptimizer:
+    """
+    Create a new BayesianOptimizer from a CodeRecommendation with GPT-suggested search space
+    
+    Args:
+        code_recommendation: CodeRecommendation object with bo_search_space
+        
+    Returns:
+        BayesianOptimizer: New optimizer instance
+    """
+    return BayesianOptimizer(gpt_search_space=code_recommendation.bo_search_space)
+
+def reset_optimizer_from_code_recommendation(code_recommendation):
+    """
+    Reset global optimizer from a CodeRecommendation with GPT-suggested search space
+    
+    Args:
+        code_recommendation: CodeRecommendation object with bo_search_space
+    """
+    global _global_optimizer
+    _global_optimizer = create_optimizer_from_code_recommendation(code_recommendation)
+    logger.info(f"Reset Bayesian Optimizer with GPT-generated search space from {code_recommendation.model_name}")

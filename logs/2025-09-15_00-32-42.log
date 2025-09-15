@@ -1,0 +1,117 @@
+2025-09-15 00:32:42,006 - INFO - __main__ - Logging system initialized successfully
+2025-09-15 00:32:42,009 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'y.npy', 'X.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-15 00:32:42,009 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-15 00:32:42,009 - INFO - __main__ - Attempting to load: y.npy
+2025-09-15 00:32:42,010 - INFO - __main__ - Attempting to load: X.npy
+2025-09-15 00:32:42,309 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-15 00:32:42,612 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-15 00:32:42,612 - INFO - __main__ - Starting AI-enhanced training with new pipeline flow
+2025-09-15 00:32:42,613 - INFO - __main__ - Flow: Template Selection → BO → Evaluation → Feedback Loop
+2025-09-15 00:32:42,625 - INFO - __main__ - Data profile: DataProfile(type=numpy_array, shape=(62352, 1000, 2), samples=62352, features=2)
+2025-09-15 00:32:42,626 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized with max 4 attempts
+2025-09-15 00:32:42,626 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution
+2025-09-15 00:32:42,627 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-15 00:32:42,629 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-15 00:32:42,629 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE ATTEMPT 1/4
+2025-09-15 00:32:42,629 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-15 00:32:42,629 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-15 00:32:42,629 - INFO - models.ai_code_generator - Conducting literature review before code generation...
+2025-09-15 00:32:42,630 - INFO - models.literature_review - Making GPT-5 literature review call with query: sequence classification time series machine learning multiclass sequence classification 2024 2025 PyTorch implementation state-of-the-art methods
+2025-09-15 00:35:04,918 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-15 00:35:05,150 - INFO - models.literature_review - Successfully completed GPT-5 literature review with web search
+2025-09-15 00:35:05,151 - INFO - models.literature_review - Literature review completed with confidence: 0.78
+2025-09-15 00:35:05,151 - INFO - models.literature_review - Found 5 recommended approaches
+2025-09-15 00:35:05,152 - INFO - models.literature_review - Literature review saved to: literature_reviews/literature_review_numpy_array_1757896505.txt
+2025-09-15 00:35:05,152 - INFO - models.ai_code_generator - Literature review saved to: literature_reviews/literature_review_numpy_array_1757896505.txt
+2025-09-15 00:35:05,152 - WARNING - models.ai_code_generator - AI code generation with literature review failed: 'num_samples', using fallback
+2025-09-15 00:35:05,152 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: FallbackLSTM
+2025-09-15 00:35:05,153 - INFO - evaluation.code_generation_pipeline_orchestrator - Reasoning: Fallback: LSTM selected for sequence data
+2025-09-15 00:35:05,153 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['lr', 'epochs', 'batch_size', 'hidden_size', 'dropout', 'num_layers']
+2025-09-15 00:35:05,153 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.70
+2025-09-15 00:35:05,153 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-15 00:35:05,153 - INFO - models.ai_code_generator - Training function saved to: generated_training_functions/training_function_numpy_array_FallbackLSTM_1757896505.json
+2025-09-15 00:35:05,154 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions/training_function_numpy_array_FallbackLSTM_1757896505.json
+2025-09-15 00:35:05,156 - INFO - models.training_function_executor - Training function validation passed
+2025-09-15 00:35:05,156 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-15 00:35:05,156 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: FallbackLSTM
+2025-09-15 00:35:05,222 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 5000 samples
+2025-09-15 00:35:05,223 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['lr', 'epochs', 'batch_size', 'hidden_size', 'dropout', 'num_layers']
+2025-09-15 00:35:05,224 - INFO - models.training_function_executor - GPU available: NVIDIA H100 NVL
+2025-09-15 00:35:05,830 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-15 00:35:05,846 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-15 00:35:05,849 - INFO - bo.run_bo - BO Trial 1: Initial random exploration
+2025-09-15 00:35:05,849 - INFO - bo.run_bo - [PROFILE] suggest() took 0.002s
+2025-09-15 00:35:05,849 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 00:35:05,849 - INFO - models.training_function_executor - Executing training function: FallbackLSTM
+2025-09-15 00:35:05,850 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.01535224694197351, 'epochs': 17, 'batch_size': 128, 'hidden_size': 204, 'dropout': 0.41779511056254093, 'num_layers': 2}
+2025-09-15 00:35:05,852 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.01535224694197351, 'epochs': 17, 'batch_size': 128, 'hidden_size': 204, 'dropout': 0.41779511056254093, 'num_layers': 2}
+2025-09-15 00:36:18,681 - INFO - models.training_function_executor - Training completed successfully: {'val_accuracy': 0.722, 'final_loss': 0.7864946611225605, 'macro_f1': 0.722, 'model_name': 'FallbackLSTM', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 0.01535224694197351, 'epochs': 17, 'batch_size': 128, 'hidden_size': 204, 'dropout': 0.41779511056254093, 'num_layers': 2}}
+2025-09-15 00:36:18,682 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) took 72.833s
+2025-09-15 00:36:18,684 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.7220
+2025-09-15 00:36:18,684 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.001s
+2025-09-15 00:36:18,684 - INFO - bo.run_bo - Recorded observation #1: hparams={'lr': 0.01535224694197351, 'epochs': np.int64(17), 'batch_size': 128, 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093, 'num_layers': np.int64(2)}, value=0.7220
+2025-09-15 00:36:18,684 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'lr': 0.01535224694197351, 'epochs': np.int64(17), 'batch_size': 128, 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093, 'num_layers': np.int64(2)} -> 0.7220
+2025-09-15 00:36:18,687 - INFO - bo.run_bo - BO Trial 2: Initial random exploration
+2025-09-15 00:36:18,688 - INFO - bo.run_bo - [PROFILE] suggest() took 0.003s
+2025-09-15 00:36:18,688 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 00:36:18,688 - INFO - models.training_function_executor - Executing training function: FallbackLSTM
+2025-09-15 00:36:18,688 - INFO - models.training_function_executor - Hyperparameters: {'lr': 4.20705395028794e-05, 'epochs': 13, 'batch_size': 32, 'hidden_size': 388, 'dropout': 0.4207805082202462, 'num_layers': 3}
+2025-09-15 00:36:18,691 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 4.20705395028794e-05, 'epochs': 13, 'batch_size': 32, 'hidden_size': 388, 'dropout': 0.4207805082202462, 'num_layers': 3}
+2025-09-15 00:41:39,786 - INFO - models.training_function_executor - Training completed successfully: {'val_accuracy': 0.72, 'final_loss': 0.8091963539123536, 'macro_f1': 0.72, 'model_name': 'FallbackLSTM', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 4.20705395028794e-05, 'epochs': 13, 'batch_size': 32, 'hidden_size': 388, 'dropout': 0.4207805082202462, 'num_layers': 3}}
+2025-09-15 00:41:39,787 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) took 321.099s
+2025-09-15 00:41:39,788 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.7200
+2025-09-15 00:41:39,788 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.001s
+2025-09-15 00:41:39,788 - INFO - bo.run_bo - Recorded observation #2: hparams={'lr': 4.20705395028794e-05, 'epochs': np.int64(13), 'batch_size': 32, 'hidden_size': np.int64(388), 'dropout': 0.4207805082202462, 'num_layers': np.int64(3)}, value=0.7200
+2025-09-15 00:41:39,791 - INFO - bo.run_bo - BO Trial 3: Initial random exploration
+2025-09-15 00:41:39,791 - INFO - bo.run_bo - [PROFILE] suggest() took 0.003s
+2025-09-15 00:41:39,792 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 00:41:39,792 - INFO - models.training_function_executor - Executing training function: FallbackLSTM
+2025-09-15 00:41:39,792 - INFO - models.training_function_executor - Hyperparameters: {'lr': 1.2087541473056955e-05, 'epochs': 4, 'batch_size': 128, 'hidden_size': 429, 'dropout': 0.14863737747479333, 'num_layers': 4}
+2025-09-15 00:41:39,794 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 1.2087541473056955e-05, 'epochs': 4, 'batch_size': 128, 'hidden_size': 429, 'dropout': 0.14863737747479333, 'num_layers': 4}
+2025-09-15 00:42:24,919 - INFO - models.training_function_executor - Training completed successfully: {'val_accuracy': 0.72, 'final_loss': 1.2781136333942413, 'macro_f1': 0.72, 'model_name': 'FallbackLSTM', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 1.2087541473056955e-05, 'epochs': 4, 'batch_size': 128, 'hidden_size': 429, 'dropout': 0.14863737747479333, 'num_layers': 4}}
+2025-09-15 00:42:24,920 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) took 45.128s
+2025-09-15 00:42:25,333 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.7200
+2025-09-15 00:42:25,333 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.413s
+2025-09-15 00:42:25,333 - INFO - bo.run_bo - Recorded observation #3: hparams={'lr': 1.2087541473056955e-05, 'epochs': np.int64(4), 'batch_size': 128, 'hidden_size': np.int64(429), 'dropout': 0.14863737747479333, 'num_layers': np.int64(4)}, value=0.7200
+2025-09-15 00:42:25,333 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 3: {'lr': 1.2087541473056955e-05, 'epochs': np.int64(4), 'batch_size': 128, 'hidden_size': np.int64(429), 'dropout': 0.14863737747479333, 'num_layers': np.int64(4)} -> 0.7200
+2025-09-15 00:42:25,334 - INFO - bo.run_bo - BO Trial 4: Using RF surrogate + Expected Improvement
+2025-09-15 00:42:25,334 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 00:42:25,334 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 00:42:25,334 - INFO - models.training_function_executor - Executing training function: FallbackLSTM
+2025-09-15 00:42:25,334 - INFO - models.training_function_executor - Hyperparameters: {'lr': 5.4152441194025364e-05, 'epochs': 13, 'batch_size': 256, 'hidden_size': 232, 'dropout': 0.42515784524199296, 'num_layers': 3}
+2025-09-15 00:42:25,336 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 5.4152441194025364e-05, 'epochs': 13, 'batch_size': 256, 'hidden_size': 232, 'dropout': 0.42515784524199296, 'num_layers': 3}
+2025-09-15 00:43:15,100 - INFO - models.training_function_executor - Training completed successfully: {'val_accuracy': 0.72, 'final_loss': 0.8787096105515957, 'macro_f1': 0.72, 'model_name': 'FallbackLSTM', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 5.4152441194025364e-05, 'epochs': 13, 'batch_size': 256, 'hidden_size': 232, 'dropout': 0.42515784524199296, 'num_layers': 3}}
+2025-09-15 00:43:15,101 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) took 49.767s
+2025-09-15 00:43:15,513 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.7200
+2025-09-15 00:43:15,513 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.412s
+2025-09-15 00:43:15,513 - INFO - bo.run_bo - Recorded observation #4: hparams={'lr': 5.4152441194025364e-05, 'epochs': np.int64(13), 'batch_size': np.int64(256), 'hidden_size': np.int64(232), 'dropout': 0.42515784524199296, 'num_layers': np.int64(3)}, value=0.7200
+2025-09-15 00:43:15,513 - INFO - bo.run_bo - BO Trial 5: Using RF surrogate + Expected Improvement
+2025-09-15 00:43:15,514 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 00:43:15,514 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 00:43:15,514 - INFO - models.training_function_executor - Executing training function: FallbackLSTM
+2025-09-15 00:43:15,514 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.00017967486125283075, 'epochs': 9, 'batch_size': 64, 'hidden_size': 38, 'dropout': 0.4077105489062445, 'num_layers': 4}
+2025-09-15 00:43:15,516 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.00017967486125283075, 'epochs': 9, 'batch_size': 64, 'hidden_size': 38, 'dropout': 0.4077105489062445, 'num_layers': 4}
+2025-09-15 00:43:22,367 - INFO - models.training_function_executor - Training completed successfully: {'val_accuracy': 0.72, 'final_loss': 0.879790743192037, 'macro_f1': 0.72, 'model_name': 'FallbackLSTM', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 0.00017967486125283075, 'epochs': 9, 'batch_size': 64, 'hidden_size': 38, 'dropout': 0.4077105489062445, 'num_layers': 4}}
+2025-09-15 00:43:22,367 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) took 6.853s
+2025-09-15 00:43:22,775 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.7200
+2025-09-15 00:43:22,775 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.408s
+2025-09-15 00:43:22,775 - INFO - bo.run_bo - Recorded observation #5: hparams={'lr': 0.00017967486125283075, 'epochs': np.int64(9), 'batch_size': np.int64(64), 'hidden_size': np.int64(38), 'dropout': 0.4077105489062445, 'num_layers': np.int64(4)}, value=0.7200
+2025-09-15 00:43:22,775 - INFO - bo.run_bo - BO Trial 6: Using RF surrogate + Expected Improvement
+2025-09-15 00:43:22,776 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 00:43:22,776 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 00:43:22,776 - INFO - models.training_function_executor - Executing training function: FallbackLSTM
+2025-09-15 00:43:22,776 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.029054252676174452, 'epochs': 8, 'batch_size': 8, 'hidden_size': 279, 'dropout': 0.6099036726033209, 'num_layers': 3}
+2025-09-15 00:43:22,778 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.029054252676174452, 'epochs': 8, 'batch_size': 8, 'hidden_size': 279, 'dropout': 0.6099036726033209, 'num_layers': 3}
+2025-09-15 00:56:05,733 - INFO - models.training_function_executor - Training completed successfully: {'val_accuracy': 0.72, 'final_loss': 1.390905043102801, 'macro_f1': 0.72, 'model_name': 'FallbackLSTM', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 0.029054252676174452, 'epochs': 8, 'batch_size': 8, 'hidden_size': 279, 'dropout': 0.6099036726033209, 'num_layers': 3}}
+2025-09-15 00:56:05,733 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) took 762.958s
+2025-09-15 00:56:06,145 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.7200
+2025-09-15 00:56:06,145 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.412s
+2025-09-15 00:56:06,146 - INFO - bo.run_bo - Recorded observation #6: hparams={'lr': 0.029054252676174452, 'epochs': np.int64(8), 'batch_size': np.int64(8), 'hidden_size': np.int64(279), 'dropout': 0.6099036726033209, 'num_layers': np.int64(3)}, value=0.7200
+2025-09-15 00:56:06,146 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 6: {'lr': 0.029054252676174452, 'epochs': np.int64(8), 'batch_size': np.int64(8), 'hidden_size': np.int64(279), 'dropout': 0.6099036726033209, 'num_layers': np.int64(3)} -> 0.7200
+2025-09-15 00:56:06,146 - INFO - bo.run_bo - BO Trial 7: Using RF surrogate + Expected Improvement
+2025-09-15 00:56:06,146 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 00:56:06,146 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 00:56:06,147 - INFO - models.training_function_executor - Executing training function: FallbackLSTM
+2025-09-15 00:56:06,147 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.00016039649319436606, 'epochs': 21, 'batch_size': 16, 'hidden_size': 344, 'dropout': 0.3458688280729451, 'num_layers': 4}
+2025-09-15 00:56:06,149 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.00016039649319436606, 'epochs': 21, 'batch_size': 16, 'hidden_size': 344, 'dropout': 0.3458688280729451, 'num_layers': 4}

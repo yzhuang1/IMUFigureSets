@@ -1,0 +1,62 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-15 19:15:18
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+From 2023–2025, ECG arrhythmia classification on MIT‑BIH has been pushed forward by compact Transformers, attention‑augmented 1D CNN/TCN hybrids, and self‑supervised pretraining. Tiny Transformers tailored for time‑series reach ≈99% five‑class accuracy on MIT‑BIH while remaining deployable on microcontrollers; masked‑modeling and dual‑pathway SSL (combining masked reconstruction with non‑contrastive objectives) improve robustness and label efficiency and transfer well across ECG datasets. Time‑frequency pipelines that convert beats to scalograms and feed Swin/ViT‑style backbones also report strong results, as do multi‑branch TCNs with multi‑head attention and focal loss to counter class imbalance. These trends sit atop established best practices for MIT‑BIH: inter‑patient evaluation (e.g., the DS1/DS2 split), AAMI 5‑superclass targets (N, S, V, F, Q), and careful beat‑centric segmentation from two leads sampled at 360 Hz. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+
+For your problem—numpy arrays shaped (1000, 2), five classes, sequential signals from the MIT‑BIH Arrhythmia Database—effective solutions generally use: (1) beat‑centered windows aligned to R‑peaks or short fixed windows of ~2.8 s (1000 samples at 360 Hz) with overlap; (2) compact 1D encoders (dilated ResNet/TCN) or small Transformers (patch length 8–32, 4–8 heads, 64–256 dims); (3) imbalance‑aware training (class weights or focal loss), RR‑interval features or attention to help N vs S separation, and realistic inter‑patient splits. With careful preprocessing and modern augmentation, macro‑F1 in the 90–96% range is typical under strict inter‑patient protocols; higher headline accuracies often reflect intra‑patient or mixed splits. PyTorch implementations are straightforward with Conv1d/SE‑ResNet/TCN or lightweight Transformer encoders; WFDB tooling supports robust reading/segmentation, and Pan‑Tompkins‑family detectors remain reliable for R‑peaks. ([physionet.org](https://www.physionet.org/physiobank/database/mitdb/?utm_source=openai))
+
+KEY FINDINGS:
+1. Inter‑patient evaluation is essential; the DS1/DS2 record split (Chazal protocol) avoids patient leakage and changes results materially versus intra‑patient CV. Use record‑level splits and report macro‑F1 per AAMI classes (N,S,V,F,Q). ([github.com](https://github.com/venturit/ecg_classification?utm_source=openai))
+2. Modern compact models are sufficient: multi‑branch TCNs with attention and tiny Transformers approach ≈99% accuracy on MIT‑BIH in reported studies, while being efficient enough for edge deployment. Treat such numbers cautiously unless inter‑patient protocols are verified. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39771858/?utm_source=openai))
+3. Self‑supervised pretraining (masked Transformer/MAE‑style, dual‑pathway SSL) improves robustness to noise and reduces labeled data needs; fine‑tuning on MIT‑BIH after SSL on larger ECG corpora yields consistent gains. ([arxiv.org](https://arxiv.org/abs/2309.07136?utm_source=openai))
+4. Time‑frequency representations (CWT/STFT scalograms) combined with Transformer backbones (e.g., Swin) are strong alternatives when beat morphology and rhythm context both matter. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38434292/?utm_source=openai))
+5. Preprocessing matters: reliable R‑peak detection (Pan‑Tompkins variants) and WFDB‑based parsing/annotation alignment enable stable beat windows and RR‑interval features that help discriminate N vs S. ([arxiv.org](https://arxiv.org/abs/2211.03171?utm_source=openai))
+6. Reported benchmarks vary widely because of split protocols and class imbalance; under strict inter‑patient settings with five AAMI classes, expect macro‑F1 ≈90–96% with strong CNN/TCN/Transformer baselines; higher figures may indicate intra‑patient mixing. ([aimspress.com](https://www.aimspress.com/article/doi/10.3934/mbe.2024243?utm_source=openai))
+7. Standards and reporting: align labeling to AAMI EC57 guidance for performance reporting on rhythm/beat algorithms to facilitate comparison and potential regulatory pathways. ([intertekinform.com](https://www.intertekinform.com/en-us/standards/ansi-aami-ec57-2012-r2020--415_saig_aami_aami_3041820/?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. {'name': 'Attention‑augmented 1D ResNet/TCN (dilated Conv1d + SE/attention + focal loss)', 'why_it_works': 'Captures multi‑scale morphology and long temporal context efficiently; focal/weighted loss and RR‑interval features help minority classes (S, F).', 'typical_setup': 'Input [B,2,1000]; 4–8 stages, 32–256 channels; kernel 7–17, dilations 1–16; dropout 0.1–0.3; AdamW lr 1e‑3, wd 1e‑4–1e‑3; batch 128–512.', 'evidence': 'MB‑MHA‑TCN reports ≈98.8% 5‑class accuracy on MIT‑BIH, improving minority‑class F1. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39771858/?utm_source=openai))'}
+2. {'name': 'Tiny Time‑Series Transformer (patch embedding + small MHSA) fine‑tuned on MIT‑BIH', 'why_it_works': 'Self‑attention models long‑range rhythm while staying lightweight; quantization enables on‑device inference.', 'typical_setup': 'Patch length 8–32, stride = patch; d_model 64–192; 4–6 layers; 4–8 heads; dropout 0.1; AdamW lr 1–3e‑4; label smoothing 0.05.', 'evidence': '6k‑parameter Tiny Transformer achieves ≈98.97% 5‑class accuracy and MCU‑level inference. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))'}
+3. {'name': 'SSL + linear/probe then fine‑tune (Masked Transformer or dual‑pathway SSL)', 'why_it_works': 'Learns noise‑tolerant morphology/rhythm features from unlabeled ECG; improves performance when labeled beats are limited.', 'typical_setup': 'Pretrain with 40–70% temporal masking or dual masked/inverse‑masked views for 50–200 epochs; fine‑tune a small head on AAMI 5 classes.', 'evidence': 'MTECG and NERULA report sizable gains and cross‑dataset improvements after SSL. ([arxiv.org](https://arxiv.org/abs/2309.07136?utm_source=openai))'}
+4. {'name': 'Time‑frequency pipeline (CWT/STFT scalogram) + Swin/2D CNN', 'why_it_works': 'Encodes both morphology and spectral rhythms; Transformer backbones exploit local/global structure.', 'typical_setup': 'CWT (Morlet) 0.5–40 Hz; image 224×224; Swin‑Tiny or small CNN; augmentation in time and image domains; AdamW lr 1e‑4–3e‑4.', 'evidence': 'CWT + multi‑branch Transformer and Swin‑based methods report ≈99% accuracy on MIT‑BIH. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38434292/?utm_source=openai))'}
+5. {'name': 'CNN‑LSTM/GRU with channel attention (SE) and imbalance handling', 'why_it_works': '1D CNN extracts morphology; recurrent layers capture beat‑to‑beat rhythm; SE focuses on informative channels.', 'typical_setup': '3–5 Conv1d blocks → BiLSTM(64–256) ×1–2; SE on conv outputs; focal loss γ=1–2 or class weights; lr 1e‑3.', 'evidence': 'CNN‑LSTM‑SE variants report ≈98–99% accuracy on MIT‑BIH in recent studies. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39409344/?utm_source=openai))'}
+
+RECENT PAPERS:
+- A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (2024): 6k‑param Transformer attains ≈98.97% 5‑class MIT‑BIH accuracy; demonstrates 8‑bit MCU deployment with millijoule‑level energy. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+- Masked Transformer for Electrocardiogram Classification (2023): MAE‑style self‑supervised pretraining for ECG; strong gains on large ECG corpora and transfer to downstream tasks. ([arxiv.org](https://arxiv.org/abs/2309.07136?utm_source=openai))
+- NERULA: Dual‑Pathway Self‑Supervised Learning for ECG (2024): Combines masked reconstruction and non‑contrastive alignment; improves arrhythmia classification robustness. ([arxiv.org](https://arxiv.org/abs/2405.19348?utm_source=openai))
+- Accurate Arrhythmia Classification with Multi‑Branch, Multi‑Head Attention TCN (2024): Multi‑scale dilated TCN with attention and focal loss; ≈98.8% five‑class accuracy on MIT‑BIH. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39771858/?utm_source=openai))
+- Enhancing ECG Classification with CWT and Multi‑Branch Transformer (2024): Time‑frequency maps + Transformer yield ≈99.4% accuracy on MIT‑BIH. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38434292/?utm_source=openai))
+- Swin Transformer with Time‑Frequency Features for ECG Arrhythmia (2024): Uses wavelet time‑frequency maps with Swin; effective multi‑class arrhythmia detection. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38911517/?utm_source=openai))
+- Automated Inter‑Patient Arrhythmia Classification with Dual Attention (2023): Reports very high five‑class performance under inter‑patient settings; highlights importance of imbalance handling. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/37116424/?utm_source=openai))
+- Lightweight 1D‑CNN for Arrhythmia Diagnosis (2025): Compact CNN with engineered features; ≈98.4% accuracy on MIT‑BIH, emphasizing efficiency. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39998757/?utm_source=openai))
+
+==================================================

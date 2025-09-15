@@ -1,0 +1,64 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-15 19:20:40
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+Between 2023 and 2025, ECG arrhythmia classification on MIT-BIH has been propelled by three converging trends: lightweight attention models, state-space models, and better pretraining/augmentation. Tiny and hybrid Transformers now reach very high five-class scores on MIT-BIH while remaining deployable: e.g., a 6k‑parameter Tiny Transformer reported 98.97% accuracy on the five most common classes and ran in 4.28 ms on GAP9 with 8‑bit inference, showing that attention can be both accurate and efficient for 1D biosignals. Temporal CNNs enhanced with multi-branch attention (MB‑MHA‑TCN) likewise achieved ~98.8% accuracy with focal loss and tailored augmentations. Meanwhile, self‑supervised learning (SSL) moved from contrastive methods to masked/ multimodal objectives; masked Transformer pretraining on large ECG corpora (e.g., Fuwai/PTB‑XL) and multimodal ECG‑text alignment (METS) improved downstream MIT‑BIH performance and zero‑shot generalization, especially when labels are scarce or class imbalance is severe. Emerging state‑space models (Mamba/SSM) are gaining traction for long 1D sequences, offering linear‑time inference with competitive accuracy in ECG tasks (e.g., ECGMamba), making them attractive backbones for sequence windows like (1000, 2). ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+
+For MIT‑BIH specifically, careful problem framing remains critical. The database contains 48 half‑hour, two‑channel ambulatory ECG records digitized at 360 Hz with expert beat annotations; five AAMI EC57 superclasses (N, S, V, F, Q) are commonly used. Realistic evaluation should avoid patient overlap and follow inter‑patient splits (e.g., DS1/DS2), since intra‑patient protocols inflate accuracy. Recent hybrids that fuse CNN front‑ends with Transformers report 97–99% accuracy under inter‑patient protocols; macro‑F1 varies with handling of minority S and F classes. For your shape (1000, 2), practical and strong baselines are: residual 1D CNNs (InceptionTime/ResNet‑SE), CNN+Transformer hybrids with short context (2–3 s) and class‑balanced sampling, MB‑MHA‑TCN for multi‑scale context, or efficient Mamba backbones. Augmentations (jitter/scale/time‑warp, mixup) and class‑aware losses (focal/class‑weights) matter more than exotic architectures at this window size; SSL pretraining and synthetic data (GAN/diffusion) provide additional gains when labels are limited or imbalanced. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))
+
+KEY FINDINGS:
+1. Use inter‑patient evaluation (e.g., DS1/DS2) to avoid leakage; intra‑patient splits overestimate performance on MIT‑BIH. Report macro‑F1 and per‑class metrics (S, F classes are hardest). ([arxiv.org](https://arxiv.org/html/2404.15367v2?utm_source=openai))
+2. Modern lightweight attention (Tiny Transformers) and MB‑MHA‑TCN match or exceed heavy CNNs while remaining deployable on edge devices. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+3. SSL (masked ECG, ECG‑text) improves data efficiency and cross‑dataset transfer; use large‑corpus pretraining (e.g., PTB‑XL/Fuwai) then fine‑tune on MIT‑BIH. ([arxiv.org](https://arxiv.org/abs/2309.07136?utm_source=openai))
+4. State‑space models (Mamba) are promising for 1D long sequences due to linear complexity; PyTorch implementations (mamba‑ssm) are production‑ready. ([arxiv.org](https://arxiv.org/abs/2406.10098?utm_source=openai))
+5. Balanced sampling + class‑aware loss (focal or weights) and time‑series augmentations (jitter, scaling, random crop/warp) materially improve S/F recall; generative augmentation (e.g., ECGAN) can add small but consistent gains. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39771858/?utm_source=openai))
+6. Typical benchmarks on MIT‑BIH five‑class: 97–99% accuracy reported for strong hybrid/attention models under inter‑patient splits; expect macro‑F1 ~90–96 with careful imbalance handling. Higher 98–99.5% values are common under intra‑patient or cross‑val protocols. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/?utm_source=openai))
+7. The dataset is two‑channel at 360 Hz with AAMI mapping to N/S/V/F/Q; keep preprocessing simple (band‑pass, z‑score per record) and ensure channel order consistency when modeling (1000, 2) windows. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. {'name': 'CNN + Transformer hybrid on 1D windows', 'description': 'Residual 1D CNN front‑end (3–5 blocks, kernels 7–17, dilations 1–8) to embed (1000,2) into d_model 128–256, followed by 2–4 Transformer encoder layers (4–8 heads) with GELU and SE/channel attention. Train with AdamW (lr 1e‑3→1e‑4 cosine schedule), weight decay 1e‑2, focal loss (γ 1–2) or class weights; batch 128–256. Strong inter‑patient results (97–99% acc) reported. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/?utm_source=openai))'}
+2. {'name': 'MB‑MHA‑TCN (multi‑branch attention TCN)', 'description': 'Three temporal branches (different kernel sizes/dilations) feeding multi‑head self‑attention; excels at multi‑scale morphology and long context with low latency. Use 6–12 TCN layers, dilation doubling, channels 64–256; focal loss; augmentation and Bayesian or grid hyper‑search. Reported ~98.8% acc (5‑class). ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39771858/?utm_source=openai))'}
+3. {'name': 'Mamba (SSM) backbone with CNN stem', 'description': 'Conv1D stem → Mamba blocks (d_model 128–256, d_state 64–128, d_conv 4–8, 4–8 layers) → pooled classifier. Linear‑time inference suits 1000‑step sequences; use AdamW, lr 1e‑3 with warmup, dropout 0.1–0.3. Implement via mamba‑ssm PyTorch. Competitive accuracy with superior efficiency. ([arxiv.org](https://arxiv.org/abs/2406.10098?utm_source=openai))'}
+4. {'name': 'InceptionTime/ResNet‑SE (pure 1D CNN baseline)', 'description': 'Fast, strong baseline for 1D ECG. Use 5 Inception modules or 6–12 residual blocks with SE, channels 64–256; mixup (α=0.2), label smoothing (ε=0.05). Often within ~1–2% of attention models, easier to train and deploy. ([arxiv.org](https://arxiv.org/abs/1909.04939?utm_source=openai))'}
+5. {'name': 'SSL pretraining + fine‑tune', 'description': 'Pretrain encoder with masked reconstruction or multimodal ECG‑text on large corpora; fine‑tune classifier head on MIT‑BIH with class‑aware sampling. Yields better generalization and robustness under label scarcity/imbalance. ([arxiv.org](https://arxiv.org/abs/2309.07136?utm_source=openai))'}
+
+RECENT PAPERS:
+- A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (2024): No description
+- Accurate Arrhythmia Classification with Multi‑Branch, Multi‑Head Attention Temporal Convolutional Networks (2024): No description
+- Heartbeat classification combining multi‑branch CNNs and Transformer (2024): No description
+- ECGMamba: Towards Efficient ECG Classification with BiSSM (2024): No description
+- Masked Transformer for Electrocardiogram Classification (2023): No description
+- Multimodal ECG‑Text Self‑supervised Pretraining (METS) (2023): No description
+- Pruned Lightweight Neural Networks for Arrhythmia Classification (2024): No description
+- Hierarchical deep learning on real‑world wearables (2024): No description
+- Visibility‑Graph + GCN for Arrhythmia (2024): No description
+- ECGAN: ECG synthesis integrating SSL and GANs (2025): No description
+
+==================================================

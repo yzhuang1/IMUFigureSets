@@ -92,7 +92,7 @@ class TrainingFunctionExecutor:
             model_name = training_data['model_name']
             
             logger.info(f"Executing training function: {model_name}")
-            logger.info(f"Hyperparameters: {hyperparams}")
+            logger.info(f"Hyperparameters: {dict(hyperparams) if hyperparams else 'None'}")
             
             # Create namespace for code execution
             namespace = {}
@@ -114,7 +114,7 @@ class TrainingFunctionExecutor:
             final_hyperparams = self._convert_numpy_types(final_hyperparams)
             
             # Execute training
-            logger.info(f"Starting training with hyperparameters: {final_hyperparams}")
+            logger.info(f"Starting training with hyperparameters: {dict(final_hyperparams) if final_hyperparams else 'None'}")
             
             model, metrics = train_model(
                 X_train, y_train, X_val, y_val,
@@ -129,7 +129,7 @@ class TrainingFunctionExecutor:
                 'hyperparameters_used': final_hyperparams
             })
             
-            logger.info(f"Training completed successfully: {metrics}")
+            logger.info(f"Training completed successfully: {dict(metrics) if metrics else 'None'}")
             
             return model, metrics
             

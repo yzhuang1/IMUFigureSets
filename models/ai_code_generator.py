@@ -5,12 +5,10 @@ Uses GPT to generate complete training functions as executable code
 
 import json
 import logging
-import torch
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from openai import OpenAI
 from config import config
-import os
 from pathlib import Path
 from models.literature_review import literature_review_generator, LiteratureReview
 
@@ -25,6 +23,7 @@ class CodeRecommendation:
     reasoning: str
     confidence: float
     bo_parameters: List[str]
+    bo_search_space: Dict[str, Dict[str, Any]]
 
 class AICodeGenerator:
     """AI code generator using GPT"""
@@ -55,9 +54,12 @@ Dataset: {config.dataset_name}
 Source: {config.dataset_source}"""
 
         # Base prompt
+        # Get sample count from data profile (correct field name is 'sample_count')
+        num_samples = data_profile.get('sample_count', data_profile.get('num_samples', 'unknown'))
+        
         base_prompt = f"""Generate PyTorch training function for {num_classes}-class classification.
 
-Data: {data_profile['data_type']}, shape {input_shape}, {data_profile['num_samples']} samples{dataset_context}"""
+Data: {data_profile['data_type']}, shape {input_shape}, {num_samples} samples{dataset_context}"""
 
         # Add literature review insights if available
         if literature_review:
@@ -68,10 +70,10 @@ Query: {literature_review.query}
 Confidence: {literature_review.confidence:.2f}
 
 Key Findings:
-{chr(10).join('- ' + finding for finding in literature_review.key_findings[:5])}
+{chr(10).join('- ' + str(finding) for finding in literature_review.key_findings[:5] if finding)}
 
 Recommended Approaches:
-{chr(10).join('- ' + approach for approach in literature_review.recommended_approaches[:3])}
+{chr(10).join('- ' + str(approach) for approach in literature_review.recommended_approaches[:3] if approach)}
 
 Please consider these recent research insights when generating your training function."""
 
@@ -79,7 +81,11 @@ Please consider these recent research insights when generating your training fun
 
 Requirements:
 - Function: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
-- Build model from scratch, include training loop, return model and metrics
+- X_train, y_train, X_val, y_val are PyTorch tensors
+- IMPORTANT: Only use pin_memory=True in DataLoader if tensors are on CPU. Check tensor.device.type == 'cpu' before enabling pin_memory
+- Keep code simple - Bayesian Optimization will handle hyperparameter tuning
+- Focus on core training loop, avoid complex scheduling/early stopping
+- Build model from scratch, include basic training loop, return model and metrics
 - Lightweight architecture (<256K parameters)
 - Incorporate relevant insights from literature review if provided
 
@@ -90,85 +96,66 @@ Response JSON format:
     "hyperparameters": {{"lr": 0.001, "epochs": 10, "batch_size": 64}},
     "reasoning": "Brief explanation incorporating literature insights",
     "confidence": 0.9,
-    "bo_parameters": ["lr", "batch_size", "epochs"]
+    "bo_parameters": ["lr", "batch_size", "epochs", "hidden_size", "dropout"],
+    "bo_search_space": {{
+        "lr": {{"type": "Real", "low": 1e-5, "high": 1e-1, "prior": "log-uniform"}},
+        "batch_size": {{"type": "Categorical", "categories": [8, 16, 32, 64, 128]}},
+        "epochs": {{"type": "Integer", "low": 5, "high": 50}},
+        "hidden_size": {{"type": "Integer", "low": 32, "high": 512}},
+        "dropout": {{"type": "Real", "low": 0.0, "high": 0.7}}
+    }}
 }}"""
 
         return prompt
     
     def _call_openai_api(self, prompt: str) -> str:
-        """Call OpenAI API with GPT-5 using the latest method"""
+        """Call OpenAI API using responses.create method"""
         logger.info(f"Making API call to {self.model}")
+        logger.info(f"Prompt length: {len(prompt)} characters")
+        logger.info(f"Using API base URL: {self.base_url}")
         
-        # Try the client.responses.create method first (if it exists and works)
-        if hasattr(self.client, 'responses') and hasattr(self.client.responses, 'create'):
-            try:
-                logger.info("Attempting client.responses.create method")
-                response = self.client.responses.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": "You are a machine learning expert. Generate complete, executable PyTorch training code. Respond only with valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ]
-                    # Note: GPT-5 uses default temperature=1, no custom temperature parameter
-                )
-                result = response.choices[0].message.content if hasattr(response, 'choices') else response.text
-                if result:
-                    logger.info("Successfully used client.responses.create")
-                    return result
-            except Exception as resp_error:
-                logger.warning(f"client.responses.create method failed: {resp_error}, falling back to standard method")
-        
-        # Standard chat completions API (with GPT-5 compatibility)
         try:
-            logger.info("Using standard chat.completions.create method")
+            logger.info("Calling self.client.responses.create...")
+            logger.info(f"Model parameter: {self.model}")
+            logger.info(f"Input prompt preview: {prompt[:200]}...")
             
-            # Create API call parameters - adjust for GPT-5
-            api_params = {
-                "model": self.model,
-                "messages": [
-                    {"role": "system", "content": "You are a machine learning expert. Generate complete, executable PyTorch training code. Respond only with valid JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-            }
+            response = self.client.responses.create(
+                model=self.model,
+                input=prompt
+            )
             
-            # GPT-5 only supports temperature=1 (default), older models support custom temperature
-            if not (self.model.startswith('gpt-5') or self.model == 'gpt-5'):
-                api_params["temperature"] = 0.3
+            logger.info("API call completed successfully")
+            logger.info(f"Response type: {type(response)}")
+            logger.info(f"Response attributes: {dir(response)}")
             
-            # Use max_completion_tokens for GPT-5, max_tokens for older models
-            if self.model.startswith('gpt-5') or self.model == 'gpt-5':
-                api_params["max_completion_tokens"] = 8000  # Increased for GPT-5 reasoning tokens
+            # Extract the output text
+            if hasattr(response, 'output_text'):
+                logger.info("Using response.output_text")
+                result = response.output_text
+            elif hasattr(response, 'choices') and len(response.choices) > 0:
+                logger.info("Using response.choices[0].message.content")
+                result = response.choices[0].message.content
+            elif hasattr(response, 'text'):
+                logger.info("Using response.text")
+                result = response.text
             else:
-                api_params["max_tokens"] = 3000
+                logger.warning("Unexpected response format, trying to extract content")
+                logger.warning(f"Response object: {response}")
+                result = str(response)
             
-            # Add JSON format for supported models
-            try:
-                api_params["response_format"] = {"type": "json_object"}
-                response = self.client.chat.completions.create(**api_params)
-            except Exception:
-                # Remove JSON format if not supported
-                logger.info("JSON format not supported, using standard format")
-                api_params.pop("response_format", None)
-                response = self.client.chat.completions.create(**api_params)
-            
-            result = response.choices[0].message.content
-            logger.debug(f"API response: {response}")
-            logger.debug(f"Response content: {result}")
+            logger.info(f"Extracted result length: {len(result) if result else 0} characters")
+            logger.info(f"Result preview: {result[:200] if result else 'None'}...")
             
             if result:
+                logger.info("Successfully extracted response content")
                 return result
             else:
-                # Check if there's a refusal or other message
-                if hasattr(response.choices[0], 'message') and hasattr(response.choices[0].message, 'refusal'):
-                    refusal = response.choices[0].message.refusal
-                    if refusal:
-                        raise ValueError(f"API refused to respond: {refusal}")
-                
                 logger.error(f"Empty response from API. Full response: {response}")
                 raise ValueError("Empty response from API")
                 
         except Exception as e:
-            logger.error(f"Standard API call failed: {e}")
+            logger.error(f"API call failed with exception: {type(e).__name__}: {e}")
+            logger.error(f"Exception details: {str(e)}")
             raise
     
     def _parse_recommendation(self, response: str) -> CodeRecommendation:
@@ -188,10 +175,42 @@ Response JSON format:
                 raise ValueError("No JSON found in response")
             
             json_str = response[start_idx:end_idx]
-            data = json.loads(json_str)
+            
+            # Try to fix common JSON formatting issues
+            try:
+                data = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Initial JSON parse failed: {e}, attempting to fix common issues")
+                
+                # Common fixes for malformed JSON
+                fixed_json = json_str
+                
+                # Fix missing commas before closing braces/brackets
+                import re
+                fixed_json = re.sub(r'"\s*\n\s*}', '"\n}', fixed_json)
+                fixed_json = re.sub(r'"\s*\n\s*]', '"\n]', fixed_json)
+                
+                # Fix trailing commas
+                fixed_json = re.sub(r',(\s*[}\]])', r'\1', fixed_json)
+                
+                # Try parsing again
+                try:
+                    data = json.loads(fixed_json)
+                    logger.info("Successfully fixed JSON formatting issues")
+                except json.JSONDecodeError:
+                    # If still failing, try a more aggressive approach
+                    logger.warning("Standard fixes failed, attempting manual JSON repair")
+                    
+                    # Save the problematic JSON for debugging
+                    debug_file = Path("debug_malformed_json.txt")
+                    with open(debug_file, 'w') as f:
+                        f.write(f"Original JSON:\n{json_str}\n\nFixed JSON:\n{fixed_json}")
+                    logger.info(f"Saved malformed JSON to {debug_file} for debugging")
+                    
+                    raise
             
             # Validate required fields
-            required_fields = ["model_name", "training_code", "hyperparameters", "reasoning", "confidence", "bo_parameters"]
+            required_fields = ["model_name", "training_code", "hyperparameters", "reasoning", "confidence", "bo_parameters", "bo_search_space"]
             for field in required_fields:
                 if field not in data:
                     raise ValueError(f"Missing required field: {field}")
@@ -202,7 +221,8 @@ Response JSON format:
                 hyperparameters=data["hyperparameters"],
                 reasoning=data["reasoning"],
                 confidence=float(data["confidence"]),
-                bo_parameters=data["bo_parameters"]
+                bo_parameters=data["bo_parameters"],
+                bo_search_space=data["bo_search_space"]
             )
         
         except (json.JSONDecodeError, ValueError, KeyError) as e:
@@ -210,10 +230,14 @@ Response JSON format:
             logger.error(f"Original response: {response}")
             raise ValueError(f"Failed to parse AI code recommendation: {e}")
     
-    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = True) -> CodeRecommendation:
+    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None) -> CodeRecommendation:
         """Generate training function code based on data characteristics with optional literature review"""
 
         literature_review = None
+        
+        # Use config setting if not explicitly specified
+        if include_literature_review is None:
+            include_literature_review = not config.skip_literature_review
 
         # Generate literature review if requested
         if include_literature_review:
@@ -222,8 +246,7 @@ Response JSON format:
                 literature_review = literature_review_generator.generate_literature_review(data_profile, input_shape, num_classes)
 
                 # Save literature review
-                review_file = literature_review_generator.save_literature_review(literature_review, data_profile)
-                logger.info(f"Literature review saved to: {review_file}")
+                literature_review_generator.save_literature_review(literature_review, data_profile)
 
             except Exception as e:
                 logger.warning(f"Literature review failed: {e}, proceeding without it")
@@ -261,6 +284,7 @@ Response JSON format:
             "reasoning": recommendation.reasoning,
             "confidence": recommendation.confidence,
             "bo_parameters": recommendation.bo_parameters,
+            "bo_search_space": recommendation.bo_search_space,
             "data_profile": data_profile,
             "timestamp": timestamp,
             "metadata": {
@@ -277,75 +301,11 @@ Response JSON format:
         logger.info(f"Training function saved to: {filepath}")
         return str(filepath)
     
-    def load_training_function(self, filepath: str) -> Dict[str, Any]:
-        """Load training function from JSON file"""
-        with open(filepath, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return data
 
-class CodeValidator:
-    """Validates generated training code"""
-    
-    def validate_code(self, code: str) -> bool:
-        """Validate that code is syntactically correct"""
-        try:
-            compile(code, '<string>', 'exec')
-            return True
-        except SyntaxError as e:
-            logger.error(f"Syntax error in generated code: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Validation error: {e}")
-            return False
-    
-    def test_code_execution(self, code: str, X_sample: torch.Tensor, y_sample: torch.Tensor) -> bool:
-        """Test code execution with sample data"""
-        try:
-            # Create small test datasets
-            X_train = X_sample[:10]
-            y_train = y_sample[:10]
-            X_val = X_sample[10:15] if len(X_sample) > 15 else X_sample[:5]
-            y_val = y_sample[10:15] if len(y_sample) > 15 else y_sample[:5]
-            
-            # Execute the function definition
-            namespace = {}
-            exec(code, namespace)
-            
-            # Get the train_model function
-            if 'train_model' not in namespace:
-                logger.error("train_model function not found in generated code")
-                return False
-            
-            train_model = namespace['train_model']
-            
-            # Test with minimal parameters
-            model, metrics = train_model(
-                X_train, y_train, X_val, y_val, 
-                device='cpu', epochs=1, batch_size=min(4, len(X_train))
-            )
-            
-            # Validate outputs
-            if not hasattr(model, 'eval'):
-                logger.error("Returned object is not a PyTorch model")
-                return False
-            
-            if not isinstance(metrics, dict):
-                logger.error("Metrics should be a dictionary")
-                return False
-            
-            logger.info("Code validation successful")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Code execution test failed: {e}")
-            return False
-
-
-# Global instances
+# Global instance
 ai_code_generator = AICodeGenerator()
-code_validator = CodeValidator()
 
-def generate_training_code_for_data(data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = True) -> CodeRecommendation:
+def generate_training_code_for_data(data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None) -> CodeRecommendation:
     """
     Convenience function: Generate training code for data with literature review
     """
@@ -353,9 +313,5 @@ def generate_training_code_for_data(data_profile: Dict[str, Any], input_shape: t
     recommendation = ai_code_generator.generate_training_function(
         data_profile, input_shape, num_classes, include_literature_review
     )
-
-    # Validate the generated code
-    if not code_validator.validate_code(recommendation.training_code):
-        raise ValueError("AI generated code failed validation - stopping execution")
 
     return recommendation

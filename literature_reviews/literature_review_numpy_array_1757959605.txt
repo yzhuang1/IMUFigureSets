@@ -1,0 +1,64 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-15 18:06:45
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+From 2023 to 2025, ECG arrhythmia classification has advanced along two main fronts: lightweight sequence models tailored for embedded/edge deployment and large-scale self‑supervised or multimodal “foundation” models that transfer effectively to downstream tasks. On compact architectures, hybrid 1D CNN–Transformer designs and attention-augmented CNNs deliver strong five-class MIT‑BIH performance with low parameter counts; for example, a 6k‑parameter “tiny transformer” reports ~99% accuracy on 5‑class MIT‑BIH while targeting 8‑bit inference on microcontrollers. Concurrently, temporal fusion networks that combine local convolutions with global attention or RNNs continue to push accuracy and robustness on MIT‑BIH and related PhysioNet datasets. Fast, strong classical time‑series baselines like MiniROCKET/MultiROCKET remain competitive for sequence classification at scale. ([arxiv.org](https://arxiv.org/abs/2402.10748))
+
+On the representation side, self‑supervised and multimodal ECG–text approaches pretrain general encoders and then fine‑tune with few labels, improving generalization across centers and conditions. Recent examples include dual‑pathway masked/reconstruction learning for single‑lead ECGs, knowledge‑enhanced ECG foundation models trained on hundreds of thousands to millions of ECGs with contrastive and masked objectives, and ECG–language pretraining for zero‑shot or label‑efficient transfer. For MIT‑BIH specifically, best practice remains to follow AAMI EC57 heartbeat grouping (N, S, V, F, Q) and patient‑exclusive evaluation (e.g., DS1/DS2 split) given its two‑lead, 360 Hz, 30‑min records; reported “near‑perfect” accuracies often stem from intra‑patient splits or non‑AAMI labelings. In inter‑patient five‑class settings, macro‑F1 typically lags for S and F classes due to scarcity, and rigorous studies report overall accuracies roughly in the low‑ to mid‑90s, though newer attention/CNN hybrids may exceed this under careful protocols. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39694017/?utm_source=openai))
+
+KEY FINDINGS:
+1. Adopt AAMI EC57 grouping (N, S, V, F, Q) and inter‑patient splits (e.g., DS1/DS2) to avoid data leakage; intra‑patient evaluation inflates metrics and is discouraged for clinical realism. ([ar5iv.labs.arxiv.org](https://ar5iv.labs.arxiv.org/html/2404.15367?utm_source=openai))
+2. MIT‑BIH contains 48 two‑lead, 30‑min records at 360 Hz with ~110k annotated beats; align segmentation and normalization with these properties (per‑record z‑score or lead‑wise scaling). ([physionet.org](https://www.physionet.org/physiobank/database/mitdb/?utm_source=openai))
+3. Lightweight CNN‑Transformer hybrids and attention‑enhanced CNNs are state‑of‑the‑art for efficient 1D sequence classification; they balance local morphology and global rhythm context. ([arxiv.org](https://arxiv.org/abs/2402.10748))
+4. Self‑supervised and multimodal foundation models (contrastive + masking; ECG–text) improve label efficiency, zero‑/few‑shot transfer, and robustness, and are promising for pretraining before MIT‑BIH fine‑tuning. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39694017/?utm_source=openai))
+5. Fast baselines like MiniROCKET/MultiROCKET provide strong accuracy with minimal tuning and are valuable when compute or latency is constrained. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-022-00844-1?utm_source=openai))
+6. Expected ranges (inter‑patient, AAMI 5‑class): overall accuracy ~90–96% with macro‑F1 limited by S and F; numbers near 98–99% typically indicate different labelings/splits or intra‑patient protocols. ([proquest.com](https://www.proquest.com/scholarly-journals/real-time-arrhythmia-classification-algorithm/docview/2534420514/se-2?utm_source=openai))
+7. Regulatory‑minded reporting (per AAMI EC57) and robustness testing under noise (e.g., using Noise Stress Test data) improve external validity for deployment. ([fda.gov](https://www.fda.gov/medical-devices/guidance-documents-medical-devices-and-radiation-emitting-products/arrhythmia-detector-and-alarm-class-ii-special-controls-guidance-document-industry-and-fda-staff?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. {'name': '1D CNN + Lightweight Transformer (local–global hybrid)', 'description': 'Stack 1D convolutions (kernels 5–17, 32–128 channels) for morphology; add 2–4 Transformer encoder blocks (d_model 128–256, 4–8 heads, dropout 0.1–0.3) over the 1,000‑step sequence; class‑balanced focal loss with label smoothing (0.05). Strong accuracy and efficient inference for (1000,2) inputs. ([arxiv.org](https://arxiv.org/abs/2402.10748))'}
+2. {'name': 'Attention‑augmented CNN (Local–Global Temporal Fusion)', 'description': 'Multi‑branch CNN to capture short‑range features plus an attention fusion head for long‑range dynamics; robust to variable rhythm episodes and competitive on MIT‑BIH/AFDB. Hyperparameters similar to above; consider SE/CBAM blocks. ([arxiv.org](https://arxiv.org/abs/2308.02416?utm_source=openai))'}
+3. {'name': 'Self‑Supervised Pretraining + Fine‑tune', 'description': 'Pretrain on unlabeled ECG segments (MIT‑BIH and other PhysioNet ECGs) using masked reconstruction and/or contrastive objectives; then fine‑tune a small classifier head for 5‑class beats. Expect better performance under limited labels and cross‑dataset transfer. ([arxiv.org](https://arxiv.org/abs/2405.19348?utm_source=openai))'}
+4. {'name': 'ECG Foundation Model Transfer', 'description': 'Start from an open ECG foundation model (transformer/CNN encoder pretrained on 10^5–10^6 ECGs) and fine‑tune last layers for beat classification; use low LR (1e‑4–3e‑5), small classifier head. Gains in robustness and label efficiency. ([emergentmind.com](https://www.emergentmind.com/papers/2408.05178?utm_source=openai))'}
+5. {'name': 'MiniROCKET/MultiROCKET + Linear Classifier', 'description': 'Compute random‑kernel features over (1000,2) and train a Ridge/Logistic head. Extremely fast, strong baseline; tune number of kernels (e.g., 10–50k) and regularization (1e‑4–1e‑2). ([link.springer.com](https://link.springer.com/article/10.1007/s10618-022-00844-1?utm_source=openai))'}
+
+RECENT PAPERS:
+- A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (IEEE TBCAS, 2024): No description
+- Local‑Global Temporal Fusion Network with Attention (2023): No description
+- NERULA: Dual‑Pathway Self‑Supervised Learning for ECG (2024): No description
+- Foundation model of ECG diagnosis (KED) (Cell Reports Medicine, 2024): No description
+- ECG‑FM: An Open Electrocardiogram Foundation Model (arXiv, 2024): No description
+- C‑MELT: Contrastive Enhanced Masked Auto‑Encoders for ECG‑Language (2024): No description
+- In‑/Out‑of‑Distribution Self‑Supervised ECG Representation Learning (2023): No description
+- HRIDM: Hybrid Residual/Inception Model for Arrhythmia (2024): No description
+- MultiROCKET for Fast Time‑Series Classification (2022): No description
+- Inter‑/Intra‑Patient ECG Heartbeat Classification with Seq2Seq (2020): No description
+
+==================================================

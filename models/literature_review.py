@@ -47,7 +47,7 @@ class LiteratureReviewGenerator:
         """Create research query based on data characteristics"""
 
         data_type = data_profile.get('data_type', 'tabular')
-        num_samples = data_profile.get('num_samples', 'unknown')
+        num_samples = data_profile.get('sample_count', data_profile.get('num_samples', 'unknown'))
         is_sequence = data_profile.get('is_sequence', False)
 
         # Build specific query based on data characteristics
@@ -96,53 +96,28 @@ class LiteratureReviewGenerator:
         """Call GPT-5 with web search using the responses.create method"""
         logger.info(f"Making GPT-5 literature review call with query: {query}")
 
-        try:
-            # Use the GPT-5 responses.create method with web search
-            response = self.client.responses.create(
-                model=self.model,
-                tools=[
-                    {"type": "web_search"}
-                ],
-                input=f"Research Query: {query}\n\nTask: {research_prompt}"
-            )
+        # Use the GPT-5 responses.create method with web search
+        response = self.client.responses.create(
+            model=self.model,
+            tools=[
+                {"type": "web_search"}
+            ],
+            input=f"Research Query: {query}\n\nTask: {research_prompt}"
+        )
 
-            # Extract the output text
-            if hasattr(response, 'output_text'):
-                result = response.output_text
-            elif hasattr(response, 'choices') and len(response.choices) > 0:
-                result = response.choices[0].message.content
-            elif hasattr(response, 'text'):
-                result = response.text
-            else:
-                logger.warning("Unexpected response format, trying to extract content")
-                result = str(response)
+        # Extract the output text
+        if hasattr(response, 'output_text'):
+            result = response.output_text
+        elif hasattr(response, 'choices') and len(response.choices) > 0:
+            result = response.choices[0].message.content
+        elif hasattr(response, 'text'):
+            result = response.text
+        else:
+            logger.warning("Unexpected response format, trying to extract content")
+            result = str(response)
 
-            logger.info("Successfully completed GPT-5 literature review with web search")
-            return result
-
-        except Exception as e:
-            logger.error(f"GPT-5 web search failed: {e}")
-            logger.info("Falling back to standard GPT API without web search")
-
-            # Fallback to standard API without web search
-            fallback_prompt = f"""
-            Conduct a literature review for: {query}
-
-            {research_prompt}
-
-            Note: Web search is not available, please provide your best knowledge-based review.
-            """
-
-            response = self.client.chat.completions.create(
-                model=self.model if self.model.startswith('gpt-5') else "gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are an expert machine learning researcher conducting a literature review."},
-                    {"role": "user", "content": fallback_prompt}
-                ],
-                max_completion_tokens=4000
-            )
-
-            return response.choices[0].message.content
+        logger.info("Successfully completed GPT-5 literature review with web search")
+        return result
 
     def generate_literature_review(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int) -> LiteratureReview:
         """Generate comprehensive literature review for the given ML problem"""
@@ -313,16 +288,20 @@ KEY FINDINGS:
 """
 
         for i, finding in enumerate(review.key_findings, 1):
-            review_content += f"{i}. {finding}\n"
+            finding_str = str(finding) if finding else 'No finding'
+            review_content += f"{i}. {finding_str}\n"
 
         review_content += f"\nRECOMMENDED APPROACHES:\n"
         for i, approach in enumerate(review.recommended_approaches, 1):
-            review_content += f"{i}. {approach}\n"
+            approach_str = str(approach) if approach else 'No approach'
+            review_content += f"{i}. {approach_str}\n"
 
         if review.recent_papers:
             review_content += f"\nRECENT PAPERS:\n"
             for paper in review.recent_papers:
-                review_content += f"- {paper.get('title', 'Unknown title')}: {paper.get('contribution', 'No description')}\n"
+                title = str(paper.get('title', 'Unknown title')) if paper.get('title') else 'Unknown title'
+                contribution = str(paper.get('contribution', 'No description')) if paper.get('contribution') else 'No description'
+                review_content += f"- {title}: {contribution}\n"
 
         review_content += f"\n" + "="*50 + "\n"
 

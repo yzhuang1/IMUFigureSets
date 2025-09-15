@@ -1,0 +1,316 @@
+2025-09-15 19:51:42,964 - INFO - __main__ - Logging system initialized successfully
+2025-09-15 19:51:42,966 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'y.npy', 'X.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-15 19:51:42,966 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-15 19:51:42,966 - INFO - __main__ - Attempting to load: y.npy
+2025-09-15 19:51:42,968 - INFO - __main__ - Attempting to load: X.npy
+2025-09-15 19:51:43,271 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-15 19:51:43,597 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-15 19:51:43,597 - INFO - __main__ - Starting AI-enhanced training with new pipeline flow
+2025-09-15 19:51:43,597 - INFO - __main__ - Flow: Template Selection → BO → Evaluation → Feedback Loop
+2025-09-15 19:51:43,609 - INFO - __main__ - Data profile: {'data_type': 'numpy_array', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-15 19:51:43,611 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized with max 4 attempts
+2025-09-15 19:51:43,611 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution
+2025-09-15 19:51:43,611 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-15 19:51:43,611 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-15 19:51:43,611 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-15 19:51:43,611 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-15 19:51:43,612 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-15 19:51:44,256 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-15 19:51:44,257 - INFO - class_balancing - Class imbalance analysis:
+2025-09-15 19:51:44,257 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-15 19:51:44,257 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-15 19:51:44,257 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-15 19:51:44,257 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-15 19:51:44,258 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-15 19:51:44,258 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-15 19:51:44,259 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-15 19:51:44,259 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-15 19:51:45,597 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-15 19:51:45,600 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-15 19:51:45,602 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-15 19:51:45,602 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE ATTEMPT 1/4
+2025-09-15 19:51:45,602 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-15 19:51:45,603 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-15 19:51:45,603 - INFO - models.ai_code_generator - Making API call to gpt-5
+2025-09-15 19:51:45,603 - INFO - models.ai_code_generator - Prompt length: 1414 characters
+2025-09-15 19:51:45,603 - INFO - models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-15 19:51:45,603 - INFO - models.ai_code_generator - Calling self.client.responses.create...
+2025-09-15 19:51:45,603 - INFO - models.ai_code_generator - Model parameter: gpt-5
+2025-09-15 19:51:45,603 - INFO - models.ai_code_generator - Input prompt preview: Generate PyTorch training function for 5-class classification.
+
+Data: numpy_array, shape (1000, 2), 62352 samples
+
+Dataset: MIT-BIH Arrhythmia Database
+Source: https://physionet.org/content/mitdb/1.0....
+2025-09-15 19:53:57,397 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-15 19:53:57,564 - INFO - models.ai_code_generator - API call completed successfully
+2025-09-15 19:53:57,565 - INFO - models.ai_code_generator - Response type: <class 'openai.types.responses.response.Response'>
+2025-09-15 19:53:57,565 - INFO - models.ai_code_generator - Response attributes: ['__abstractmethods__', '__annotations__', '__class__', '__class_getitem__', '__class_vars__', '__copy__', '__deepcopy__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__fields__', '__fields_set__', '__format__', '__ge__', '__get_pydantic_core_schema__', '__get_pydantic_json_schema__', '__getattr__', '__getattribute__', '__getstate__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__iter__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__pretty__', '__private_attributes__', '__pydantic_complete__', '__pydantic_computed_fields__', '__pydantic_core_schema__', '__pydantic_custom_init__', '__pydantic_decorators__', '__pydantic_extra__', '__pydantic_fields__', '__pydantic_fields_set__', '__pydantic_generic_metadata__', '__pydantic_init_subclass__', '__pydantic_parent_namespace__', '__pydantic_post_init__', '__pydantic_private__', '__pydantic_root_model__', '__pydantic_serializer__', '__pydantic_setattr_handlers__', '__pydantic_validator__', '__reduce__', '__reduce_ex__', '__replace__', '__repr__', '__repr_args__', '__repr_name__', '__repr_recursion__', '__repr_str__', '__rich_repr__', '__setattr__', '__setstate__', '__signature__', '__sizeof__', '__slots__', '__str__', '__subclasshook__', '__weakref__', '_abc_impl', '_calculate_keys', '_copy_and_set_values', '_get_value', '_iter', '_request_id', '_setattr_handler', 'background', 'construct', 'conversation', 'copy', 'created_at', 'dict', 'error', 'from_orm', 'id', 'incomplete_details', 'instructions', 'json', 'max_output_tokens', 'max_tool_calls', 'metadata', 'model', 'model_computed_fields', 'model_config', 'model_construct', 'model_copy', 'model_dump', 'model_dump_json', 'model_extra', 'model_fields', 'model_fields_set', 'model_json_schema', 'model_parametrized_name', 'model_post_init', 'model_rebuild', 'model_validate', 'model_validate_json', 'model_validate_strings', 'object', 'output', 'output_text', 'parallel_tool_calls', 'parse_file', 'parse_obj', 'parse_raw', 'previous_response_id', 'prompt', 'prompt_cache_key', 'reasoning', 'safety_identifier', 'schema', 'schema_json', 'service_tier', 'status', 'temperature', 'text', 'to_dict', 'to_json', 'tool_choice', 'tools', 'top_logprobs', 'top_p', 'truncation', 'update_forward_refs', 'usage', 'user', 'validate']
+2025-09-15 19:53:57,565 - INFO - models.ai_code_generator - Using response.output_text
+2025-09-15 19:53:57,566 - INFO - models.ai_code_generator - Extracted result length: 14264 characters
+2025-09-15 19:53:57,566 - INFO - models.ai_code_generator - Result preview: {
+    "model_name": "TinyECG1DCNN",
+    "training_code": "import math\nimport time\nfrom typing import Dict, Any, Tuple\n\ndef train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    ...
+2025-09-15 19:53:57,566 - INFO - models.ai_code_generator - Successfully extracted response content
+2025-09-15 19:53:57,566 - INFO - models.ai_code_generator - AI generated training function: TinyECG1DCNN
+2025-09-15 19:53:57,566 - INFO - models.ai_code_generator - Confidence: 0.90
+2025-09-15 19:53:57,566 - INFO - models.ai_code_generator - Reasoning: MIT-BIH Arrhythmia is highly imbalanced across beat types; literature shows macro-F1 and class-weighted losses outperform accuracy-only optimization. We therefore use class weighting and optionally a WeightedRandomSampler. 1D CNNs with global average pooling are effective for beat-level ECG (compact, translation-tolerant). The proposed separable 1D CNN keeps parameters well under 256K while capturing temporal morphology over ~1000 samples and 2 channels. Label smoothing improves calibration and robustness.
+2025-09-15 19:53:57,566 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: TinyECG1DCNN
+2025-09-15 19:53:57,567 - INFO - evaluation.code_generation_pipeline_orchestrator - Reasoning: MIT-BIH Arrhythmia is highly imbalanced across beat types; literature shows macro-F1 and class-weighted losses outperform accuracy-only optimization. We therefore use class weighting and optionally a WeightedRandomSampler. 1D CNNs with global average pooling are effective for beat-level ECG (compact, translation-tolerant). The proposed separable 1D CNN keeps parameters well under 256K while capturing temporal morphology over ~1000 samples and 2 channels. Label smoothing improves calibration and robustness.
+2025-09-15 19:53:57,567 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['lr', 'batch_size', 'epochs', 'hidden_size', 'dropout']
+2025-09-15 19:53:57,567 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.90
+2025-09-15 19:53:57,567 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-15 19:53:57,568 - INFO - models.ai_code_generator - Training function saved to: generated_training_functions/training_function_numpy_array_TinyECG1DCNN_1757966037.json
+2025-09-15 19:53:57,568 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions/training_function_numpy_array_TinyECG1DCNN_1757966037.json
+2025-09-15 19:53:57,576 - INFO - models.training_function_executor - Training function validation passed
+2025-09-15 19:53:57,576 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-15 19:53:57,577 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: TinyECG1DCNN
+2025-09-15 19:53:57,620 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 5000 samples
+2025-09-15 19:53:57,620 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['lr', 'batch_size', 'epochs', 'hidden_size', 'dropout']
+2025-09-15 19:53:57,621 - INFO - models.training_function_executor - GPU available: NVIDIA H100 NVL
+2025-09-15 19:53:57,621 - WARNING - models.training_function_executor - Using provided subset instead of centralized splits - this may cause data leakage
+2025-09-15 19:53:58,193 - INFO - bo.run_bo - Using default search space
+2025-09-15 19:53:58,195 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-15 19:53:58,204 - INFO - bo.run_bo - Using explicitly provided search space
+2025-09-15 19:53:58,206 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-15 19:53:58,208 - INFO - bo.run_bo - BO Trial 1: Initial random exploration
+2025-09-15 19:53:58,208 - INFO - bo.run_bo - [PROFILE] suggest() took 0.002s
+2025-09-15 19:53:58,208 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:53:58,209 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:53:58,209 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': 10, 'hidden_size': 204, 'dropout': 0.41779511056254093}
+2025-09-15 19:53:58,217 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.01535224694197351, 'epochs': 10, 'batch_size': 16, 'hidden_size': 204, 'dropout': 0.41779511056254093}
+2025-09-15 19:54:01,417 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:01,418 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:01,418 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:01,418 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 3.210s
+2025-09-15 19:54:01,420 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:01,420 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.001s
+2025-09-15 19:54:01,420 - INFO - bo.run_bo - Recorded observation #1: hparams={'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093}, value=0.0000
+2025-09-15 19:54:01,420 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093} -> 0.0000
+2025-09-15 19:54:01,423 - INFO - bo.run_bo - BO Trial 2: Initial random exploration
+2025-09-15 19:54:01,423 - INFO - bo.run_bo - [PROFILE] suggest() took 0.003s
+2025-09-15 19:54:01,423 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:01,423 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:01,423 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0006071989493441302, 'batch_size': 8, 'epochs': 13, 'hidden_size': 103, 'dropout': 0.2335960277973153}
+2025-09-15 19:54:01,430 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0006071989493441302, 'epochs': 13, 'batch_size': 8, 'hidden_size': 103, 'dropout': 0.2335960277973153}
+2025-09-15 19:54:01,446 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:01,446 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:01,447 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:01,447 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.024s
+2025-09-15 19:54:01,447 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:01,447 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-15 19:54:01,448 - INFO - bo.run_bo - Recorded observation #2: hparams={'lr': 0.0006071989493441302, 'batch_size': 8, 'epochs': np.int64(13), 'hidden_size': np.int64(103), 'dropout': 0.2335960277973153}, value=0.0000
+2025-09-15 19:54:01,448 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 2: {'lr': 0.0006071989493441302, 'batch_size': 8, 'epochs': np.int64(13), 'hidden_size': np.int64(103), 'dropout': 0.2335960277973153} -> 0.0000
+2025-09-15 19:54:01,449 - INFO - bo.run_bo - BO Trial 3: Initial random exploration
+2025-09-15 19:54:01,449 - INFO - bo.run_bo - [PROFILE] suggest() took 0.002s
+2025-09-15 19:54:01,450 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:01,450 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:01,450 - INFO - models.training_function_executor - Hyperparameters: {'lr': 3.727925903376984e-05, 'batch_size': 64, 'epochs': 23, 'hidden_size': 273, 'dropout': 0.5053991405867774}
+2025-09-15 19:54:01,456 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 3.727925903376984e-05, 'epochs': 23, 'batch_size': 64, 'hidden_size': 273, 'dropout': 0.5053991405867774}
+2025-09-15 19:54:01,465 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:01,466 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:01,466 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:01,466 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.016s
+2025-09-15 19:54:01,874 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:01,874 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.408s
+2025-09-15 19:54:01,874 - INFO - bo.run_bo - Recorded observation #3: hparams={'lr': 3.727925903376984e-05, 'batch_size': 64, 'epochs': np.int64(23), 'hidden_size': np.int64(273), 'dropout': 0.5053991405867774}, value=0.0000
+2025-09-15 19:54:01,875 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 3: {'lr': 3.727925903376984e-05, 'batch_size': 64, 'epochs': np.int64(23), 'hidden_size': np.int64(273), 'dropout': 0.5053991405867774} -> 0.0000
+2025-09-15 19:54:01,875 - INFO - bo.run_bo - BO Trial 4: Using RF surrogate + Expected Improvement
+2025-09-15 19:54:01,875 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:54:01,875 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:01,876 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:01,876 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.05678201970293135, 'batch_size': 32, 'epochs': 5, 'hidden_size': 183, 'dropout': 0.08439771317838103}
+2025-09-15 19:54:01,883 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.05678201970293135, 'epochs': 5, 'batch_size': 32, 'hidden_size': 183, 'dropout': 0.08439771317838103}
+2025-09-15 19:54:01,894 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:01,895 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:01,895 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:01,895 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.020s
+2025-09-15 19:54:02,280 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:02,280 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.385s
+2025-09-15 19:54:02,280 - INFO - bo.run_bo - Recorded observation #4: hparams={'lr': 0.05678201970293135, 'batch_size': np.int64(32), 'epochs': np.int64(5), 'hidden_size': np.int64(183), 'dropout': 0.08439771317838103}, value=0.0000
+2025-09-15 19:54:02,280 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 4: {'lr': 0.05678201970293135, 'batch_size': np.int64(32), 'epochs': np.int64(5), 'hidden_size': np.int64(183), 'dropout': 0.08439771317838103} -> 0.0000
+2025-09-15 19:54:02,281 - INFO - bo.run_bo - BO Trial 5: Using RF surrogate + Expected Improvement
+2025-09-15 19:54:02,281 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:54:02,281 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:02,281 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:02,281 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0006550049531232524, 'batch_size': 256, 'epochs': 6, 'hidden_size': 373, 'dropout': 0.4568590869235105}
+2025-09-15 19:54:02,288 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0006550049531232524, 'epochs': 6, 'batch_size': 256, 'hidden_size': 373, 'dropout': 0.4568590869235105}
+2025-09-15 19:54:02,298 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:02,298 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:02,298 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:02,298 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.017s
+2025-09-15 19:54:02,690 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:02,691 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.392s
+2025-09-15 19:54:02,691 - INFO - bo.run_bo - Recorded observation #5: hparams={'lr': 0.0006550049531232524, 'batch_size': np.int64(256), 'epochs': np.int64(6), 'hidden_size': np.int64(373), 'dropout': 0.4568590869235105}, value=0.0000
+2025-09-15 19:54:02,691 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 5: {'lr': 0.0006550049531232524, 'batch_size': np.int64(256), 'epochs': np.int64(6), 'hidden_size': np.int64(373), 'dropout': 0.4568590869235105} -> 0.0000
+2025-09-15 19:54:02,691 - INFO - bo.run_bo - BO Trial 6: Using RF surrogate + Expected Improvement
+2025-09-15 19:54:02,692 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:54:02,692 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:02,692 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:02,692 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0006302883671688219, 'batch_size': 128, 'epochs': 24, 'hidden_size': 432, 'dropout': 0.24572406269266053}
+2025-09-15 19:54:02,699 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0006302883671688219, 'epochs': 24, 'batch_size': 128, 'hidden_size': 432, 'dropout': 0.24572406269266053}
+2025-09-15 19:54:02,710 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:02,711 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:02,711 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:02,711 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.019s
+2025-09-15 19:54:03,095 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:03,096 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.385s
+2025-09-15 19:54:03,096 - INFO - bo.run_bo - Recorded observation #6: hparams={'lr': 0.0006302883671688219, 'batch_size': np.int64(128), 'epochs': np.int64(24), 'hidden_size': np.int64(432), 'dropout': 0.24572406269266053}, value=0.0000
+2025-09-15 19:54:03,096 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 6: {'lr': 0.0006302883671688219, 'batch_size': np.int64(128), 'epochs': np.int64(24), 'hidden_size': np.int64(432), 'dropout': 0.24572406269266053} -> 0.0000
+2025-09-15 19:54:03,096 - INFO - bo.run_bo - BO Trial 7: Using RF surrogate + Expected Improvement
+2025-09-15 19:54:03,096 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:54:03,097 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:03,097 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:03,097 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.04222247265603969, 'batch_size': 16, 'epochs': 18, 'hidden_size': 51, 'dropout': 0.25007875594551915}
+2025-09-15 19:54:03,103 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.04222247265603969, 'epochs': 18, 'batch_size': 16, 'hidden_size': 51, 'dropout': 0.25007875594551915}
+2025-09-15 19:54:03,111 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:03,111 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:03,112 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:03,112 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.015s
+2025-09-15 19:54:03,492 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:03,493 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.381s
+2025-09-15 19:54:03,493 - INFO - bo.run_bo - Recorded observation #7: hparams={'lr': 0.04222247265603969, 'batch_size': np.int64(16), 'epochs': np.int64(18), 'hidden_size': np.int64(51), 'dropout': 0.25007875594551915}, value=0.0000
+2025-09-15 19:54:03,493 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 7: {'lr': 0.04222247265603969, 'batch_size': np.int64(16), 'epochs': np.int64(18), 'hidden_size': np.int64(51), 'dropout': 0.25007875594551915} -> 0.0000
+2025-09-15 19:54:03,493 - INFO - bo.run_bo - BO Trial 8: Using RF surrogate + Expected Improvement
+2025-09-15 19:54:03,494 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:54:03,494 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:03,494 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:03,494 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.015831723490615644, 'batch_size': 32, 'epochs': 12, 'hidden_size': 319, 'dropout': 0.2621266723153076}
+2025-09-15 19:54:03,500 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.015831723490615644, 'epochs': 12, 'batch_size': 32, 'hidden_size': 319, 'dropout': 0.2621266723153076}
+2025-09-15 19:54:03,511 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:03,511 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:03,511 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:03,511 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.018s
+2025-09-15 19:54:03,902 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:03,903 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.391s
+2025-09-15 19:54:03,903 - INFO - bo.run_bo - Recorded observation #8: hparams={'lr': 0.015831723490615644, 'batch_size': np.int64(32), 'epochs': np.int64(12), 'hidden_size': np.int64(319), 'dropout': 0.2621266723153076}, value=0.0000
+2025-09-15 19:54:03,903 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 8: {'lr': 0.015831723490615644, 'batch_size': np.int64(32), 'epochs': np.int64(12), 'hidden_size': np.int64(319), 'dropout': 0.2621266723153076} -> 0.0000
+2025-09-15 19:54:03,903 - INFO - bo.run_bo - BO Trial 9: Using RF surrogate + Expected Improvement
+2025-09-15 19:54:03,903 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:54:03,904 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:03,904 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:03,904 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0004582655140915009, 'batch_size': 8, 'epochs': 22, 'hidden_size': 288, 'dropout': 0.2979985056070939}
+2025-09-15 19:54:03,911 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0004582655140915009, 'epochs': 22, 'batch_size': 8, 'hidden_size': 288, 'dropout': 0.2979985056070939}
+2025-09-15 19:54:03,922 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:03,923 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:03,923 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:03,923 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.019s
+2025-09-15 19:54:04,307 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:04,307 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.384s
+2025-09-15 19:54:04,307 - INFO - bo.run_bo - Recorded observation #9: hparams={'lr': 0.0004582655140915009, 'batch_size': np.int64(8), 'epochs': np.int64(22), 'hidden_size': np.int64(288), 'dropout': 0.2979985056070939}, value=0.0000
+2025-09-15 19:54:04,307 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 9: {'lr': 0.0004582655140915009, 'batch_size': np.int64(8), 'epochs': np.int64(22), 'hidden_size': np.int64(288), 'dropout': 0.2979985056070939} -> 0.0000
+2025-09-15 19:54:04,308 - INFO - bo.run_bo - BO Trial 10: Using RF surrogate + Expected Improvement
+2025-09-15 19:54:04,308 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:54:04,308 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:04,308 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:04,308 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0019299580918507716, 'batch_size': 16, 'epochs': 25, 'hidden_size': 367, 'dropout': 0.5945242340829255}
+2025-09-15 19:54:04,315 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0019299580918507716, 'epochs': 25, 'batch_size': 16, 'hidden_size': 367, 'dropout': 0.5945242340829255}
+2025-09-15 19:54:04,324 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:04,324 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:04,325 - ERROR - models.training_function_executor - BO training objective failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:04,325 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.017s
+2025-09-15 19:54:04,705 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:54:04,706 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.381s
+2025-09-15 19:54:04,706 - INFO - bo.run_bo - Recorded observation #10: hparams={'lr': 0.0019299580918507716, 'batch_size': np.int64(16), 'epochs': np.int64(25), 'hidden_size': np.int64(367), 'dropout': 0.5945242340829255}, value=0.0000
+2025-09-15 19:54:04,706 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 10: {'lr': 0.0019299580918507716, 'batch_size': np.int64(16), 'epochs': np.int64(25), 'hidden_size': np.int64(367), 'dropout': 0.5945242340829255} -> 0.0000
+2025-09-15 19:54:04,706 - INFO - evaluation.code_generation_pipeline_orchestrator - BO completed - Best score: 0.0000
+2025-09-15 19:54:04,707 - INFO - evaluation.code_generation_pipeline_orchestrator - Best params: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093}
+2025-09-15 19:54:04,707 - INFO - visualization - Generating BO visualization charts with 10 trials...
+2025-09-15 19:54:14,092 - INFO - visualization - BO summary saved to: charts/BO_TinyECG1DCNN_20250915_195404/bo_summary.txt
+2025-09-15 19:54:14,092 - INFO - visualization - BO charts saved to: charts/BO_TinyECG1DCNN_20250915_195404
+2025-09-15 19:54:14,093 - INFO - evaluation.code_generation_pipeline_orchestrator - 📊 BO charts saved to: charts/BO_TinyECG1DCNN_20250915_195404
+2025-09-15 19:54:14,093 - INFO - evaluation.code_generation_pipeline_orchestrator - 🚀 STEP 4: Final Training Execution
+2025-09-15 19:54:14,093 - INFO - evaluation.code_generation_pipeline_orchestrator - Using centralized splits - Train: (39904, 1000, 2), Val: (9977, 1000, 2), Test: (12471, 1000, 2)
+2025-09-15 19:54:14,413 - INFO - models.training_function_executor - Loaded training function: TinyECG1DCNN
+2025-09-15 19:54:14,413 - INFO - models.training_function_executor - Reasoning: MIT-BIH Arrhythmia is highly imbalanced across beat types; literature shows macro-F1 and class-weighted losses outperform accuracy-only optimization. We therefore use class weighting and optionally a WeightedRandomSampler. 1D CNNs with global average pooling are effective for beat-level ECG (compact, translation-tolerant). The proposed separable 1D CNN keeps parameters well under 256K while capturing temporal morphology over ~1000 samples and 2 channels. Label smoothing improves calibration and robustness.
+2025-09-15 19:54:14,413 - INFO - evaluation.code_generation_pipeline_orchestrator - Executing final training with optimized params: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093}
+2025-09-15 19:54:14,413 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:54:14,499 - INFO - models.training_function_executor - Executing training function: TinyECG1DCNN
+2025-09-15 19:54:14,500 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093}
+2025-09-15 19:54:14,508 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.01535224694197351, 'epochs': 10, 'batch_size': 16, 'hidden_size': 204, 'dropout': 0.41779511056254093}
+2025-09-15 19:54:14,523 - ERROR - models.training_function_executor - Training execution failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:14,523 - ERROR - models.training_function_executor - Training code: import math
+import time
+from typing import Dict, Any, Tuple
+
+def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    """
+    Train a lightweight 1D CNN for 5-class ECG beat classif...
+2025-09-15 19:54:14,524 - ERROR - evaluation.code_generation_pipeline_orchestrator - Pipeline attempt 1 failed: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
+2025-09-15 19:54:14,573 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-15 19:54:14,573 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE ATTEMPT 2/4
+2025-09-15 19:54:14,573 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-15 19:54:14,573 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-15 19:54:14,573 - INFO - models.ai_code_generator - Making API call to gpt-5
+2025-09-15 19:54:14,573 - INFO - models.ai_code_generator - Prompt length: 1414 characters
+2025-09-15 19:54:14,573 - INFO - models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-15 19:54:14,574 - INFO - models.ai_code_generator - Calling self.client.responses.create...
+2025-09-15 19:54:14,574 - INFO - models.ai_code_generator - Model parameter: gpt-5
+2025-09-15 19:54:14,574 - INFO - models.ai_code_generator - Input prompt preview: Generate PyTorch training function for 5-class classification.
+
+Data: numpy_array, shape (1000, 2), 62352 samples
+
+Dataset: MIT-BIH Arrhythmia Database
+Source: https://physionet.org/content/mitdb/1.0....

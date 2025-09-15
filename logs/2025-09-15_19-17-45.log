@@ -1,0 +1,268 @@
+2025-09-15 19:17:45,864 - INFO - __main__ - Logging system initialized successfully
+2025-09-15 19:17:45,866 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'y.npy', 'X.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-15 19:17:45,866 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-15 19:17:45,866 - INFO - __main__ - Attempting to load: y.npy
+2025-09-15 19:17:45,868 - INFO - __main__ - Attempting to load: X.npy
+2025-09-15 19:17:46,178 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-15 19:17:46,495 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-15 19:17:46,496 - INFO - __main__ - Starting AI-enhanced training with new pipeline flow
+2025-09-15 19:17:46,496 - INFO - __main__ - Flow: Template Selection → BO → Evaluation → Feedback Loop
+2025-09-15 19:17:46,508 - INFO - __main__ - Data profile: {'data_type': 'numpy_array', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-15 19:17:46,509 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized with max 4 attempts
+2025-09-15 19:17:46,509 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution
+2025-09-15 19:17:46,510 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-15 19:17:46,510 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-15 19:17:46,510 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-15 19:17:46,510 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-15 19:17:46,511 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-15 19:17:47,165 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-15 19:17:47,166 - INFO - class_balancing - Class imbalance analysis:
+2025-09-15 19:17:47,166 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-15 19:17:47,166 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-15 19:17:47,166 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-15 19:17:47,166 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-15 19:17:47,167 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-15 19:17:47,167 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-15 19:17:47,168 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-15 19:17:47,168 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-15 19:17:48,484 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-15 19:17:48,486 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-15 19:17:48,489 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-15 19:17:48,489 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE ATTEMPT 1/4
+2025-09-15 19:17:48,489 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-15 19:17:48,490 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-15 19:17:48,490 - INFO - models.ai_code_generator - Conducting literature review before code generation...
+2025-09-15 19:17:48,490 - INFO - models.literature_review - Making GPT-5 literature review call with query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+2025-09-15 19:20:39,862 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-15 19:20:40,080 - INFO - models.literature_review - Successfully completed GPT-5 literature review with web search
+2025-09-15 19:20:40,081 - INFO - models.literature_review - Literature review completed with confidence: 0.78
+2025-09-15 19:20:40,081 - INFO - models.literature_review - Found 5 recommended approaches
+2025-09-15 19:20:40,082 - INFO - models.literature_review - Literature review saved to: literature_reviews/literature_review_numpy_array_1757964040.txt
+2025-09-15 19:20:40,082 - INFO - models.ai_code_generator - Making API call to gpt-5
+2025-09-15 19:23:35,562 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-15 19:23:35,611 - INFO - models.ai_code_generator - AI generated training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:35,611 - INFO - models.ai_code_generator - Confidence: 0.90
+2025-09-15 19:23:35,611 - INFO - models.ai_code_generator - Reasoning: Implements a compact CNN+Transformer hybrid tailored for 1D ECG windows (1000x2), aligning with recent findings that lightweight attention atop multi-scale CNN front-ends yields strong inter-patient performance. The model uses depthwise-separable residual Conv1D blocks with dilations (multi-scale morphology) and a tiny Transformer encoder (d_model=96, 2 layers, 4 heads) to keep parameters under 256k. Class imbalance is addressed via WeightedRandomSampler and class-aware focal loss, improving recall for challenging S/F classes. Time-series augmentations (jitter, scaling, shift, time-mask) further regularize training. Optimization follows AdamW with warmup+cosine schedule and gradient clipping. The training loop tracks macro-F1 and performs early stopping on it, as recommended for MIT-BIH evaluation. The function is self-contained and returns the trained model and detailed metrics.
+2025-09-15 19:23:35,611 - INFO - models.ai_code_generator - Literature review informed code generation (confidence: 0.78)
+2025-09-15 19:23:35,611 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:35,611 - INFO - evaluation.code_generation_pipeline_orchestrator - Reasoning: Implements a compact CNN+Transformer hybrid tailored for 1D ECG windows (1000x2), aligning with recent findings that lightweight attention atop multi-scale CNN front-ends yields strong inter-patient performance. The model uses depthwise-separable residual Conv1D blocks with dilations (multi-scale morphology) and a tiny Transformer encoder (d_model=96, 2 layers, 4 heads) to keep parameters under 256k. Class imbalance is addressed via WeightedRandomSampler and class-aware focal loss, improving recall for challenging S/F classes. Time-series augmentations (jitter, scaling, shift, time-mask) further regularize training. Optimization follows AdamW with warmup+cosine schedule and gradient clipping. The training loop tracks macro-F1 and performs early stopping on it, as recommended for MIT-BIH evaluation. The function is self-contained and returns the trained model and detailed metrics.
+2025-09-15 19:23:35,612 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['lr', 'batch_size', 'epochs', 'hidden_size', 'dropout']
+2025-09-15 19:23:35,612 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.90
+2025-09-15 19:23:35,612 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-15 19:23:35,613 - INFO - models.ai_code_generator - Training function saved to: generated_training_functions/training_function_numpy_array_TinyECG-ResFormer (<200k params)_1757964215.json
+2025-09-15 19:23:35,613 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions/training_function_numpy_array_TinyECG-ResFormer (<200k params)_1757964215.json
+2025-09-15 19:23:35,624 - INFO - models.training_function_executor - Training function validation passed
+2025-09-15 19:23:35,624 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-15 19:23:35,624 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:35,676 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 5000 samples
+2025-09-15 19:23:35,677 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['lr', 'batch_size', 'epochs', 'hidden_size', 'dropout']
+2025-09-15 19:23:35,677 - INFO - models.training_function_executor - GPU available: NVIDIA H100 NVL
+2025-09-15 19:23:35,677 - WARNING - models.training_function_executor - Using provided subset instead of centralized splits - this may cause data leakage
+2025-09-15 19:23:36,301 - INFO - bo.run_bo - Using default search space
+2025-09-15 19:23:36,303 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-15 19:23:36,312 - INFO - bo.run_bo - Using explicitly provided search space
+2025-09-15 19:23:36,314 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-15 19:23:36,316 - INFO - bo.run_bo - BO Trial 1: Initial random exploration
+2025-09-15 19:23:36,317 - INFO - bo.run_bo - [PROFILE] suggest() took 0.002s
+2025-09-15 19:23:36,317 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:36,317 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:36,317 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': 10, 'hidden_size': 204, 'dropout': 0.41779511056254093}
+2025-09-15 19:23:36,328 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.01535224694197351, 'epochs': 10, 'batch_size': 16, 'dropout': 0.41779511056254093, 'hidden_size': 204}
+2025-09-15 19:23:36,334 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:36,334 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:36,334 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:36,334 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.017s
+2025-09-15 19:23:36,335 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:36,335 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-15 19:23:36,335 - INFO - bo.run_bo - Recorded observation #1: hparams={'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093}, value=0.0000
+2025-09-15 19:23:36,335 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093} -> 0.0000
+2025-09-15 19:23:36,336 - INFO - bo.run_bo - BO Trial 2: Initial random exploration
+2025-09-15 19:23:36,337 - INFO - bo.run_bo - [PROFILE] suggest() took 0.002s
+2025-09-15 19:23:36,337 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:36,337 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:36,337 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0006071989493441302, 'batch_size': 8, 'epochs': 13, 'hidden_size': 103, 'dropout': 0.2335960277973153}
+2025-09-15 19:23:36,346 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0006071989493441302, 'epochs': 13, 'batch_size': 8, 'dropout': 0.2335960277973153, 'hidden_size': 103}
+2025-09-15 19:23:36,347 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:36,347 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:36,347 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:36,347 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.011s
+2025-09-15 19:23:36,348 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:36,348 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-15 19:23:36,348 - INFO - bo.run_bo - Recorded observation #2: hparams={'lr': 0.0006071989493441302, 'batch_size': 8, 'epochs': np.int64(13), 'hidden_size': np.int64(103), 'dropout': 0.2335960277973153}, value=0.0000
+2025-09-15 19:23:36,348 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 2: {'lr': 0.0006071989493441302, 'batch_size': 8, 'epochs': np.int64(13), 'hidden_size': np.int64(103), 'dropout': 0.2335960277973153} -> 0.0000
+2025-09-15 19:23:36,350 - INFO - bo.run_bo - BO Trial 3: Initial random exploration
+2025-09-15 19:23:36,350 - INFO - bo.run_bo - [PROFILE] suggest() took 0.002s
+2025-09-15 19:23:36,350 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:36,350 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:36,350 - INFO - models.training_function_executor - Hyperparameters: {'lr': 3.727925903376984e-05, 'batch_size': 64, 'epochs': 23, 'hidden_size': 273, 'dropout': 0.5053991405867774}
+2025-09-15 19:23:36,359 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 3.727925903376984e-05, 'epochs': 23, 'batch_size': 64, 'dropout': 0.5053991405867774, 'hidden_size': 273}
+2025-09-15 19:23:36,360 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:36,360 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:36,360 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:36,360 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.010s
+2025-09-15 19:23:36,763 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:36,763 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.402s
+2025-09-15 19:23:36,763 - INFO - bo.run_bo - Recorded observation #3: hparams={'lr': 3.727925903376984e-05, 'batch_size': 64, 'epochs': np.int64(23), 'hidden_size': np.int64(273), 'dropout': 0.5053991405867774}, value=0.0000
+2025-09-15 19:23:36,763 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 3: {'lr': 3.727925903376984e-05, 'batch_size': 64, 'epochs': np.int64(23), 'hidden_size': np.int64(273), 'dropout': 0.5053991405867774} -> 0.0000
+2025-09-15 19:23:36,764 - INFO - bo.run_bo - BO Trial 4: Using RF surrogate + Expected Improvement
+2025-09-15 19:23:36,764 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:23:36,764 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:36,764 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:36,764 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.05678201970293135, 'batch_size': 32, 'epochs': 5, 'hidden_size': 183, 'dropout': 0.08439771317838103}
+2025-09-15 19:23:36,773 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.05678201970293135, 'epochs': 5, 'batch_size': 32, 'dropout': 0.08439771317838103, 'hidden_size': 183}
+2025-09-15 19:23:36,774 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:36,774 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:36,774 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:36,774 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.011s
+2025-09-15 19:23:37,164 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:37,164 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.389s
+2025-09-15 19:23:37,164 - INFO - bo.run_bo - Recorded observation #4: hparams={'lr': 0.05678201970293135, 'batch_size': np.int64(32), 'epochs': np.int64(5), 'hidden_size': np.int64(183), 'dropout': 0.08439771317838103}, value=0.0000
+2025-09-15 19:23:37,164 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 4: {'lr': 0.05678201970293135, 'batch_size': np.int64(32), 'epochs': np.int64(5), 'hidden_size': np.int64(183), 'dropout': 0.08439771317838103} -> 0.0000
+2025-09-15 19:23:37,164 - INFO - bo.run_bo - BO Trial 5: Using RF surrogate + Expected Improvement
+2025-09-15 19:23:37,165 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:23:37,165 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:37,165 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:37,165 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0006550049531232524, 'batch_size': 256, 'epochs': 6, 'hidden_size': 373, 'dropout': 0.4568590869235105}
+2025-09-15 19:23:37,174 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0006550049531232524, 'epochs': 6, 'batch_size': 256, 'dropout': 0.4568590869235105, 'hidden_size': 373}
+2025-09-15 19:23:37,175 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:37,175 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:37,175 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:37,175 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.011s
+2025-09-15 19:23:37,563 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:37,563 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.388s
+2025-09-15 19:23:37,563 - INFO - bo.run_bo - Recorded observation #5: hparams={'lr': 0.0006550049531232524, 'batch_size': np.int64(256), 'epochs': np.int64(6), 'hidden_size': np.int64(373), 'dropout': 0.4568590869235105}, value=0.0000
+2025-09-15 19:23:37,563 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 5: {'lr': 0.0006550049531232524, 'batch_size': np.int64(256), 'epochs': np.int64(6), 'hidden_size': np.int64(373), 'dropout': 0.4568590869235105} -> 0.0000
+2025-09-15 19:23:37,563 - INFO - bo.run_bo - BO Trial 6: Using RF surrogate + Expected Improvement
+2025-09-15 19:23:37,564 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:23:37,564 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:37,564 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:37,564 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0006302883671688219, 'batch_size': 128, 'epochs': 24, 'hidden_size': 432, 'dropout': 0.24572406269266053}
+2025-09-15 19:23:37,572 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0006302883671688219, 'epochs': 24, 'batch_size': 128, 'dropout': 0.24572406269266053, 'hidden_size': 432}
+2025-09-15 19:23:37,574 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:37,574 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:37,574 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:37,574 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.010s
+2025-09-15 19:23:37,961 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:37,961 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.387s
+2025-09-15 19:23:37,961 - INFO - bo.run_bo - Recorded observation #6: hparams={'lr': 0.0006302883671688219, 'batch_size': np.int64(128), 'epochs': np.int64(24), 'hidden_size': np.int64(432), 'dropout': 0.24572406269266053}, value=0.0000
+2025-09-15 19:23:37,961 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 6: {'lr': 0.0006302883671688219, 'batch_size': np.int64(128), 'epochs': np.int64(24), 'hidden_size': np.int64(432), 'dropout': 0.24572406269266053} -> 0.0000
+2025-09-15 19:23:37,962 - INFO - bo.run_bo - BO Trial 7: Using RF surrogate + Expected Improvement
+2025-09-15 19:23:37,962 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:23:37,962 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:37,962 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:37,962 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.04222247265603969, 'batch_size': 16, 'epochs': 18, 'hidden_size': 51, 'dropout': 0.25007875594551915}
+2025-09-15 19:23:37,971 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.04222247265603969, 'epochs': 18, 'batch_size': 16, 'dropout': 0.25007875594551915, 'hidden_size': 51}
+2025-09-15 19:23:37,972 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:37,972 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:37,972 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:37,972 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.010s
+2025-09-15 19:23:38,364 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:38,364 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.392s
+2025-09-15 19:23:38,364 - INFO - bo.run_bo - Recorded observation #7: hparams={'lr': 0.04222247265603969, 'batch_size': np.int64(16), 'epochs': np.int64(18), 'hidden_size': np.int64(51), 'dropout': 0.25007875594551915}, value=0.0000
+2025-09-15 19:23:38,364 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 7: {'lr': 0.04222247265603969, 'batch_size': np.int64(16), 'epochs': np.int64(18), 'hidden_size': np.int64(51), 'dropout': 0.25007875594551915} -> 0.0000
+2025-09-15 19:23:38,365 - INFO - bo.run_bo - BO Trial 8: Using RF surrogate + Expected Improvement
+2025-09-15 19:23:38,365 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:23:38,365 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:38,365 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:38,365 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.015831723490615644, 'batch_size': 32, 'epochs': 12, 'hidden_size': 319, 'dropout': 0.2621266723153076}
+2025-09-15 19:23:38,374 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.015831723490615644, 'epochs': 12, 'batch_size': 32, 'dropout': 0.2621266723153076, 'hidden_size': 319}
+2025-09-15 19:23:38,375 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:38,375 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:38,376 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:38,376 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.011s
+2025-09-15 19:23:38,764 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:38,764 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.388s
+2025-09-15 19:23:38,764 - INFO - bo.run_bo - Recorded observation #8: hparams={'lr': 0.015831723490615644, 'batch_size': np.int64(32), 'epochs': np.int64(12), 'hidden_size': np.int64(319), 'dropout': 0.2621266723153076}, value=0.0000
+2025-09-15 19:23:38,764 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 8: {'lr': 0.015831723490615644, 'batch_size': np.int64(32), 'epochs': np.int64(12), 'hidden_size': np.int64(319), 'dropout': 0.2621266723153076} -> 0.0000
+2025-09-15 19:23:38,765 - INFO - bo.run_bo - BO Trial 9: Using RF surrogate + Expected Improvement
+2025-09-15 19:23:38,765 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:23:38,765 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:38,765 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:38,765 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0004582655140915009, 'batch_size': 8, 'epochs': 22, 'hidden_size': 288, 'dropout': 0.2979985056070939}
+2025-09-15 19:23:38,774 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0004582655140915009, 'epochs': 22, 'batch_size': 8, 'dropout': 0.2979985056070939, 'hidden_size': 288}
+2025-09-15 19:23:38,775 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:38,775 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:38,776 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:38,776 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.011s
+2025-09-15 19:23:39,160 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:39,161 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.385s
+2025-09-15 19:23:39,161 - INFO - bo.run_bo - Recorded observation #9: hparams={'lr': 0.0004582655140915009, 'batch_size': np.int64(8), 'epochs': np.int64(22), 'hidden_size': np.int64(288), 'dropout': 0.2979985056070939}, value=0.0000
+2025-09-15 19:23:39,161 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 9: {'lr': 0.0004582655140915009, 'batch_size': np.int64(8), 'epochs': np.int64(22), 'hidden_size': np.int64(288), 'dropout': 0.2979985056070939} -> 0.0000
+2025-09-15 19:23:39,161 - INFO - bo.run_bo - BO Trial 10: Using RF surrogate + Expected Improvement
+2025-09-15 19:23:39,161 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-15 19:23:39,161 - INFO - models.training_function_executor - Using device: cuda
+2025-09-15 19:23:39,162 - INFO - models.training_function_executor - Executing training function: TinyECG-ResFormer (<200k params)
+2025-09-15 19:23:39,162 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0019299580918507716, 'batch_size': 16, 'epochs': 25, 'hidden_size': 367, 'dropout': 0.5945242340829255}
+2025-09-15 19:23:39,170 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0019299580918507716, 'epochs': 25, 'batch_size': 16, 'dropout': 0.5945242340829255, 'hidden_size': 367}
+2025-09-15 19:23:39,171 - ERROR - models.training_function_executor - Training execution failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:39,172 - ERROR - models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import numpy as np
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from t...
+2025-09-15 19:23:39,172 - ERROR - models.training_function_executor - BO training objective failed: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+2025-09-15 19:23:39,172 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.010s
+2025-09-15 19:23:39,556 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-15 19:23:39,556 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.384s
+2025-09-15 19:23:39,556 - INFO - bo.run_bo - Recorded observation #10: hparams={'lr': 0.0019299580918507716, 'batch_size': np.int64(16), 'epochs': np.int64(25), 'hidden_size': np.int64(367), 'dropout': 0.5945242340829255}, value=0.0000
+2025-09-15 19:23:39,556 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 10: {'lr': 0.0019299580918507716, 'batch_size': np.int64(16), 'epochs': np.int64(25), 'hidden_size': np.int64(367), 'dropout': 0.5945242340829255} -> 0.0000
+2025-09-15 19:23:39,556 - INFO - evaluation.code_generation_pipeline_orchestrator - BO completed - Best score: 0.0000
+2025-09-15 19:23:39,557 - INFO - evaluation.code_generation_pipeline_orchestrator - Best params: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093}
+2025-09-15 19:23:39,557 - INFO - visualization - Generating BO visualization charts with 10 trials...

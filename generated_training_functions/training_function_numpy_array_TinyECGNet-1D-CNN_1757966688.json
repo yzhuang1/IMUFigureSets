@@ -1,0 +1,80 @@
+{
+  "model_name": "TinyECGNet-1D-CNN",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    import torch\n    import torch.nn as nn\n    from torch.utils.data import TensorDataset, DataLoader\n    import numpy as np\n\n    # -------------------- Hyperparameters (simple, BO-friendly) --------------------\n    lr = float(hyperparams.get('lr', 1e-3))\n    epochs = int(hyperparams.get('epochs', 15))\n    batch_size = int(hyperparams.get('batch_size', 64))\n    hidden_size = int(hyperparams.get('hidden_size', 128))  # MLP hidden size\n    dropout = float(hyperparams.get('dropout', 0.2))\n    num_workers = int(hyperparams.get('num_workers', 0))\n\n    device = torch.device(device)\n\n    # -------------------- Utilities --------------------\n    def to_tensor(x, dtype):\n        if isinstance(x, np.ndarray):\n            t = torch.from_numpy(x)\n            if dtype is not None:\n                t = t.to(dtype)\n            return t\n        elif torch.is_tensor(x):\n            t = x\n            if dtype is not None:\n                t = t.to(dtype)\n            return t\n        else:\n            raise TypeError('Inputs must be numpy arrays or torch tensors')\n\n    def ensure_channel_first(x):\n        # Expecting (N, C, L). If (N, L, C) with C=2, permute.\n        if x.ndim == 3:\n            if x.shape[1] == 2:\n                return x\n            elif x.shape[-1] == 2:\n                return x.permute(0, 2, 1)\n        elif x.ndim == 2:\n            # Fallback for (N, L) -> assume single channel\n            x = x.unsqueeze(1)\n        return x\n\n    def f1_macro_numpy(y_true_np, y_pred_np, num_classes):\n        # y_true_np and y_pred_np must be numpy arrays\n        cm = np.zeros((num_classes, num_classes), dtype=np.int64)\n        np.add.at(cm, (y_true_np, y_pred_np), 1)\n        tp = np.diag(cm)\n        fp = cm.sum(0) - tp\n        fn = cm.sum(1) - tp\n        precision = tp / np.maximum(tp + fp, 1)\n        recall = tp / np.maximum(tp + fn, 1)\n        f1 = 2 * precision * recall / np.maximum(precision + recall, 1e-12)\n        return float(np.mean(f1))\n\n    # -------------------- Prepare data --------------------\n    Xt = to_tensor(X_train, torch.float32)\n    Xv = to_tensor(X_val, torch.float32)\n    yt = to_tensor(y_train, torch.long).view(-1)\n    yv = to_tensor(y_val, torch.long).view(-1)\n\n    Xt = ensure_channel_first(Xt)\n    Xv = ensure_channel_first(Xv)\n\n    # Standardize per-channel using training stats (mean/std over batch and time)\n    with torch.no_grad():\n        mean = Xt.mean(dim=(0, 2), keepdim=True)\n        std = Xt.std(dim=(0, 2), keepdim=True) + 1e-6\n        Xt = (Xt - mean) / std\n        Xv = (Xv - mean) / std\n\n    train_ds = TensorDataset(Xt, yt)\n    val_ds = TensorDataset(Xv, yv)\n\n    # Only use pin_memory if tensors are on CPU and device is CUDA\n    pin_memory = (device.type == 'cuda' and Xt.device.type == 'cpu')\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,\n                              num_workers=num_workers, pin_memory=pin_memory)\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False,\n                            num_workers=num_workers, pin_memory=pin_memory)\n\n    # -------------------- Model --------------------\n    class TinyECGNet(nn.Module):\n        def __init__(self, num_classes=5, fc_hidden=128, dropout=0.2):\n            super().__init__()\n            self.features = nn.Sequential(\n                nn.Conv1d(2, 32, kernel_size=7, padding=3),\n                nn.BatchNorm1d(32),\n                nn.ReLU(inplace=True),\n                nn.MaxPool1d(2),  # L -> L/2\n                nn.Conv1d(32, 64, kernel_size=5, padding=2),\n                nn.BatchNorm1d(64),\n                nn.ReLU(inplace=True),\n                nn.MaxPool1d(2),  # L/2 -> L/4\n                nn.Conv1d(64, 128, kernel_size=3, padding=1),\n                nn.BatchNorm1d(128),\n                nn.ReLU(inplace=True),\n                nn.AdaptiveAvgPool1d(1)  # global avg pool\n            )\n            self.classifier = nn.Sequential(\n                nn.Flatten(),\n                nn.Linear(128, fc_hidden),\n                nn.ReLU(inplace=True),\n                nn.Dropout(dropout),\n                nn.Linear(fc_hidden, num_classes)\n            )\n\n        def forward(self, x):\n            x = self.features(x)\n            x = self.classifier(x)\n            return x\n\n    # Infer number of classes from labels\n    num_classes = int(max(int(torch.max(yt).item()), int(torch.max(yv).item())) + 1)\n    model = TinyECGNet(num_classes=num_classes, fc_hidden=hidden_size, dropout=dropout).to(device)\n\n    # Class weights for imbalance (computed from training labels)\n    y_np = yt.detach().cpu().numpy()  # IMPORTANT: tensor->numpy via .cpu().numpy()\n    counts = np.bincount(y_np, minlength=num_classes)\n    weights = (len(y_np) / (counts + 1e-6))  # inverse frequency\n    weights = weights / weights.mean()  # normalize for stability\n    class_weights = torch.tensor(weights, dtype=torch.float32, device=device)\n\n    criterion = nn.CrossEntropyLoss(weight=class_weights)\n    optimizer = torch.optim.Adam(model.parameters(), lr=lr)\n\n    # -------------------- Training loop --------------------\n    history = {\n        'train_loss': [],\n        'val_loss': [],\n        'val_acc': [],\n        'val_f1_macro': []\n    }\n\n    for epoch in range(epochs):\n        model.train()\n        running_loss = 0.0\n        total = 0\n        correct = 0\n\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=pin_memory)\n            yb = yb.to(device, non_blocking=pin_memory)\n\n            optimizer.zero_grad()\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            optimizer.step()\n\n            running_loss += loss.item() * yb.size(0)\n            preds = logits.argmax(dim=1)\n            correct += (preds == yb).sum().item()\n            total += yb.size(0)\n\n        train_loss = running_loss / max(total, 1)\n\n        model.eval()\n        val_loss = 0.0\n        vtotal = 0\n        vcorrect = 0\n        all_preds = []\n        all_true = []\n\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=pin_memory)\n                yb = yb.to(device, non_blocking=pin_memory)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                val_loss += loss.item() * yb.size(0)\n                preds = logits.argmax(dim=1)\n                vcorrect += (preds == yb).sum().item()\n                vtotal += yb.size(0)\n                all_preds.append(preds.cpu())\n                all_true.append(yb.cpu())\n\n        val_loss = val_loss / max(vtotal, 1)\n        val_acc = vcorrect / max(vtotal, 1)\n\n        # Convert tensors to numpy for F1 computation (IMPORTANT: .cpu().numpy())\n        y_true_np = torch.cat(all_true).cpu().numpy()\n        y_pred_np = torch.cat(all_preds).cpu().numpy()\n        val_f1 = f1_macro_numpy(y_true_np, y_pred_np, num_classes)\n\n        history['train_loss'].append(float(train_loss))\n        history['val_loss'].append(float(val_loss))\n        history['val_acc'].append(float(val_acc))\n        history['val_f1_macro'].append(float(val_f1))\n\n    # Diagnostics\n    history['num_parameters'] = int(sum(p.numel() for p in model.parameters()))\n    history['class_weights'] = weights.tolist()\n    history['train_samples'] = int(len(train_ds))\n    history['val_samples'] = int(len(val_ds))\n    history['final_val_acc'] = float(history['val_acc'][-1])\n    history['final_val_f1_macro'] = float(history['val_f1_macro'][-1])\n\n    return model, history\n",
+  "hyperparameters": {
+    "lr": 0.001,
+    "epochs": 15,
+    "batch_size": 64,
+    "hidden_size": 128,
+    "dropout": 0.2
+  },
+  "reasoning": "For MIT-BIH Arrhythmia (two-lead ECG, long 1D signals) lightweight 1D CNNs with small kernels and global average pooling are effective. The dataset is highly imbalanced across the 5 AAMI classes, so using class-weighted cross-entropy and macro-F1 for validation is standard in literature. The proposed TinyECGNet keeps parameters well under 256K by using three compact Conv1d blocks and a small MLP head with dropout. Bayesian Optimization can tune learning rate, batch size, epochs, hidden size of the MLP, and dropout while the core loop remains simple.",
+  "confidence": 0.9,
+  "bo_parameters": [
+    "lr",
+    "batch_size",
+    "epochs",
+    "hidden_size",
+    "dropout"
+  ],
+  "bo_search_space": {
+    "lr": {
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.1,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32,
+        64,
+        128
+      ]
+    },
+    "epochs": {
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "hidden_size": {
+      "type": "Integer",
+      "low": 32,
+      "high": 512
+    },
+    "dropout": {
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.7
+    }
+  },
+  "data_profile": {
+    "data_type": "numpy_array",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1757966688,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

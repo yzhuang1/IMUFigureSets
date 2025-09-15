@@ -102,7 +102,7 @@ def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, ma
     # Convert data and get profile
     dataset, collate_fn, data_profile = convert_to_torch_dataset(data, labels, **kwargs)
     
-    logger.info(f"Data profile: {data_profile}")
+    logger.info(f"Data profile: {data_profile.to_dict() if hasattr(data_profile, 'to_dict') else str(data_profile)}")
     
     # Create data loader
     batch_size = kwargs.get('batch_size', 64)
@@ -154,7 +154,7 @@ def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, ma
     }
     
     logger.info("AI-enhanced training completed!")
-    logger.info(f"Final model achieved: {results['final_metrics']}")
+    logger.info(f"Final model achieved: {dict(results['final_metrics']) if results['final_metrics'] else 'None'}")
     logger.info(f"Total model attempts: {results['attempt_summary']['total_attempts']}")
     logger.info(f"Pipeline success: {results['attempt_summary']['final_success']}")
     
