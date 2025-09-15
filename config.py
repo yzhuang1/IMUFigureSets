@@ -19,6 +19,10 @@ class Config:
         self.openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-5")
         
+        # Dataset information for GPT-5 context
+        self.dataset_name = os.getenv("DATASET_NAME", "Unknown Dataset")
+        self.dataset_source = os.getenv("DATASET_SOURCE", "Unknown Source")
+        
         # API call limits to prevent infinite loops and excessive costs
         # These values should be set in .env file, fallback values provided as backup
         self.max_model_selection_attempts = int(os.getenv("MAX_MODEL_ATTEMPTS") or "4")

@@ -1,0 +1,61 @@
+LITERATURE REVIEW
+=================
+
+Query: sequence classification time series machine learning multiclass sequence classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-15 03:03:29
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+From 2023–2025, state-of-the-art time‑series classification (TSC) has shifted from pure CNN/RNN toward three families that scale well to long sequences and multivariate inputs: patch-based Transformers, state space models (SSMs) such as Mamba, and lightweight mixer-style MLPs. PatchTST established that “patching” a univariate stream into tokens and modeling channels independently stabilizes training and improves long‑range dependency modeling; more recent classification-oriented Transformers add priors and sparsity (e.g., VSFormer’s value/shape-aware attention; medical Sparseformer) or hierarchical reductions to curb quadratic attention cost. Concurrently, SSMs (Mamba and variants) deliver near-linear complexity with strong sequence modeling; TSCMamba and SiMBA adapt Mamba to multivariate classification with multi‑view spectral–temporal inputs and simplified/selective SSM blocks. Despite these advances, ROCKET-family transforms (MiniRocket/MultiRocket) and strong 1D CNNs remain hard baselines for accuracy–efficiency, especially at modest channel counts like your (L=1000, C=2) setting. Surveys and 2025 work on unified time‑series Transformers corroborate these trends and emphasize handling cross‑channel structure, patching, and efficiency. ([github.com](https://github.com/PatchTST/PatchTST?utm_source=openai))
+
+For your problem (numpy arrays shaped [T=1000, C=2], 5 classes, N unknown, sequential), the most reliable choices are: (1) MultiRocket(+ridge/logistic) for a very strong CPU baseline; (2) a compact 1D CNN (ResNet1D/InceptionTime‑style) when you want end‑to‑end feature learning; (3) a patch Transformer (PatchTST‑style) adapted to classification with channel‑independent tokenization; and (4) a Mamba-based classifier (TSCMamba/SiMBA) when you need long‑sequence efficiency and strong temporal inductive bias. VSFormer‑like priors can further help when class cues mix “shape” patterns with raw value levels. On UEA/UCR-style multivariate datasets, recent papers report that VSFormer and TSCMamba surpass prior deep baselines, while MultiRocket remains competitive with top ensembles at a fraction of compute; expect well‑tuned models on problems of this size to reach roughly 80–95% accuracy depending on class separability and sample count. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-022-00844-1?utm_source=openai))
+
+KEY FINDINGS:
+1. Efficiency matters: patching (PatchTST) and linear-time SSMs (Mamba) curb the attention bottleneck and stabilize long‑context learning; both are effective for classification when coupled with channel‑independent processing. ([github.com](https://github.com/PatchTST/PatchTST?utm_source=openai))
+2. Adding supervised priors to attention (e.g., VSFormer’s value/shape-aware and class‑prior encodings) improves robustness when class cues are a mix of waveform shape and absolute values. ([arxiv.org](https://arxiv.org/abs/2412.16515?utm_source=openai))
+3. MultiRocket remains an accuracy–speed reference baseline; on UCR/UEA archives it is competitive with the best ensembles while being orders faster, making it ideal when sample count is limited or GPUs are scarce. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-022-00844-1?utm_source=openai))
+4. Mamba-based classifiers (TSCMamba/SiMBA) leverage SSM inductive bias to model long dependencies with near‑linear complexity and have reported gains over transformer baselines on multivariate TSC. ([arxiv.org](https://arxiv.org/abs/2406.04419?utm_source=openai))
+5. Hierarchical/structured attention and sparsification (FormerTime, Sparseformer) help scale Transformers and capture multi‑scale patterns in multivariate sequences. ([arxiv.org](https://arxiv.org/abs/2302.09818?utm_source=openai))
+6. For small C (e.g., 2 channels), compact CNNs or ROCKET often match or beat heavier sequence models given proper normalization and data augmentation. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-020-00727-3?utm_source=openai))
+7. Reported SOTA results vary widely by dataset; expect 80–95% accuracy for well‑separated classes at T=1000 with careful tuning, but sample size and class imbalance dominate outcomes. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-022-00844-1?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. {'name': 'MultiRocket (+ logistic/ridge classifier)', 'why_it_works': 'Random convolutional features plus diverse pooling/differences yield broad shape sensitivity with minimal tuning; excellent accuracy–speed tradeoff on multivariate TSC.', 'typical_hyperparams': 'num_kernels: 10k–50k; use first‑order differences; ridge/logreg C: 0.1–10; z‑score per channel.', 'notes': 'CPU‑friendly baseline; export features to scikit‑learn. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-022-00844-1?utm_source=openai))'}
+2. {'name': 'Compact 1D CNN (InceptionTime/ResNet1D‑style)', 'why_it_works': 'Hierarchical temporal filters capture local motifs and their combinations; strong inductive bias for 1D signals.', 'typical_hyperparams': 'depth: 6–12 conv blocks; filters: 32–128; kernel sizes: {10,20,40} (Inception modules) or 3–17 (dilated); dropout: 0.1–0.3; lr: 1e‑3 with cosine decay.', 'notes': 'Great fit for C=2, T=1000; add global average pooling and a 5‑way softmax head. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-020-00727-3?utm_source=openai))'}
+3. {'name': 'Patch Transformer for TSC (PatchTST‑style, channel‑independent)', 'why_it_works': 'Patching reduces token count and preserves local stationarity; channel‑independent weights avoid overfitting cross‑channel interactions with small C.', 'typical_hyperparams': 'patch_len: 16–64; stride: patch_len/2; d_model: 64–256; heads: 4–8; layers: 2–6; dropout: 0.1–0.3; cls token + mean pooling.', 'notes': 'Use RevIN/instance norm if distribution shift is expected; convert to classification by pooling over tokens. ([github.com](https://github.com/PatchTST/PatchTST?utm_source=openai))'}
+4. {'name': 'Mamba‑based classifier (TSCMamba / SiMBA)', 'why_it_works': 'Selective state space blocks model long‑range dependencies with linear complexity and strong temporal inductive bias; multi‑view (time+spectral) fusion helps invariances.', 'typical_hyperparams': 'layers: 4–8; d_model: 128–256; SSM state dim: 16–64; dropout: 0.1–0.3; spec branch: CWT/STFT 32–128 filters.', 'notes': 'Good when you need efficiency at T=1000; adopt channel‑independent stems and late fusion for C=2. ([arxiv.org](https://arxiv.org/abs/2406.04419?utm_source=openai))'}
+5. {'name': 'TSMixer‑style MLP on patches', 'why_it_works': 'Alternating time/feature mixing captures cross‑time and cross‑channel interactions with minimal overhead; pairs well with patching.', 'typical_hyperparams': 'patch_len: 16–64; mixer depth: 4–8; hidden dims: 128–256; dropout: 0.1–0.3; weight decay: 0.01.', 'notes': 'Simple, fast, and strong regularization; consider as a low‑latency alternative to Transformers. ([arxiv.org](https://arxiv.org/abs/2306.09364?utm_source=openai))'}
+
+RECENT PAPERS:
+- TSCMamba: Mamba Meets Multi‑View Learning for Time Series Classification (2024, v2 2025): Introduces multi‑view (time + wavelet spectral) features with Mamba blocks; reports average 6.45% improvement over prior TSC models across benchmarks. ([arxiv.org](https://arxiv.org/abs/2406.04419?utm_source=openai))
+- VSFormer: Value and Shape‑Aware Transformer for Multivariate Time Series Classification (2024): Adds class‑prior–enhanced self‑attention and encodings to capture both shape patterns and raw value signals; SOTA across 30 UEA datasets. ([arxiv.org](https://arxiv.org/abs/2412.16515?utm_source=openai))
+- PatchTST (ICLR 2023): A Time Series is Worth 64 Words: Pioneers patching and channel‑independent Transformers for time series; widely adapted for classification heads. Official PyTorch repo available. ([github.com](https://github.com/PatchTST/PatchTST?utm_source=openai))
+- SiMBA: Simplified Mamba‑Based Architecture for Vision and Multivariate Time Series (2024): Simplifies Mamba and demonstrates strong results on time‑series benchmarks with efficient sequence modeling. ([arxiv.org](https://arxiv.org/abs/2403.15360?utm_source=openai))
+- FormerTime: Hierarchical Multi‑Scale Representations for Multivariate TSC (2023): Combines hierarchical CNN features with efficient transformer attention for multiscale pattern capture in TSC. ([arxiv.org](https://arxiv.org/abs/2302.09818?utm_source=openai))
+- One transformer for all time series (Machine Learning, 2025): Proposes a unified Transformer approach for heterogeneous time‑dependent tabular data; highlights representation/training strategies transferable to TSC. ([link.springer.com](https://link.springer.com/article/10.1007/s10994-025-06778-1?utm_source=openai))
+- MultiRocket (DMKD, 2022): Fast random‑kernel transform with diverse pooling; competitive with top ensembles on UCR/UEA while being orders faster—remains a key 2023–2025 baseline. ([link.springer.com](https://link.springer.com/article/10.1007/s10618-022-00844-1?utm_source=openai))
+
+==================================================

@@ -17,6 +17,8 @@ from models.training_function_executor import training_executor, BO_TrainingObje
 from evaluation.evaluate import evaluate_model
 from visualization import generate_bo_charts, create_charts_folder
 from config import config
+from data_splitting import create_consistent_splits, get_current_splits, compute_standardization_stats
+from adapters.universal_converter import convert_to_torch_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,14 @@ class CodeGenerationPipelineOrchestrator:
         """
         logger.info("Starting code generation pipeline execution")
         logger.info("Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation")
+        
+        # Create consistent data splits at the beginning
+        logger.info("Creating centralized data splits to prevent data leakage")
+        splits = create_consistent_splits(X, y, test_size=0.2, val_size=0.2)
+        
+        # Compute standardization stats from training data only
+        std_stats = compute_standardization_stats()
+        logger.info("Computed standardization statistics from training data only")
         
         best_model = None
         best_results = None
@@ -285,17 +295,17 @@ class CodeGenerationPipelineOrchestrator:
         search_space = []
         for param in code_rec.bo_parameters:
             if param == 'lr':
-                search_space.append(Real(1e-4, 1e-2, prior='log-uniform', name='lr'))
+                search_space.append(Real(1e-5, 1e-1, prior='log-uniform', name='lr'))
             elif param == 'epochs':
-                search_space.append(Integer(5, 15, name='epochs'))
+                search_space.append(Integer(3, 30, name='epochs'))
             elif param == 'batch_size':
-                search_space.append(Categorical([32, 64, 128], name='batch_size'))
+                search_space.append(Categorical([8, 16, 32, 64, 128, 256], name='batch_size'))
             elif param == 'hidden_size':
-                search_space.append(Integer(64, 256, name='hidden_size'))
+                search_space.append(Integer(16, 512, name='hidden_size'))
             elif param == 'dropout':
-                search_space.append(Real(0.1, 0.5, name='dropout'))
+                search_space.append(Real(0.0, 0.7, name='dropout'))
             elif param == 'num_layers':
-                search_space.append(Integer(1, 3, name='num_layers'))
+                search_space.append(Integer(1, 5, name='num_layers'))
         
         # Initialize BO optimizer
         bo_optimizer = BayesianOptimizer(search_space=search_space, n_initial_points=3)
@@ -390,29 +400,34 @@ class CodeGenerationPipelineOrchestrator:
     ) -> Tuple[torch.nn.Module, Dict[str, Any]]:
         """Execute final training with optimized hyperparameters"""
         
-        # Split data for final training
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
+        # Use centralized data splits
+        splits = get_current_splits()
+        logger.info(f"Using centralized splits - Train: {splits.X_train.shape}, Val: {splits.X_val.shape}, Test: {splits.X_test.shape}")
+        
+        # Convert to tensors with proper standardization
+        std_stats = splits.standardization_stats
+        
+        # Create datasets with proper standardization (training set already standardized)
+        train_dataset, _, _ = convert_to_torch_dataset(
+            splits.X_train, splits.y_train, 
+            standardize=True, standardization_stats=None  # Compute stats for training
+        )
+        val_dataset, _, _ = convert_to_torch_dataset(
+            splits.X_val, splits.y_val,
+            standardize=True, standardization_stats=train_dataset.standardization_stats
+        )
+        test_dataset, _, _ = convert_to_torch_dataset(
+            splits.X_test, splits.y_test,
+            standardize=True, standardization_stats=train_dataset.standardization_stats
         )
         
-        logger.info(f"Training set: {X_train.shape}, Test set: {X_test.shape}")
-        
-        # Convert to tensors
-        X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-        y_train_tensor = torch.tensor(y_train, dtype=torch.long)
-        X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
-        y_test_tensor = torch.tensor(y_test, dtype=torch.long)
-        
-        # Split training data into train/val for the training function
-        X_train_final, X_val_final, y_train_final, y_val_final = train_test_split(
-            X_train_tensor.numpy(), y_train_tensor.numpy(), 
-            test_size=0.2, random_state=42, stratify=y_train_tensor.numpy()
-        )
-        
-        X_train_final = torch.tensor(X_train_final, dtype=torch.float32)
-        y_train_final = torch.tensor(y_train_final, dtype=torch.long)
-        X_val_final = torch.tensor(X_val_final, dtype=torch.float32)
-        y_val_final = torch.tensor(y_val_final, dtype=torch.long)
+        # Convert datasets to tensors for training function
+        X_train_final = train_dataset.X
+        y_train_final = train_dataset.y
+        X_val_final = val_dataset.X  
+        y_val_final = val_dataset.y
+        X_test_tensor = test_dataset.X
+        y_test_tensor = test_dataset.y
         
         # Load training function
         training_data = training_executor.load_training_function(json_filepath)
@@ -433,8 +448,8 @@ class CodeGenerationPipelineOrchestrator:
         
         # Evaluate on held-out test set
         from torch.utils.data import TensorDataset, DataLoader
-        test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
-        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+        test_dataset_eval = TensorDataset(X_test_tensor, y_test_tensor)
+        test_loader = DataLoader(test_dataset_eval, batch_size=64, shuffle=False)
         
         final_metrics = evaluate_model(trained_model, test_loader, device)
         

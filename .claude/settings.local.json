@@ -12,7 +12,9 @@
       "Bash(conda activate:*)",
       "Bash(top:*)",
       "Bash(ls:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(mkdir:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

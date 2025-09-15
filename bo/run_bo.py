@@ -26,63 +26,63 @@ logger = logging.getLogger(__name__)
 def get_search_space_for_template(template_name: str):
     """Get search space configuration for specific template"""
     
-    # Common training parameters
+    # Common training parameters - EXPANDED RANGES
     common_params = [
-        Real(1e-4, 3e-3, prior='log-uniform', name='lr'),
-        Integer(3, 15, name='epochs'),
-        Categorical([16, 32, 64, 128], name='batch_size'),
+        Real(1e-5, 1e-1, prior='log-uniform', name='lr'),
+        Integer(3, 30, name='epochs'),
+        Categorical([8, 16, 32, 64, 128, 256], name='batch_size'),
     ]
     
     # Template-specific architecture parameters
     if template_name == "LSTM":
         return common_params + [
-            Integer(32, 256, name='hidden_size'),
-            Integer(1, 3, name='num_layers'),
-            Real(0.1, 0.5, name='dropout'),
+            Integer(16, 512, name='hidden_size'),
+            Integer(1, 5, name='num_layers'),
+            Real(0.0, 0.7, name='dropout'),
             Categorical([True, False], name='bidirectional')
         ]
     
     elif template_name == "GRU":
         return common_params + [
-            Integer(32, 256, name='hidden_size'),
-            Integer(1, 3, name='num_layers'),
-            Real(0.1, 0.5, name='dropout'),
+            Integer(16, 512, name='hidden_size'),
+            Integer(1, 5, name='num_layers'),
+            Real(0.0, 0.7, name='dropout'),
             Categorical([True, False], name='bidirectional')
         ]
     
     elif template_name == "CNN1D":
         return common_params + [
-            Integer(32, 128, name='num_filters'),
-            Real(0.1, 0.4, name='dropout'),
-            Integer(2, 4, name='pool_size')
+            Integer(16, 256, name='num_filters'),
+            Real(0.0, 0.7, name='dropout'),
+            Integer(1, 6, name='pool_size')
         ]
     
     elif template_name == "Transformer":
         return common_params + [
-            Categorical([64, 128, 256], name='d_model'),
-            Categorical([4, 8, 16], name='nhead'),
-            Integer(1, 4, name='num_layers'),
-            Real(0.1, 0.3, name='dropout')
+            Categorical([32, 64, 128, 256, 512], name='d_model'),
+            Categorical([2, 4, 8, 16], name='nhead'),
+            Integer(1, 6, name='num_layers'),
+            Real(0.0, 0.5, name='dropout')
         ]
     
     elif template_name == "MLP":
         return common_params + [
-            Real(0.1, 0.5, name='dropout'),
-            Categorical(['relu', 'tanh'], name='activation')
+            Real(0.0, 0.7, name='dropout'),
+            Categorical(['relu', 'tanh', 'gelu'], name='activation')
         ]
     
     elif template_name == "HybridCNNLSTM":
         return common_params + [
-            Integer(32, 128, name='cnn_filters'),
-            Integer(64, 256, name='lstm_hidden'),
-            Real(0.1, 0.4, name='dropout')
+            Integer(16, 256, name='cnn_filters'),
+            Integer(32, 512, name='lstm_hidden'),
+            Real(0.0, 0.7, name='dropout')
         ]
     
     else:
         # Fallback to generic search space
         return common_params + [
-            Integer(32, 256, name='hidden_size'),
-            Real(0.1, 0.5, name='dropout')
+            Integer(16, 512, name='hidden_size'),
+            Real(0.0, 0.7, name='dropout')
         ]
 
 
@@ -106,13 +106,13 @@ class BayesianOptimizer:
         elif search_space:
             self.search_space = search_space
         else:
-            # Default generic search space if nothing specified
+            # Default generic search space if nothing specified - EXPANDED RANGES
             self.search_space = [
-                Real(1e-4, 1e-2, prior='log-uniform', name='lr'),
-                Integer(5, 20, name='epochs'),
-                Categorical([32, 64, 128], name='batch_size'),
-                Integer(64, 256, name='hidden_size'),
-                Real(0.1, 0.5, name='dropout')
+                Real(1e-5, 1e-1, prior='log-uniform', name='lr'),
+                Integer(3, 30, name='epochs'),
+                Categorical([8, 16, 32, 64, 128, 256], name='batch_size'),
+                Integer(16, 512, name='hidden_size'),
+                Real(0.0, 0.7, name='dropout')
             ]
             
         self.template_name = template_name

@@ -206,18 +206,24 @@ class UniversalDataset(Dataset):
         labels: Optional[Any] = None,
         profile: Optional[DataProfile] = None,
         standardize: bool = False,
+        standardization_stats: Optional[Dict[str, torch.Tensor]] = None,
         **kwargs
     ):
         self.profile = profile or analyze_data_profile(data, labels)
         self.standardize = standardize
+        self.standardization_stats = standardization_stats
         
         # Convert data
         self.X = self._convert_data(data)
         self.y, self.label_map = _encode_labels(labels)
         
-        # Standardize
-        if standardize and not self.profile.is_image:
-            self._standardize_data()
+        # Apply standardization if stats provided (for val/test sets)
+        if standardize and standardization_stats is not None and not self.profile.is_image:
+            self._apply_standardization(standardization_stats)
+        # Compute and apply standardization (for training set only)
+        elif standardize and standardization_stats is None and not self.profile.is_image:
+            self.standardization_stats = self._compute_standardization_stats()
+            self._apply_standardization(self.standardization_stats)
     
     def _convert_data(self, data: Any) -> torch.Tensor:
         """Convert data to tensor format"""
@@ -244,19 +250,29 @@ class UniversalDataset(Dataset):
         self._sequences = [_to_float_tensor(seq) for seq in sequences]
         return torch.zeros(len(sequences))  # Placeholder
     
-    def _standardize_data(self):
-        """Standardize data"""
+    def _compute_standardization_stats(self) -> Dict[str, torch.Tensor]:
+        """Compute standardization statistics (mean and std) from training data only"""
+        stats = {}
+        if hasattr(self, '_sequences'):
+            # Sequence data standardization - compute stats per sequence
+            all_values = torch.cat(self._sequences, dim=0)
+            stats['mean'] = all_values.mean(dim=0, keepdim=True)
+            stats['std'] = all_values.std(dim=0, keepdim=True).clamp_min(1e-6)
+        else:
+            # Regular data standardization
+            stats['mean'] = self.X.mean(dim=0, keepdim=True)
+            stats['std'] = self.X.std(dim=0, keepdim=True).clamp_min(1e-6)
+        return stats
+    
+    def _apply_standardization(self, stats: Dict[str, torch.Tensor]):
+        """Apply standardization using provided statistics"""
         if hasattr(self, '_sequences'):
             # Sequence data standardization
             for i, seq in enumerate(self._sequences):
-                mean = seq.mean(dim=0, keepdim=True)
-                std = seq.std(dim=0, keepdim=True).clamp_min(1e-6)
-                self._sequences[i] = (seq - mean) / std
+                self._sequences[i] = (seq - stats['mean']) / stats['std']
         else:
             # Regular data standardization
-            mean = self.X.mean(dim=0, keepdim=True)
-            std = self.X.std(dim=0, keepdim=True).clamp_min(1e-6)
-            self.X = (self.X - mean) / std
+            self.X = (self.X - stats['mean']) / stats['std']
     
     def __len__(self):
         return self.sample_count

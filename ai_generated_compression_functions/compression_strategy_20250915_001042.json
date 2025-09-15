@@ -1,0 +1,223 @@
+{
+  "model_info": {
+    "file_info": {
+      "path": "trained_models/best_model_FallbackLSTM_20250914_231643.pth",
+      "size_bytes": 581377,
+      "size_kb": 567.7509765625,
+      "target_size_kb": 256,
+      "compression_ratio_needed": 2.2177772521972656
+    },
+    "architecture": {
+      "total_parameters": 144233,
+      "layer_analysis": {
+        "LSTM_input_hidden": {
+          "tensors": 3,
+          "params": 57120,
+          "shapes": [
+            [
+              336,
+              2
+            ],
+            [
+              336,
+              84
+            ],
+            [
+              336,
+              84
+            ]
+          ],
+          "names": [
+            "lstm.weight_ih_l0",
+            "lstm.weight_ih_l1",
+            "lstm.weight_ih_l2"
+          ],
+          "percentage": 39.602587479980315
+        },
+        "LSTM_hidden_hidden": {
+          "tensors": 3,
+          "params": 84672,
+          "shapes": [
+            [
+              336,
+              84
+            ],
+            [
+              336,
+              84
+            ],
+            [
+              336,
+              84
+            ]
+          ],
+          "names": [
+            "lstm.weight_hh_l0",
+            "lstm.weight_hh_l1",
+            "lstm.weight_hh_l2"
+          ],
+          "percentage": 58.705012029147284
+        },
+        "LSTM_bias": {
+          "tensors": 6,
+          "params": 2016,
+          "shapes": [
+            [
+              336
+            ],
+            [
+              336
+            ],
+            [
+              336
+            ],
+            [
+              336
+            ],
+            [
+              336
+            ],
+            [
+              336
+            ]
+          ],
+          "names": [
+            "lstm.bias_ih_l0",
+            "lstm.bias_hh_l0",
+            "lstm.bias_ih_l1",
+            "lstm.bias_hh_l1",
+            "lstm.bias_ih_l2",
+            "lstm.bias_hh_l2"
+          ],
+          "percentage": 1.397738381646364
+        },
+        "Linear": {
+          "tensors": 2,
+          "params": 425,
+          "shapes": [
+            [
+              5,
+              84
+            ],
+            [
+              5
+            ]
+          ],
+          "names": [
+            "fc.weight",
+            "fc.bias"
+          ],
+          "percentage": 0.29466210922604397
+        }
+      },
+      "dtype_analysis": {
+        "torch.float32": {
+          "tensors": 14,
+          "params": 144233
+        }
+      },
+      "model_metadata": {
+        "model_name": "FallbackLSTM",
+        "hyperparameters": {
+          "lr": 0.003918194347141745,
+          "epochs": 15,
+          "batch_size": 128,
+          "hidden_size": 84,
+          "dropout": 0.16240745617697463,
+          "num_layers": 3
+        },
+        "final_metrics": {
+          "acc": 0.9273514553764735,
+          "macro_f1": 0.6787301582536586
+        },
+        "timestamp": "20250914_231643"
+      }
+    },
+    "sample_weights": {
+      "lstm.weight_ih_l0": {
+        "shape": [
+          336,
+          2
+        ],
+        "dtype": "torch.float32",
+        "sample_values": [
+          0.3852119445800781,
+          0.5378137230873108,
+          -0.12588322162628174,
+          0.4365813136100769,
+          0.16023722290992737
+        ],
+        "min_value": -1.4516714811325073,
+        "max_value": 1.9184547662734985,
+        "mean_value": 0.04317547753453255,
+        "std_value": 0.4040932059288025
+      },
+      "lstm.weight_hh_l0": {
+        "shape": [
+          336,
+          84
+        ],
+        "dtype": "torch.float32",
+        "sample_values": [
+          -0.20540232956409454,
+          0.15263211727142334,
+          0.3850644826889038,
+          0.076286680996418,
+          -0.29667750000953674
+        ],
+        "min_value": -1.6184029579162598,
+        "max_value": 1.9276429414749146,
+        "mean_value": -0.0019205632852390409,
+        "std_value": 0.25557443499565125
+      },
+      "lstm.bias_ih_l0": {
+        "shape": [
+          336
+        ],
+        "dtype": "torch.float32",
+        "sample_values": [
+          -0.15410037338733673,
+          -0.25481656193733215,
+          0.13038280606269836,
+          0.13881106674671173,
+          -0.2292858213186264
+        ],
+        "min_value": -0.7837626934051514,
+        "max_value": 0.579433262348175,
+        "mean_value": -0.03526212275028229,
+        "std_value": 0.21477362513542175
+      }
+    }
+  },
+  "compression_strategy": {
+    "compression_strategy": {
+      "method": "Use of quantization with INT8 precision and weight pruning to reduce the size while attempting to preserve model accuracy",
+      "estimated_size_kb": 240,
+      "estimated_compression_ratio": 2.366,
+      "techniques": [
+        "Quantization",
+        "Pruning"
+      ]
+    },
+    "compression_function": {
+      "function_name": "compress_model",
+      "code": "import torch\nimport torch.nn.utils.prune as prune\n\ndef compress_model(model_path, save_path):\n    # Load the model\n    model = torch.load(model_path)\n    # Apply quantization\n    model.quantize('lstm', torch.quint8)\n    # Prune the model\n    parameters_to_prune = [(model.lstm, 'weight_ih_l0'), (model.lstm, 'weight_hh_l0')]\n    for param in parameters_to_prune:\n        prune.l1_unstructured(param, amount=0.3)\n    prune.remove(model.lstm, 'weight_ih_l0')\n    prune.remove(model.lstm, 'weight_hh_l0')\n    # Save the compressed model\n    torch.save(model.state_dict(), save_path)\n    return f'Model compressed and saved at {save_path}'",
+      "imports": [
+        "torch",
+        "torch.nn.utils.prune"
+      ],
+      "description": "This function loads a LSTM-based PyTorch model, applies INT8 quantization for parameter reduction, and uses unstructured pruning to decrease the number of parameters of LSTM layers significantly. It then removes the pruning reparametrization to finalize the model size reduction and saves the compressed model to the specified path."
+    },
+    "usage_instructions": {
+      "how_to_run": "1. Save your PyTorch LSTM model to a file.\\n2. Call the compress_model function with the path of your saved model and the path where you want the compressed model saved. For example: compress_model('path_to_your_model.pth', 'path_to_save_compressed_model.pth')",
+      "expected_output": "You should receive a confirmation message indicating that the model has been compressed and saved to the new location.",
+      "validation_steps": [
+        "Check the filesize of the compressed model to ensure it's under 256 KB",
+        "Load the compressed model and run inference to check its performance compared to the original model",
+        "Calculate the model accuracy degradation to ensure it is within the acceptable range (<5%)"
+      ]
+    }
+  },
+  "gpt_response": "{\n  \"compression_strategy\": {\n    \"method\": \"Use of quantization with INT8 precision and weight pruning to reduce the size while attempting to preserve model accuracy\",\n    \"estimated_size_kb\": 240,\n    \"estimated_compression_ratio\": 2.366,\n    \"techniques\": [\"Quantization\", \"Pruning\"]\n  },\n  \"compression_function\": {\n    \"function_name\": \"compress_model\",\n    \"code\": \"import torch\\\\nimport torch.nn.utils.prune as prune\\\\n\\\\ndef compress_model(model_path, save_path):\\\\n    # Load the model\\\\n    model = torch.load(model_path)\\\\n    # Apply quantization\\\\n    model.quantize('lstm', torch.quint8)\\\\n    # Prune the model\\\\n    parameters_to_prune = [(model.lstm, 'weight_ih_l0'), (model.lstm, 'weight_hh_l0')]\\\\n    for param in parameters_to_prune:\\\\n        prune.l1_unstructured(param, amount=0.3)\\\\n    prune.remove(model.lstm, 'weight_ih_l0')\\\\n    prune.remove(model.lstm, 'weight_hh_l0')\\\\n    # Save the compressed model\\\\n    torch.save(model.state_dict(), save_path)\\\\n    return f'Model compressed and saved at {save_path}'\",\n    \"imports\": [\"torch\", \"torch.nn.utils.prune\"],\n    \"description\": \"This function loads a LSTM-based PyTorch model, applies INT8 quantization for parameter reduction, and uses unstructured pruning to decrease the number of parameters of LSTM layers significantly. It then removes the pruning reparametrization to finalize the model size reduction and saves the compressed model to the specified path.\"\n  },\n  \"usage_instructions\": {\n    \"how_to_run\": \"1. Save your PyTorch LSTM model to a file.\\\\n2. Call the compress_model function with the path of your saved model and the path where you want the compressed model saved. For example: compress_model('path_to_your_model.pth', 'path_to_save_compressed_model.pth')\",\n    \"expected_output\": \"You should receive a confirmation message indicating that the model has been compressed and saved to the new location.\",\n    \"validation_steps\": [\"Check the filesize of the compressed model to ensure it's under 256 KB\", \"Load the compressed model and run inference to check its performance compared to the original model\", \"Calculate the model accuracy degradation to ensure it is within the acceptable range (<5%)\"]\n  }\n}",
+  "timestamp": "20250915_001042"
+}

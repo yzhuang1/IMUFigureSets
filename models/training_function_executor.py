@@ -13,6 +13,7 @@ import importlib.util
 import tempfile
 import os
 import time
+from data_splitting import get_bo_subset, get_current_splits
 
 logger = logging.getLogger(__name__)
 
@@ -285,25 +286,44 @@ class BO_TrainingObjective:
     def __init__(
         self, 
         training_data: Dict[str, Any],
-        X_subset: torch.Tensor,
-        y_subset: torch.Tensor,
+        X_subset: Optional[torch.Tensor] = None,
+        y_subset: Optional[torch.Tensor] = None,
         device: str = None
     ):
         self.training_data = training_data
-        self.X_subset = X_subset
-        self.y_subset = y_subset
         # Auto-detect device if not specified
         self.device = device if device is not None else ('cuda' if torch.cuda.is_available() else 'cpu')
         self.executor = TrainingFunctionExecutor()
         
-        # Split data for train/val
-        from sklearn.model_selection import train_test_split
-        X_array = X_subset.cpu().numpy()
-        y_array = y_subset.cpu().numpy()
-        
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_array, y_array, test_size=0.2, random_state=42, stratify=y_array
-        )
+        # Use centralized data splits or provided subset
+        if X_subset is not None and y_subset is not None:
+            # Legacy path for backward compatibility
+            logger.warning("Using provided subset instead of centralized splits - this may cause data leakage")
+            from sklearn.model_selection import train_test_split
+            X_array = X_subset.cpu().numpy()
+            y_array = y_subset.cpu().numpy()
+            
+            X_train, X_val, y_train, y_val = train_test_split(
+                X_array, y_array, test_size=0.2, random_state=42, stratify=y_array
+            )
+        else:
+            # Use centralized data splits
+            try:
+                splits = get_current_splits()
+                logger.info("Using centralized data splits for BO objective")
+                
+                # Use training and validation splits from centralized splitter
+                X_train, y_train = splits.X_train, splits.y_train
+                X_val, y_val = splits.X_val, splits.y_val
+                
+            except ValueError:
+                # Fallback: use BO subset if centralized splits not available
+                logger.warning("Centralized splits not available, using BO subset")
+                X_bo, y_bo = get_bo_subset(max_samples=5000)
+                from sklearn.model_selection import train_test_split
+                X_train, X_val, y_train, y_val = train_test_split(
+                    X_bo, y_bo, test_size=0.2, random_state=42, stratify=y_bo
+                )
         
         # Create tensors on the correct device
         self.X_train = torch.tensor(X_train, dtype=torch.float32, device=self.device)

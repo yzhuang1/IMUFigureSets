@@ -46,10 +46,18 @@ class AICodeGenerator:
     def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None) -> str:
         """Create enhanced prompt for GPT-5 code generation with literature review insights"""
 
+        # Dataset context for better model selection
+        dataset_context = ""
+        if config.dataset_name and config.dataset_name != "Unknown Dataset":
+            dataset_context = f"""
+
+Dataset: {config.dataset_name}
+Source: {config.dataset_source}"""
+
         # Base prompt
         base_prompt = f"""Generate PyTorch training function for {num_classes}-class classification.
 
-Data: {data_profile['data_type']}, shape {input_shape}, {data_profile['num_samples']} samples"""
+Data: {data_profile['data_type']}, shape {input_shape}, {data_profile['num_samples']} samples{dataset_context}"""
 
         # Add literature review insights if available
         if literature_review:
@@ -332,223 +340,22 @@ class CodeValidator:
             logger.error(f"Code execution test failed: {e}")
             return False
 
-class FallbackCodeGenerator:
-    """Rule-based fallback code generator"""
-    
-    def generate_fallback_code(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int) -> CodeRecommendation:
-        """Generate fallback training code when AI fails"""
-        
-        # Determine architecture based on data type
-        if data_profile.get('is_sequence', False) or len(input_shape) > 1:
-            # Sequence data - use LSTM
-            model_name = "FallbackLSTM"
-            training_code = self._generate_lstm_code(input_shape, num_classes)
-            hyperparams = {"lr": 0.001, "epochs": 10, "batch_size": 64, "hidden_size": 128, "dropout": 0.2, "num_layers": 2}
-            bo_params = ["lr", "epochs", "batch_size", "hidden_size", "dropout", "num_layers"]
-            reasoning = "Fallback: LSTM selected for sequence data"
-            
-        else:
-            # Tabular data - use MLP
-            model_name = "FallbackMLP"
-            training_code = self._generate_mlp_code(input_shape, num_classes)
-            hyperparams = {"lr": 0.001, "epochs": 10, "batch_size": 64, "hidden_size": 256, "dropout": 0.2}
-            bo_params = ["lr", "epochs", "batch_size", "hidden_size", "dropout"]
-            reasoning = "Fallback: MLP selected for tabular data"
-        
-        return CodeRecommendation(
-            model_name=model_name,
-            training_code=training_code,
-            hyperparameters=hyperparams,
-            reasoning=reasoning,
-            confidence=0.7,
-            bo_parameters=bo_params
-        )
-    
-    def _generate_lstm_code(self, input_shape: tuple, num_classes: int) -> str:
-        """Generate LSTM training code"""
-        return f"""def train_model(X_train, y_train, X_val, y_val, device='cpu', lr=0.001, epochs=10, batch_size=64, hidden_size=128, dropout=0.2, num_layers=2):
-    import torch
-    import torch.nn as nn
-    import torch.optim as optim
-    from torch.utils.data import TensorDataset, DataLoader
-    
-    # Model definition
-    class FallbackLSTM(nn.Module):
-        def __init__(self, input_size, hidden_size, num_classes, num_layers, dropout):
-            super().__init__()
-            self.lstm = nn.LSTM(input_size, hidden_size, num_layers, dropout=dropout if num_layers > 1 else 0, batch_first=True)
-            self.fc = nn.Linear(hidden_size, num_classes)
-            self.dropout = nn.Dropout(dropout)
-        
-        def forward(self, x):
-            lstm_out, _ = self.lstm(x)
-            last_output = lstm_out[:, -1, :]
-            output = self.dropout(last_output)
-            return self.fc(output)
-    
-    # Data preparation
-    train_dataset = TensorDataset(X_train, y_train)
-    val_dataset = TensorDataset(X_val, y_val)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    
-    # Model initialization
-    input_size = X_train.shape[-1]
-    model = FallbackLSTM(input_size, hidden_size, {num_classes}, num_layers, dropout)
-    model.to(device)
-    
-    # Training setup
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    
-    # Training loop
-    model.train()
-    train_losses = []
-    val_accuracies = []
-    
-    for epoch in range(epochs):
-        epoch_loss = 0
-        for batch_X, batch_y in train_loader:
-            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-            
-            optimizer.zero_grad()
-            outputs = model(batch_X)
-            loss = criterion(outputs, batch_y)
-            loss.backward()
-            optimizer.step()
-            
-            epoch_loss += loss.item()
-        
-        # Validation
-        model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for batch_X, batch_y in val_loader:
-                batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-                outputs = model(batch_X)
-                _, predicted = torch.max(outputs.data, 1)
-                total += batch_y.size(0)
-                correct += (predicted == batch_y).sum().item()
-        
-        val_acc = correct / total
-        train_losses.append(epoch_loss / len(train_loader))
-        val_accuracies.append(val_acc)
-        model.train()
-    
-    # Final metrics
-    model.eval()
-    final_metrics = {{'val_accuracy': val_accuracies[-1], 'final_loss': train_losses[-1], 'macro_f1': val_accuracies[-1]}}
-    
-    return model, final_metrics"""
-    
-    def _generate_mlp_code(self, input_shape: tuple, num_classes: int) -> str:
-        """Generate MLP training code"""
-        return f"""def train_model(X_train, y_train, X_val, y_val, device='cpu', lr=0.001, epochs=10, batch_size=64, hidden_size=256, dropout=0.2):
-    import torch
-    import torch.nn as nn
-    import torch.optim as optim
-    from torch.utils.data import TensorDataset, DataLoader
-    
-    # Model definition
-    class FallbackMLP(nn.Module):
-        def __init__(self, input_size, hidden_size, num_classes, dropout):
-            super().__init__()
-            self.network = nn.Sequential(
-                nn.Linear(input_size, hidden_size),
-                nn.ReLU(),
-                nn.Dropout(dropout),
-                nn.Linear(hidden_size, hidden_size // 2),
-                nn.ReLU(),
-                nn.Dropout(dropout),
-                nn.Linear(hidden_size // 2, num_classes)
-            )
-        
-        def forward(self, x):
-            if x.dim() > 2:
-                x = x.view(x.size(0), -1)
-            return self.network(x)
-    
-    # Data preparation
-    train_dataset = TensorDataset(X_train, y_train)
-    val_dataset = TensorDataset(X_val, y_val)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    
-    # Model initialization
-    input_size = X_train.view(X_train.size(0), -1).shape[-1]
-    model = FallbackMLP(input_size, hidden_size, {num_classes}, dropout)
-    model.to(device)
-    
-    # Training setup
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    
-    # Training loop
-    model.train()
-    train_losses = []
-    val_accuracies = []
-    
-    for epoch in range(epochs):
-        epoch_loss = 0
-        for batch_X, batch_y in train_loader:
-            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-            
-            optimizer.zero_grad()
-            outputs = model(batch_X)
-            loss = criterion(outputs, batch_y)
-            loss.backward()
-            optimizer.step()
-            
-            epoch_loss += loss.item()
-        
-        # Validation
-        model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for batch_X, batch_y in val_loader:
-                batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-                outputs = model(batch_X)
-                _, predicted = torch.max(outputs.data, 1)
-                total += batch_y.size(0)
-                correct += (predicted == batch_y).sum().item()
-        
-        val_acc = correct / total
-        train_losses.append(epoch_loss / len(train_loader))
-        val_accuracies.append(val_acc)
-        model.train()
-    
-    # Final metrics
-    model.eval()
-    final_metrics = {{'val_accuracy': val_accuracies[-1], 'final_loss': train_losses[-1], 'macro_f1': val_accuracies[-1]}}
-    
-    return model, final_metrics"""
 
 # Global instances
 ai_code_generator = AICodeGenerator()
 code_validator = CodeValidator()
-fallback_code_generator = FallbackCodeGenerator()
 
 def generate_training_code_for_data(data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = True) -> CodeRecommendation:
     """
-    Convenience function: Generate training code for data with literature review and fallback
+    Convenience function: Generate training code for data with literature review
     """
-    try:
-        # Try AI generation with literature review
-        recommendation = ai_code_generator.generate_training_function(
-            data_profile, input_shape, num_classes, include_literature_review
-        )
+    # Generate AI code with literature review
+    recommendation = ai_code_generator.generate_training_function(
+        data_profile, input_shape, num_classes, include_literature_review
+    )
 
-        # Validate the generated code
-        if code_validator.validate_code(recommendation.training_code):
-            return recommendation
-        else:
-            logger.warning("AI generated code failed validation, using fallback")
-            raise ValueError("AI generated code failed validation")
+    # Validate the generated code
+    if not code_validator.validate_code(recommendation.training_code):
+        raise ValueError("AI generated code failed validation - stopping execution")
 
-    except Exception as e:
-        logger.warning(f"AI code generation with literature review failed: {e}, using fallback")
-        # Use rule-based fallback
-        fallback_recommendation = fallback_code_generator.generate_fallback_code(data_profile, input_shape, num_classes)
-        return fallback_recommendation
+    return recommendation

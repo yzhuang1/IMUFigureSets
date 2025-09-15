@@ -52,6 +52,19 @@ class LiteratureReviewGenerator:
 
         # Build specific query based on data characteristics
         query_parts = []
+        
+        # Add dataset-specific information from environment
+        dataset_name = config.dataset_name
+        if dataset_name and dataset_name != "Unknown Dataset":
+            if "MIT-BIH" in dataset_name or "ECG" in dataset_name.upper():
+                query_parts.extend(["ECG classification", "arrhythmia detection", "heart rhythm analysis"])
+            elif "EEG" in dataset_name.upper():
+                query_parts.extend(["EEG classification", "brain signal analysis"])
+            elif "EMG" in dataset_name.upper():
+                query_parts.extend(["EMG classification", "muscle signal analysis"])
+            else:
+                # Extract key terms from dataset name
+                query_parts.append(dataset_name.replace(" Database", "").replace(" Dataset", ""))
 
         if is_sequence or len(input_shape) > 1:
             query_parts.append("sequence classification")
@@ -137,7 +150,13 @@ class LiteratureReviewGenerator:
         # Create research query
         query = self._create_literature_query(data_profile, input_shape, num_classes)
 
-        # Create detailed research prompt
+        # Create detailed research prompt with dataset context
+        dataset_context = ""
+        if config.dataset_name and config.dataset_name != "Unknown Dataset":
+            dataset_context = f"""
+        Dataset: {config.dataset_name}
+        Source: {config.dataset_source}"""
+        
         research_prompt = f"""
         Conduct a comprehensive literature review for a machine learning classification problem with the following characteristics:
 
@@ -145,7 +164,7 @@ class LiteratureReviewGenerator:
         Input Shape: {input_shape}
         Number of Classes: {num_classes}
         Number of Samples: {data_profile.get('num_samples', 'unknown')}
-        Is Sequence Data: {data_profile.get('is_sequence', False)}
+        Is Sequence Data: {data_profile.get('is_sequence', False)}{dataset_context}
 
         Please provide a structured literature review including:
 

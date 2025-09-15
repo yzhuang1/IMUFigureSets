@@ -1,0 +1,19 @@
+{
+  "compression_strategy": {
+    "method": "Quantization followed by pruning of LSTM layers",
+    "estimated_size_kb": 240,
+    "estimated_compression_ratio": 2.36,
+    "techniques": ["Quantization", "Pruning"]
+  },
+  "compression_function": {
+    "function_name": "compress_model",
+    "code": "def compress_model(model_path, save_path):\\n    import torch\\n    import torch.nn.utils.prune as prune\\n    from torch.quantization import quantize_dynamic\\n    model = torch.load(model_path)\\n    model.eval()\\n    quantized_model = quantize_dynamic(model, {torch.nn.LSTM, torch.nn.Linear}, dtype=torch.qint8)\\n    parameters_to_prune = [(i, 'weight') for i in quantized_model.lstm._all_weights[0]]\\n    for param in parameters_to_prune:\\n        prune.l1_unstructured(param[0], name=param[1], amount=0.3)\\n    torch.save(quantized_model, save_path)\\n    return quantized_model",
+    "imports": ["torch", "torch.nn.utils.prune", "torch.quantization"],
+    "description": "This function loads a PyTorch LSTM-based model, applies dynamic quantization converting floats to 8-bit integers, then conducts L1 unstructured pruning by removing 30% of the least absolute weights in LSTM layers, and finally saves the compressed model to a specified path."
+  },
+  "usage_instructions": {
+    "how_to_run": "Call the compress_model function, passing the path to your model's .pt file and the desired save path for the compressed model.",
+    "expected_output": "The output should be a quantized and pruned version of the LSTM model, saved to the specified path.",
+    "validation_steps": ["Load the original model and the saved model.", "Compare the parameter count and file sizes.", "Test both models on the same validation dataset to compare accuracy."]
+  }
+}

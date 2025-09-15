@@ -1,0 +1,224 @@
+{
+  "model_info": {
+    "file_info": {
+      "path": "trained_models/best_model_FallbackLSTM_20250914_231643.pth",
+      "size_bytes": 581377,
+      "size_kb": 567.7509765625,
+      "target_size_kb": 256,
+      "compression_ratio_needed": 2.2177772521972656
+    },
+    "architecture": {
+      "total_parameters": 144233,
+      "layer_analysis": {
+        "LSTM_input_hidden": {
+          "tensors": 3,
+          "params": 57120,
+          "shapes": [
+            [
+              336,
+              2
+            ],
+            [
+              336,
+              84
+            ],
+            [
+              336,
+              84
+            ]
+          ],
+          "names": [
+            "lstm.weight_ih_l0",
+            "lstm.weight_ih_l1",
+            "lstm.weight_ih_l2"
+          ],
+          "percentage": 39.602587479980315
+        },
+        "LSTM_hidden_hidden": {
+          "tensors": 3,
+          "params": 84672,
+          "shapes": [
+            [
+              336,
+              84
+            ],
+            [
+              336,
+              84
+            ],
+            [
+              336,
+              84
+            ]
+          ],
+          "names": [
+            "lstm.weight_hh_l0",
+            "lstm.weight_hh_l1",
+            "lstm.weight_hh_l2"
+          ],
+          "percentage": 58.705012029147284
+        },
+        "LSTM_bias": {
+          "tensors": 6,
+          "params": 2016,
+          "shapes": [
+            [
+              336
+            ],
+            [
+              336
+            ],
+            [
+              336
+            ],
+            [
+              336
+            ],
+            [
+              336
+            ],
+            [
+              336
+            ]
+          ],
+          "names": [
+            "lstm.bias_ih_l0",
+            "lstm.bias_hh_l0",
+            "lstm.bias_ih_l1",
+            "lstm.bias_hh_l1",
+            "lstm.bias_ih_l2",
+            "lstm.bias_hh_l2"
+          ],
+          "percentage": 1.397738381646364
+        },
+        "Linear": {
+          "tensors": 2,
+          "params": 425,
+          "shapes": [
+            [
+              5,
+              84
+            ],
+            [
+              5
+            ]
+          ],
+          "names": [
+            "fc.weight",
+            "fc.bias"
+          ],
+          "percentage": 0.29466210922604397
+        }
+      },
+      "dtype_analysis": {
+        "torch.float32": {
+          "tensors": 14,
+          "params": 144233
+        }
+      },
+      "model_metadata": {
+        "model_name": "FallbackLSTM",
+        "hyperparameters": {
+          "lr": 0.003918194347141745,
+          "epochs": 15,
+          "batch_size": 128,
+          "hidden_size": 84,
+          "dropout": 0.16240745617697463,
+          "num_layers": 3
+        },
+        "final_metrics": {
+          "acc": 0.9273514553764735,
+          "macro_f1": 0.6787301582536586
+        },
+        "timestamp": "20250914_231643"
+      }
+    },
+    "sample_weights": {
+      "lstm.weight_ih_l0": {
+        "shape": [
+          336,
+          2
+        ],
+        "dtype": "torch.float32",
+        "sample_values": [
+          0.3852119445800781,
+          0.5378137230873108,
+          -0.12588322162628174,
+          0.4365813136100769,
+          0.16023722290992737
+        ],
+        "min_value": -1.4516714811325073,
+        "max_value": 1.9184547662734985,
+        "mean_value": 0.04317547753453255,
+        "std_value": 0.4040932059288025
+      },
+      "lstm.weight_hh_l0": {
+        "shape": [
+          336,
+          84
+        ],
+        "dtype": "torch.float32",
+        "sample_values": [
+          -0.20540232956409454,
+          0.15263211727142334,
+          0.3850644826889038,
+          0.076286680996418,
+          -0.29667750000953674
+        ],
+        "min_value": -1.6184029579162598,
+        "max_value": 1.9276429414749146,
+        "mean_value": -0.0019205632852390409,
+        "std_value": 0.25557443499565125
+      },
+      "lstm.bias_ih_l0": {
+        "shape": [
+          336
+        ],
+        "dtype": "torch.float32",
+        "sample_values": [
+          -0.15410037338733673,
+          -0.25481656193733215,
+          0.13038280606269836,
+          0.13881106674671173,
+          -0.2292858213186264
+        ],
+        "min_value": -0.7837626934051514,
+        "max_value": 0.579433262348175,
+        "mean_value": -0.03526212275028229,
+        "std_value": 0.21477362513542175
+      }
+    }
+  },
+  "compression_strategy": {
+    "compression_strategy": {
+      "method": "Quantization followed by pruning of LSTM layers",
+      "estimated_size_kb": 240,
+      "estimated_compression_ratio": 2.36,
+      "techniques": [
+        "Quantization",
+        "Pruning"
+      ]
+    },
+    "compression_function": {
+      "function_name": "compress_model",
+      "code": "def compress_model(model_path, save_path):\n    import torch\n    import torch.nn.utils.prune as prune\n    from torch.quantization import quantize_dynamic\n    model = torch.load(model_path)\n    model.eval()\n    quantized_model = quantize_dynamic(model, {torch.nn.LSTM, torch.nn.Linear}, dtype=torch.qint8)\n    parameters_to_prune = [(i, 'weight') for i in quantized_model.lstm._all_weights[0]]\n    for param in parameters_to_prune:\n        prune.l1_unstructured(param[0], name=param[1], amount=0.3)\n    torch.save(quantized_model, save_path)\n    return quantized_model",
+      "imports": [
+        "torch",
+        "torch.nn.utils.prune",
+        "torch.quantization"
+      ],
+      "description": "This function loads a PyTorch LSTM-based model, applies dynamic quantization converting floats to 8-bit integers, then conducts L1 unstructured pruning by removing 30% of the least absolute weights in LSTM layers, and finally saves the compressed model to a specified path."
+    },
+    "usage_instructions": {
+      "how_to_run": "Call the compress_model function, passing the path to your model's .pt file and the desired save path for the compressed model.",
+      "expected_output": "The output should be a quantized and pruned version of the LSTM model, saved to the specified path.",
+      "validation_steps": [
+        "Load the original model and the saved model.",
+        "Compare the parameter count and file sizes.",
+        "Test both models on the same validation dataset to compare accuracy."
+      ]
+    }
+  },
+  "gpt_response": "{\n  \"compression_strategy\": {\n    \"method\": \"Quantization followed by pruning of LSTM layers\",\n    \"estimated_size_kb\": 240,\n    \"estimated_compression_ratio\": 2.36,\n    \"techniques\": [\"Quantization\", \"Pruning\"]\n  },\n  \"compression_function\": {\n    \"function_name\": \"compress_model\",\n    \"code\": \"def compress_model(model_path, save_path):\\\\n    import torch\\\\n    import torch.nn.utils.prune as prune\\\\n    from torch.quantization import quantize_dynamic\\\\n    model = torch.load(model_path)\\\\n    model.eval()\\\\n    quantized_model = quantize_dynamic(model, {torch.nn.LSTM, torch.nn.Linear}, dtype=torch.qint8)\\\\n    parameters_to_prune = [(i, 'weight') for i in quantized_model.lstm._all_weights[0]]\\\\n    for param in parameters_to_prune:\\\\n        prune.l1_unstructured(param[0], name=param[1], amount=0.3)\\\\n    torch.save(quantized_model, save_path)\\\\n    return quantized_model\",\n    \"imports\": [\"torch\", \"torch.nn.utils.prune\", \"torch.quantization\"],\n    \"description\": \"This function loads a PyTorch LSTM-based model, applies dynamic quantization converting floats to 8-bit integers, then conducts L1 unstructured pruning by removing 30% of the least absolute weights in LSTM layers, and finally saves the compressed model to a specified path.\"\n  },\n  \"usage_instructions\": {\n    \"how_to_run\": \"Call the compress_model function, passing the path to your model's .pt file and the desired save path for the compressed model.\",\n    \"expected_output\": \"The output should be a quantized and pruned version of the LSTM model, saved to the specified path.\",\n    \"validation_steps\": [\"Load the original model and the saved model.\", \"Compare the parameter count and file sizes.\", \"Test both models on the same validation dataset to compare accuracy.\"]\n  }\n}",
+  "timestamp": "20250915_001009"
+}

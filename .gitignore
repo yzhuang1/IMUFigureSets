@@ -64,7 +64,6 @@ Thumbs.db
 
 # Logs
 *.log
-logs/
 
 # Test files
 test_*.py
