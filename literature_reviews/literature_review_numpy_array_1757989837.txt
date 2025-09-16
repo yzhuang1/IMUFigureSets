@@ -1,0 +1,63 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-16 02:30:37
+Confidence: 0.79
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+Between 2023 and 2025, state-of-the-art ECG arrhythmia classifiers on MIT-BIH have consolidated around three families: lightweight Transformers (often hybridized with CNNs), state-space models (SSMs, e.g., Mamba variants) for efficient long-context modeling, and self-supervised “foundation” encoders pre-trained on millions of ECGs and then fine-tuned on downstream tasks. Representative advances include tiny, deployable Transformers that reach ≈99% five-class accuracy on MIT-BIH with only ~6k parameters and 8-bit inference, CNN–attention–Transformer hybrids that improve minority-class recall with imbalance-aware training, time–frequency pipelines coupling continuous wavelet transforms with multi-branch Transformers, and Mamba-based models (e.g., ECGMamba, MambaCapsule) that replace quadratic attention with linear-time sequence operators while preserving global context and improving interpretability. In parallel, ECG foundation models such as ECG-FM and ECGFounder (10M+ ECGs) demonstrate strong transfer to rhythm and morphology tasks, offering robust features you can adapt to five-class AAMI problems. These trends align with the MIT-BIH data characteristics: two channels sampled at 360 Hz with ~110k annotated beats, making windows of 1000×2 (≈2.8 s) a natural segment size. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+
+Evaluation rigor has also sharpened: many works now emphasize the AAMI EC57 five-class mapping and the canonical inter-patient DS1→DS2 split (no subject overlap), because intra-patient splits can overstate performance—especially on minority S and F classes. Under inter-patient protocols, recent papers report high-90s overall accuracy with wide variance in S/F F1 depending on preprocessing, resampling, and loss design; adversarial/domain-adaptive and feature-injection methods further improve cross-patient generalization. For your setting (numpy arrays shaped 1000×2, 5 classes), compact CNN+Transformer or Mamba backbones with class-imbalance handling (focal/weighted losses, SMOTE-Tomek at beat level if needed) are strong choices; consider pretraining or frozen embeddings from an ECG foundation model if you expect limited labels. In PyTorch, reshape to (batch, channels=2, length=1000), use padding masks for variable windows, and exploit mixed precision and weighted sampling to stabilize minority-class learning. Expect 95–99% accuracy inter-patient with careful preprocessing and imbalance-aware training; verify claims and splits when comparing to the literature. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC7924512/?utm_source=openai))
+
+KEY FINDINGS:
+1. Use inter-patient evaluation (DS1 train → DS2 test) with AAMI EC57 five-class mapping (N, S, V, F, Q) to avoid leakage; many high numbers in the literature are intra-patient and not directly comparable. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC7924512/?utm_source=openai))
+2. Lightweight Transformers and CNN–Transformer hybrids are SOTA for single-lead/two-channel ECG, offering local–global feature capture with modest compute; tiny models can achieve ≈99% on 5-class MIT-BIH while remaining deployable. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+3. State-space (Mamba) models scale linearly in sequence length and are competitive on ECG, making them attractive for 1–3 s windows and embedded scenarios. ([arxiv.org](https://arxiv.org/abs/2406.10098?utm_source=openai))
+4. Self-supervised ECG foundation models (ECG-FM, ECGFounder) provide transferable features; fine-tuning or using frozen embeddings can boost minority-class performance and robustness. ([arxiv.org](https://arxiv.org/abs/2408.05178?utm_source=openai))
+5. Address severe class imbalance (S and F) via focal loss (γ≈2), class-weighted CE, or minority-oversampling (e.g., SMOTE-Tomek); imbalance-aware objectives consistently improve recall. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+6. Time–frequency front-ends (CWT/STFT) with multi-branch Transformers can help when morphology varies or noise is present, but add preprocessing cost. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38434292/?utm_source=openai))
+7. Expected inter-patient performance on MIT-BIH: mid-to-high-90s overall accuracy (often 96–99%) with S/F F1 most sensitive to pipeline design; confirm protocol details before benchmarking. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. CNN + Transformer encoder (small): 1D Conv stem (e.g., 32–128 channels, k=5–11) → 2–4 Transformer blocks (d_model=64–192, heads=2–6, dropout=0.1–0.3) → global pooling → 5-way head. Train with AdamW (lr 1e-3→5e-4, wd 1e-2), cosine decay, label smoothing 0.05–0.1, and class-weighted CE or focal loss. Rationale: efficient local feature extraction plus global rhythm context; strong balance of accuracy and speed. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+2. Tiny Transformer (edge/deploy): pure Transformer with <10k params, int8 inference, short 1–3 s windows (L≈1000), simple augmentations (jitter, scaling). Use lr 5e-4, batch 256, QKV dim 64–96. Rationale: near-SOTA accuracy with microcontroller-friendly footprint. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+3. Mamba/SSM backbone: stack 3–6 BiSSM/Mamba blocks with small Conv pre/post-projections; d_model 64–160, dropout 0.1–0.2; train with AdamW and warmup. Rationale: linear-time global modeling, stable on long sequences, good deploy-time latency. ([arxiv.org](https://arxiv.org/abs/2406.10098?utm_source=openai))
+4. Foundation-model features + shallow head: extract fixed embeddings from ECG-FM/ECGFounder and train a small classifier (2–3 MLP layers or a single Transformer block) on MIT-BIH AAMI labels; optional end-to-end fine-tuning at low lr (1e-5–3e-5). Rationale: leverages large-scale pretraining to improve robustness and minority-class recall with limited labels. ([arxiv.org](https://arxiv.org/abs/2408.05178?utm_source=openai))
+5. Time–frequency multi-branch + Transformer: compute CWT/STFT maps per channel; feed parallel CNN/Transformer branches; fuse via attention; apply imbalance-aware loss. Rationale: complements time-domain invariances with spectro-temporal cues, often boosting S-class recall in noise. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38434292/?utm_source=openai))
+
+RECENT PAPERS:
+- A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (2024): 6k-parameter Transformer reaches ≈98.97% on 5-class MIT-BIH with 8-bit inference and real-time embedded deployment.
+- CAT-Net: Convolution, attention, and transformer based network for single-lead ECG arrhythmia classification (2024): CNN–attention–Transformer hybrid; uses SMOTE-Tomek to improve minority-class performance; validated across datasets.
+- Enhancing ECG classification with continuous wavelet transform and multi-branch transformer (2024): CWT-based spectro-temporal features with multi-branch Transformer improve accuracy over prior methods.
+- ECGTransForm: Adaptive ECG arrhythmia classification with bidirectional Transformer (2024): Multiscale convolutions + bidirectional Transformer and context-aware loss to address class imbalance; open-source PyTorch code.
+- ECGMamba: Towards Efficient ECG Classification with BiSSM (2024): Mamba-based state-space network achieves competitive accuracy with linear-time inference for long ECG sequences.
+- MambaCapsule: Towards Transparent Cardiac Disease Diagnosis with Electrocardiography Using Mamba Capsule Network (2024): Combines Mamba feature extractor with Capsule Networks for interpretability and strong AAMI-5 accuracy.
+- ECG-FM: An Open Electrocardiogram Foundation Model (2024, v2 2025): Transformer foundation model pretrained on ~1.5–2.5M ECGs using hybrid SSL objectives; strong transfer to downstream ECG tasks.
+- An Electrocardiogram Foundation Model Built on over 10 Million Recordings (ECGFounder, 2024): Large-scale foundation model trained on 10M+ ECGs; demonstrates broad generalization and fine-tuning gains.
+- Systematic review (2025): Adherence to standards, fair evaluation, and embedded feasibility: Highlights the importance of inter-patient DS1→DS2 evaluation and reporting standards for fair comparison.
+
+==================================================

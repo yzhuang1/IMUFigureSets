@@ -14,7 +14,8 @@
       "Bash(ls:*)",
       "Bash(rg:*)",
       "Bash(mkdir:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []

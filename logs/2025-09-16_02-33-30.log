@@ -1,0 +1,90 @@
+2025-09-16 02:33:30,117 - INFO - __main__ - Logging system initialized successfully
+2025-09-16 02:33:30,119 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'y.npy', 'X.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-16 02:33:30,119 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-16 02:33:30,119 - INFO - __main__ - Attempting to load: y.npy
+2025-09-16 02:33:30,121 - INFO - __main__ - Attempting to load: X.npy
+2025-09-16 02:33:30,436 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-16 02:33:30,737 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-16 02:33:30,737 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-16 02:33:30,737 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-16 02:33:30,750 - INFO - __main__ - Data profile: {'data_type': 'numpy_array', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-16 02:33:30,751 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-16 02:33:30,751 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-16 02:33:30,751 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-16 02:33:30,751 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-16 02:33:30,751 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-16 02:33:30,751 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-16 02:33:30,753 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-16 02:33:31,393 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-16 02:33:31,394 - INFO - class_balancing - Class imbalance analysis:
+2025-09-16 02:33:31,394 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-16 02:33:31,394 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-16 02:33:31,394 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-16 02:33:31,394 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-16 02:33:31,395 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-16 02:33:31,396 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-16 02:33:31,396 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-16 02:33:31,396 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-16 02:33:32,715 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-16 02:33:32,718 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-16 02:33:32,719 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-16 02:33:32,719 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-16 02:33:32,719 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-16 02:33:32,719 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-16 02:33:32,719 - INFO - models.ai_code_generator - Conducting literature review before code generation...
+2025-09-16 02:35:42,102 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-16 02:35:42,317 - INFO - models.ai_code_generator - Making API call to gpt-5
+2025-09-16 02:35:42,318 - INFO - models.ai_code_generator - Prompt length: 4887 characters
+2025-09-16 02:35:42,318 - INFO - models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-16 02:35:42,318 - INFO - models.ai_code_generator - Calling self.client.responses.create...
+2025-09-16 02:35:42,318 - INFO - models.ai_code_generator - Model parameter: gpt-5
+2025-09-16 02:35:42,318 - INFO - models.ai_code_generator - Input prompt preview: Generate PyTorch training function for 5-class classification.
+
+Data: numpy_array, shape (1000, 2), 62352 samples
+
+Dataset: MIT-BIH Arrhythmia Database
+Source: https://physionet.org/content/mitdb/1.0....
+2025-09-16 02:38:02,201 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-16 02:38:02,253 - INFO - models.ai_code_generator - Successfully extracted response content
+2025-09-16 02:38:02,254 - INFO - models.ai_code_generator - AI generated training function: TinyCAT1D (CNN + Transformer, <256K params)
+2025-09-16 02:38:02,254 - INFO - models.ai_code_generator - Confidence: 0.90
+2025-09-16 02:38:02,254 - INFO - models.ai_code_generator - Reasoning: The model is a lightweight CNN + Transformer (CAT) architecture, aligning with recent literature for ECG arrhythmia classification. A small CNN stem captures local beat morphology; a strided 1D patch embedding reduces sequence length before attention, keeping compute low. Two small Transformer blocks (d_model=64, 4 heads) model rhythm/context while staying under 256K parameters. Class imbalance is handled via inverse-frequency class weights and optional focal loss, and metrics include macro-F1—recommended for AAMI five-class evaluation. The training loop is simple (AdamW, optional grad clipping), with conditional pin_memory used only when tensors reside on CPU, per requirement.
+2025-09-16 02:38:02,254 - INFO - models.ai_code_generator - Literature review informed code generation (confidence: 0.78)
+2025-09-16 02:38:02,255 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: TinyCAT1D (CNN + Transformer, <256K params)
+2025-09-16 02:38:02,255 - INFO - evaluation.code_generation_pipeline_orchestrator - Reasoning: The model is a lightweight CNN + Transformer (CAT) architecture, aligning with recent literature for ECG arrhythmia classification. A small CNN stem captures local beat morphology; a strided 1D patch embedding reduces sequence length before attention, keeping compute low. Two small Transformer blocks (d_model=64, 4 heads) model rhythm/context while staying under 256K parameters. Class imbalance is handled via inverse-frequency class weights and optional focal loss, and metrics include macro-F1—recommended for AAMI five-class evaluation. The training loop is simple (AdamW, optional grad clipping), with conditional pin_memory used only when tensors reside on CPU, per requirement.
+2025-09-16 02:38:02,255 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['lr', 'batch_size', 'epochs', 'hidden_size', 'dropout']
+2025-09-16 02:38:02,255 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.90
+2025-09-16 02:38:02,255 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-16 02:38:02,256 - INFO - models.ai_code_generator - Training function saved to: generated_training_functions/training_function_numpy_array_TinyCAT1D (CNN + Transformer, <256K params)_1757990282.json
+2025-09-16 02:38:02,256 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions/training_function_numpy_array_TinyCAT1D (CNN + Transformer, <256K params)_1757990282.json
+2025-09-16 02:38:02,263 - INFO - models.training_function_executor - Training function validation passed
+2025-09-16 02:38:02,263 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-16 02:38:02,264 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: TinyCAT1D (CNN + Transformer, <256K params)
+2025-09-16 02:38:02,264 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 62352 samples (using full dataset)
+2025-09-16 02:38:02,264 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['lr', 'batch_size', 'epochs', 'hidden_size', 'dropout']
+2025-09-16 02:38:02,264 - INFO - models.training_function_executor - GPU available: NVIDIA H100 NVL
+2025-09-16 02:38:02,264 - INFO - models.training_function_executor - Using centralized data splits for BO objective
+2025-09-16 02:38:02,898 - INFO - bo.run_bo - Using default search space
+2025-09-16 02:38:02,900 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-16 02:38:02,909 - INFO - bo.run_bo - Using explicitly provided search space
+2025-09-16 02:38:02,911 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-16 02:38:02,915 - INFO - bo.run_bo - BO Trial 1: Initial random exploration
+2025-09-16 02:38:02,915 - INFO - bo.run_bo - [PROFILE] suggest() took 0.002s
+2025-09-16 02:38:02,916 - INFO - models.training_function_executor - Using device: cuda
+2025-09-16 02:38:02,916 - INFO - models.training_function_executor - Executing training function: TinyCAT1D (CNN + Transformer, <256K params)
+2025-09-16 02:38:02,916 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': 10, 'hidden_size': 204, 'dropout': 0.41779511056254093}
+2025-09-16 02:38:02,923 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.01535224694197351, 'epochs': 10, 'batch_size': 16, 'hidden_size': 204, 'dropout': 0.41779511056254093}
+2025-09-16 02:46:49,269 - INFO - models.training_function_executor - Training completed successfully: {'train_loss': [0.2329382147623559, 0.21711088731622066, 0.2150150521687488, 0.2113721918691108, 0.20778572385265837, 0.1835794238643997, 0.18414760905720515, 0.16877188635116208, 0.15234962718691245, 0.14179636382982552], 'val_loss': [0.2197860609487982, 0.21929690981868322, 0.21351819869044597, 0.2046511348994471, 0.1755574395719733, 0.16444506621313285, 0.1587016745958202, 0.14715985133848175, 0.12194598433075753, 0.1450055074265961], 'val_acc': [0.01924426108598709, 0.29557982087135315, 0.020847950130701065, 0.2741304934024811, 0.4069359600543976, 0.7061240673065186, 0.18863385915756226, 0.2415555715560913, 0.19324445724487305, 0.3222411572933197], 'val_macro_f1': [0.007552365306764841, 0.12754526734352112, 0.01505938358604908, 0.1096876710653305, 0.2708675265312195, 0.3328298330307007, 0.24529853463172913, 0.2808106243610382, 0.2758309245109558, 0.33211082220077515], 'param_count': 1357181, 'model_name': 'TinyCAT1D (CNN + Transformer, <256K params)', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 0.01535224694197351, 'epochs': 10, 'batch_size': 16, 'hidden_size': 204, 'dropout': 0.41779511056254093}}
+2025-09-16 02:46:49,270 - INFO - models.training_function_executor - [PROFILE] objective(train+eval) took 526.355s
+2025-09-16 02:46:49,272 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.3222
+2025-09-16 02:46:49,272 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.001s
+2025-09-16 02:46:49,273 - INFO - bo.run_bo - Recorded observation #1: hparams={'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093}, value=0.3222
+2025-09-16 02:46:49,273 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'lr': 0.01535224694197351, 'batch_size': 16, 'epochs': np.int64(10), 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093} -> 0.3222
+2025-09-16 02:46:49,276 - INFO - bo.run_bo - BO Trial 2: Initial random exploration
+2025-09-16 02:46:49,276 - INFO - bo.run_bo - [PROFILE] suggest() took 0.003s
+2025-09-16 02:46:49,276 - INFO - models.training_function_executor - Using device: cuda
+2025-09-16 02:46:49,277 - INFO - models.training_function_executor - Executing training function: TinyCAT1D (CNN + Transformer, <256K params)
+2025-09-16 02:46:49,277 - INFO - models.training_function_executor - Hyperparameters: {'lr': 0.0006071989493441302, 'batch_size': 8, 'epochs': 13, 'hidden_size': 103, 'dropout': 0.2335960277973153}
+2025-09-16 02:46:49,283 - INFO - models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0006071989493441302, 'epochs': 13, 'batch_size': 8, 'hidden_size': 103, 'dropout': 0.2335960277973153}
+2025-09-16 02:46:49,290 - ERROR - models.training_function_executor - Training execution failed: hidden_size must be divisible by nheads

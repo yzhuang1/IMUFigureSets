@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from openai import OpenAI
 from config import config
 from pathlib import Path
-from models.literature_review import literature_review_generator, LiteratureReview
+from _models.literature_review import literature_review_generator, LiteratureReview
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +42,8 @@ class AICodeGenerator:
         self.code_storage_dir = Path("generated_training_functions")
         self.code_storage_dir.mkdir(exist_ok=True)
     
-    def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None) -> str:
-        """Create enhanced prompt for GPT-5 code generation with literature review insights"""
+    def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None, error_message: Optional[str] = None) -> str:
+        """Create enhanced prompt for GPT-5 code generation with literature review insights and error debugging"""
 
         # Dataset context for better model selection
         dataset_context = ""
@@ -59,25 +59,40 @@ Source: {config.dataset_source}"""
         
         base_prompt = f"""Generate PyTorch training function for {num_classes}-class classification.
 
-Data: {data_profile['data_type']}, shape {input_shape}, {num_samples} samples{dataset_context}"""
+Data: {data_profile['data_type']}, shape {input_shape}, {num_samples} samples{dataset_context}
+
+IMPORTANT: The training function will receive PyTorch tensors as inputs, NOT numpy arrays.
+- X_train, y_train, X_val, y_val are all PyTorch tensors
+- Data has been converted from {data_profile['data_type']} to PyTorch tensors before training"""
 
         # Add literature review insights if available
         if literature_review:
             base_prompt += f"""
 
 LITERATURE REVIEW INSIGHTS:
-Query: {literature_review.query}
+Research Summary: {literature_review.review_text}
 Confidence: {literature_review.confidence:.2f}
 
-Key Findings:
-{chr(10).join('- ' + str(finding) for finding in literature_review.key_findings[:5] if finding)}
+Recommended Model: {literature_review.recommended_approaches[0] if literature_review.recommended_approaches else 'No specific recommendation'}
 
-Recommended Approaches:
-{chr(10).join('- ' + str(approach) for approach in literature_review.recommended_approaches[:3] if approach)}
+Key Insights:
+{chr(10).join('- ' + str(finding) for finding in literature_review.key_findings if finding)}
 
-Please consider these recent research insights when generating your training function."""
+Please implement the recommended model architecture from the literature review."""
 
-        prompt = base_prompt + f"""
+        # Add error debugging context if available
+        error_context = ""
+        if error_message:
+            error_context = f"""
+
+ERROR DEBUGGING CONTEXT:
+The previous training function failed with the following error:
+{error_message}
+
+Please analyze this error and generate a corrected training function that fixes the issue.
+Focus on the specific error mentioned above and ensure the new code avoids this problem."""
+
+        prompt = base_prompt + error_context + f"""
 
 Requirements:
 - Function: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
@@ -88,6 +103,14 @@ Requirements:
 - Build model from scratch, include basic training loop, return model and metrics
 - Lightweight architecture (<256K parameters)
 - Incorporate relevant insights from literature review if provided
+- Use STANDARDIZED hyperparameter names for BO compatibility:
+  * "num_heads" (not "nheads", "n_heads", or "attention_heads")
+  * "hidden_size" (not "hidden_dim", "d_model", or "model_dim") 
+  * "embed_dim" (not "embedding_dim", "emb_size", or "embedding_size")
+  * "dropout" (not "dropout_rate", "drop_prob", or "p_dropout")
+  * "lr" (not "learning_rate", "alpha", or "eta")
+  * "batch_size" (not "batch", "bs", or "bsize")
+  * "epochs" (not "num_epochs", "n_epochs", or "training_steps")
 
 Response JSON format:
 {{
@@ -117,7 +140,6 @@ Response JSON format:
         try:
             logger.info("Calling self.client.responses.create...")
             logger.info(f"Model parameter: {self.model}")
-            logger.info(f"Input prompt preview: {prompt[:200]}...")
             
             response = self.client.responses.create(
                 model=self.model,
@@ -150,6 +172,62 @@ Response JSON format:
             logger.error(f"Exception details: {str(e)}")
             raise
     
+    def _standardize_hyperparameter_names(self, hyperparams: Dict[str, Any]) -> Dict[str, Any]:
+        """Standardize hyperparameter names for BO compatibility"""
+        name_mapping = {
+            # num_heads variations
+            'nheads': 'num_heads',
+            'n_heads': 'num_heads', 
+            'attention_heads': 'num_heads',
+            'n_attention_heads': 'num_heads',
+            
+            # hidden_size variations
+            'hidden_dim': 'hidden_size',
+            'd_model': 'hidden_size',
+            'model_dim': 'hidden_size',
+            'hidden_units': 'hidden_size',
+            
+            # embed_dim variations  
+            'embedding_dim': 'embed_dim',
+            'emb_size': 'embed_dim',
+            'embedding_size': 'embed_dim',
+            'embed_size': 'embed_dim',
+            
+            # dropout variations
+            'dropout_rate': 'dropout',
+            'drop_prob': 'dropout', 
+            'p_dropout': 'dropout',
+            'dropout_p': 'dropout',
+            
+            # learning rate variations
+            'learning_rate': 'lr',
+            'alpha': 'lr',
+            'eta': 'lr',
+            
+            # batch_size variations
+            'batch': 'batch_size',
+            'bs': 'batch_size',
+            'bsize': 'batch_size',
+            
+            # epochs variations
+            'num_epochs': 'epochs',
+            'n_epochs': 'epochs',
+            'training_steps': 'epochs',
+            'max_epochs': 'epochs'
+        }
+        
+        standardized = {}
+        for key, value in hyperparams.items():
+            # Use mapping if available, otherwise keep original name
+            standard_key = name_mapping.get(key, key)
+            standardized[standard_key] = value
+            
+            # Log any mappings that were applied
+            if standard_key != key:
+                logger.info(f"Standardized hyperparameter: {key} -> {standard_key}")
+        
+        return standardized
+
     def _parse_recommendation(self, response: str) -> CodeRecommendation:
         """Parse API response as code recommendation"""
         try:
@@ -207,14 +285,24 @@ Response JSON format:
                 if field not in data:
                     raise ValueError(f"Missing required field: {field}")
             
+            # Standardize hyperparameter names for BO compatibility
+            standardized_hyperparams = self._standardize_hyperparameter_names(data["hyperparameters"])
+            standardized_bo_params = [self._standardize_hyperparameter_names({p: None}).get(p, p) for p in data["bo_parameters"]]
+            
+            # Standardize search space keys
+            standardized_search_space = {}
+            for key, value in data["bo_search_space"].items():
+                std_key = self._standardize_hyperparameter_names({key: None}).get(key, key)
+                standardized_search_space[std_key] = value
+            
             return CodeRecommendation(
                 model_name=data["model_name"],
                 training_code=data["training_code"],
-                hyperparameters=data["hyperparameters"],
+                hyperparameters=standardized_hyperparams,
                 reasoning=data["reasoning"],
                 confidence=float(data["confidence"]),
-                bo_parameters=data["bo_parameters"],
-                bo_search_space=data["bo_search_space"]
+                bo_parameters=standardized_bo_params,
+                bo_search_space=standardized_search_space
             )
         
         except (json.JSONDecodeError, ValueError, KeyError) as e:
@@ -222,7 +310,7 @@ Response JSON format:
             logger.error(f"Original response: {response}")
             raise ValueError(f"Failed to parse AI code recommendation: {e}")
     
-    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None) -> CodeRecommendation:
+    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None, error_message: Optional[str] = None) -> CodeRecommendation:
         """Generate training function code based on data characteristics with optional literature review"""
 
         literature_review = None
@@ -244,8 +332,8 @@ Response JSON format:
                 logger.warning(f"Literature review failed: {e}, proceeding without it")
                 literature_review = None
 
-        # Generate training function with literature review insights
-        prompt = self._create_prompt(data_profile, input_shape, num_classes, literature_review)
+        # Generate training function with literature review insights and error debugging
+        prompt = self._create_prompt(data_profile, input_shape, num_classes, literature_review, error_message)
         response = self._call_openai_api(prompt)
         recommendation = self._parse_recommendation(response)
 
@@ -299,11 +387,49 @@ ai_code_generator = AICodeGenerator()
 
 def generate_training_code_for_data(data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None) -> CodeRecommendation:
     """
-    Convenience function: Generate training code for data with literature review
+    Convenience function: Generate training code for data with literature review and error debugging retry logic
     """
-    # Generate AI code with literature review
-    recommendation = ai_code_generator.generate_training_function(
-        data_profile, input_shape, num_classes, include_literature_review
-    )
-
-    return recommendation
+    import traceback
+    from error_monitor import temporarily_disable_error_monitoring, re_enable_error_monitoring
+    
+    debug_attempts = 0
+    max_debug_attempts = config.debug_chances
+    last_error = None
+    
+    # Temporarily disable error monitoring during debug cycles to allow retries
+    temporarily_disable_error_monitoring()
+    
+    while debug_attempts < max_debug_attempts:
+        try:
+            # Generate training code (with error context if this is a retry)
+            error_context = str(last_error) if last_error else None
+            if error_context:
+                logger.info(f"Debug attempt {debug_attempts + 1}/{max_debug_attempts} - regenerating code with error context")
+            
+            recommendation = ai_code_generator.generate_training_function(
+                data_profile, input_shape, num_classes, include_literature_review, error_context
+            )
+            
+            # Return the recommendation - validation will happen during training
+            if debug_attempts > 0:
+                logger.info(f"Generated new training function after {debug_attempts + 1} attempts")
+            
+            # Re-enable error monitoring before returning
+            re_enable_error_monitoring()
+            return recommendation
+                
+        except Exception as e:
+            debug_attempts += 1
+            last_error = traceback.format_exc()
+            logger.warning(f"Training function generation attempt {debug_attempts} failed: {e}")
+            
+            if debug_attempts >= max_debug_attempts:
+                logger.error(f"Failed to generate training function after {max_debug_attempts} attempts")
+                logger.error(f"Final error: {last_error}")
+                # Re-enable error monitoring before raising final error
+                re_enable_error_monitoring()
+                raise RuntimeError(f"Code generation failed after {max_debug_attempts} debug attempts. Final error: {e}")
+    
+    # Should never reach here, but just in case
+    re_enable_error_monitoring()
+    raise RuntimeError("Unexpected exit from debug retry loop")

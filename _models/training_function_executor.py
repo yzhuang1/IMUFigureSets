@@ -14,6 +14,7 @@ import tempfile
 import os
 import time
 from data_splitting import get_bo_subset, get_current_splits
+from config import config
 
 logger = logging.getLogger(__name__)
 

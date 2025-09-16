@@ -1,0 +1,102 @@
+2025-09-16 03:46:36,919 - INFO - __main__ - Logging system initialized successfully
+2025-09-16 03:46:36,922 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'y.npy', 'X.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-16 03:46:36,922 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-16 03:46:36,922 - INFO - __main__ - Attempting to load: y.npy
+2025-09-16 03:46:36,923 - INFO - __main__ - Attempting to load: X.npy
+2025-09-16 03:46:37,234 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-16 03:46:37,548 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-16 03:46:37,548 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-16 03:46:37,549 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-16 03:46:37,561 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-16 03:46:37,561 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-16 03:46:37,562 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-16 03:46:37,563 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-16 03:46:37,563 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-16 03:46:37,563 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-16 03:46:37,563 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-16 03:46:37,563 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-16 03:46:37,564 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-16 03:46:38,223 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-16 03:46:38,224 - INFO - class_balancing - Class imbalance analysis:
+2025-09-16 03:46:38,224 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-16 03:46:38,224 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-16 03:46:38,224 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-16 03:46:38,224 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-16 03:46:38,225 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-16 03:46:38,225 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-16 03:46:38,226 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-16 03:46:38,226 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-16 03:46:39,553 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-16 03:46:39,555 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-16 03:46:39,556 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-16 03:46:39,556 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-16 03:46:39,556 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-16 03:46:39,556 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-16 03:46:39,556 - INFO - _models.ai_code_generator - Conducting literature review before code generation...
+2025-09-16 03:48:32,266 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-16 03:48:32,499 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-16 03:48:32,500 - INFO - _models.ai_code_generator - Prompt length: 8582 characters
+2025-09-16 03:48:32,500 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-16 03:48:32,500 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-16 03:48:32,500 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-16 03:48:32,500 - INFO - _models.ai_code_generator - Input prompt preview: Generate PyTorch training function for 5-class classification.
+
+Data: torch_tensor, shape (1000, 2), 62352 samples
+
+Dataset: MIT-BIH Arrhythmia Database
+Source: https://physionet.org/content/mitdb/1.0...
+2025-09-16 03:50:43,473 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-16 03:50:43,528 - INFO - _models.ai_code_generator - Successfully extracted response content
+2025-09-16 03:50:43,529 - INFO - _models.ai_code_generator - AI generated training function: LightSE1D-CNN-(OptionalTransformer)
+2025-09-16 03:50:43,529 - INFO - _models.ai_code_generator - Confidence: 0.87
+2025-09-16 03:50:43,529 - INFO - _models.ai_code_generator - Reasoning: Implements a lightweight multi-lead 1D CNN with Squeeze-and-Excitation blocks tailored for 1000x2 ECG inputs, aligning with recent literature showing strong results on MIT-BIH 5-class tasks. Two strided Conv-SE blocks reduce temporal length (1000 -> ~250) to keep compute low, followed by an optional compact Transformer encoder (batch_first, 1 layer, 2 heads by default) to capture global context without exceeding 256K parameters. A global average pooling and small MLP head produce 5-class logits. Class imbalance is mitigated using class-weighted CrossEntropy derived from the training label distribution, consistent with reports that S/F classes benefit from reweighting. The DataLoader sets pin_memory only when tensors are on CPU as required, and the function accepts and trains directly on PyTorch tensors.
+2025-09-16 03:50:43,529 - INFO - _models.ai_code_generator - Literature review informed code generation (confidence: 0.78)
+2025-09-16 03:50:43,530 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: LightSE1D-CNN-(OptionalTransformer)
+2025-09-16 03:50:43,530 - INFO - evaluation.code_generation_pipeline_orchestrator - Reasoning: Implements a lightweight multi-lead 1D CNN with Squeeze-and-Excitation blocks tailored for 1000x2 ECG inputs, aligning with recent literature showing strong results on MIT-BIH 5-class tasks. Two strided Conv-SE blocks reduce temporal length (1000 -> ~250) to keep compute low, followed by an optional compact Transformer encoder (batch_first, 1 layer, 2 heads by default) to capture global context without exceeding 256K parameters. A global average pooling and small MLP head produce 5-class logits. Class imbalance is mitigated using class-weighted CrossEntropy derived from the training label distribution, consistent with reports that S/F classes benefit from reweighting. The DataLoader sets pin_memory only when tensors are on CPU as required, and the function accepts and trains directly on PyTorch tensors.
+2025-09-16 03:50:43,530 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: [None, None, None, None, None]
+2025-09-16 03:50:43,530 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.87
+2025-09-16 03:50:43,530 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-16 03:50:43,531 - INFO - _models.ai_code_generator - Training function saved to: generated_training_functions/training_function_torch_tensor_LightSE1D-CNN-(OptionalTransformer)_1757994643.json
+2025-09-16 03:50:43,531 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions/training_function_torch_tensor_LightSE1D-CNN-(OptionalTransformer)_1757994643.json
+2025-09-16 03:50:43,539 - INFO - _models.training_function_executor - Training function validation passed
+2025-09-16 03:50:43,539 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-16 03:50:43,539 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: LightSE1D-CNN-(OptionalTransformer)
+2025-09-16 03:50:43,539 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 62352 samples (using full dataset)
+2025-09-16 03:50:43,539 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: [None, None, None, None, None]
+2025-09-16 03:50:43,540 - INFO - _models.training_function_executor - GPU available: NVIDIA H100 NVL
+2025-09-16 03:50:43,540 - INFO - _models.training_function_executor - Using centralized data splits for BO objective
+2025-09-16 03:50:44,201 - INFO - bo.run_bo - Using default search space
+2025-09-16 03:50:44,204 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-16 03:50:44,214 - INFO - bo.run_bo - Using default search space
+2025-09-16 03:50:44,216 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-16 03:50:44,220 - INFO - bo.run_bo - BO Trial 1: Initial random exploration
+2025-09-16 03:50:44,221 - INFO - bo.run_bo - [PROFILE] suggest() took 0.002s
+2025-09-16 03:50:44,221 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-16 03:50:44,221 - INFO - _models.training_function_executor - Executing training function: LightSE1D-CNN-(OptionalTransformer)
+2025-09-16 03:50:44,221 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.01535224694197351, 'epochs': 17, 'batch_size': 128, 'hidden_size': 204, 'dropout': 0.41779511056254093}
+2025-09-16 03:50:44,230 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.01535224694197351, 'epochs': 17, 'batch_size': 128, 'hidden_size': 204, 'dropout': 0.41779511056254093, 'embed_dim': 96, 'num_heads': 2}
+2025-09-16 03:54:26,607 - INFO - _models.training_function_executor - Training completed successfully: {'history': {'train_loss': [1.6525247158197374, 1.6106240337336646, 1.6178755221982526, 2.875555823206806, 1.6100624524409426, 1.610663553094902, 1.611468612526356, 1.6103953704321585, 1.610349936684132, 1.6101157419568746, 6.0596874558457205, 1.6116871844316925, 1.6109532232559864, 1.6104887267925687, 4.950009811182642, 1.6322665017609035, 1.6852026366193293], 'val_loss': [1.6106308553361506, 1.608464361909899, 1.6133591426904041, 1.6089187465115995, 1.7532024288196608, 2.853055935304127, 1.6093657950880869, 1.6089617215859409, 1.611242669730575, 1.6094615531013117, 1.6329248956249391, 1.693827205769127, 1.6097799122686005, 1.6092699824228331, 1.6091803573613368, 1.6088174083517968, 1.6103249372121171], 'val_acc': [0.1532524824142456, 0.7180514931678772, 0.025659015402197838, 0.7159466743469238, 0.08810263127088547, 0.03337676450610161, 0.08760148286819458, 0.7200561165809631, 0.019845644012093544, 0.7200561165809631, 0.1532524824142456, 0.7163475751876831, 0.08760148286819458, 0.08760148286819458, 0.08760148286819458, 0.08760148286819458, 0.7198556661605835], 'val_f1_macro': [0.053154874593019485, 0.16743235290050507, 0.019259676337242126, 0.16819502413272858, 0.03605997562408447, 0.021906962618231773, 0.03221822902560234, 0.1674494594335556, 0.007783784996718168, 0.1674494594335556, 0.053154874593019485, 0.16745823621749878, 0.03222120180726051, 0.03221822902560234, 0.03221822902560234, 0.03221822902560234, 0.167422354221344]}, 'final_val_acc': 0.7198556661605835, 'final_val_f1_macro': 0.167422354221344, 'params': 425924, 'model_name': 'LightSE1D-CNN-(OptionalTransformer)', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 0.01535224694197351, 'epochs': 17, 'batch_size': 128, 'hidden_size': 204, 'dropout': 0.41779511056254093, 'embed_dim': 96, 'num_heads': 2}}
+2025-09-16 03:54:26,608 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) took 222.387s
+2025-09-16 03:54:26,610 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-16 03:54:26,610 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.001s
+2025-09-16 03:54:26,610 - INFO - bo.run_bo - Recorded observation #1: hparams={'lr': 0.01535224694197351, 'epochs': np.int64(17), 'batch_size': 128, 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093}, value=0.0000
+2025-09-16 03:54:26,611 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'lr': 0.01535224694197351, 'epochs': np.int64(17), 'batch_size': 128, 'hidden_size': np.int64(204), 'dropout': 0.41779511056254093} -> 0.0000
+2025-09-16 03:54:26,614 - INFO - bo.run_bo - BO Trial 2: Initial random exploration
+2025-09-16 03:54:26,614 - INFO - bo.run_bo - [PROFILE] suggest() took 0.003s
+2025-09-16 03:54:26,614 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-16 03:54:26,614 - INFO - _models.training_function_executor - Executing training function: LightSE1D-CNN-(OptionalTransformer)
+2025-09-16 03:54:26,615 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0006071989493441302, 'epochs': 25, 'batch_size': 8, 'hidden_size': 103, 'dropout': 0.2335960277973153}
+2025-09-16 03:54:26,623 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0006071989493441302, 'epochs': 25, 'batch_size': 8, 'hidden_size': 103, 'dropout': 0.2335960277973153, 'embed_dim': 96, 'num_heads': 2}
+2025-09-16 04:40:29,716 - INFO - _models.training_function_executor - Training completed successfully: {'history': {'train_loss': [0.518362767810772, 0.3136316834843791, 0.25836842440064356, 0.23877949361315287, 0.20892512214002376, 0.200233020955134, 0.18185078632091328, 0.17277232036604467, 0.16328735081074444, 0.16617121159277567, 0.1526516429863308, 0.15096661853321994, 0.1431859432348515, 0.13871082662925865, 0.13081559315669045, 0.13359698663812258, 0.1280508094634173, 0.12385925123637503, 0.11709031186937492, 0.12001059600456578, 0.1172190798569436, 0.11252448950397924, 0.10770258638121993, 0.10807616440328786, 0.11030431776916834], 'val_loss': [0.3119575286970563, 0.3222984767727008, 0.2573296532612785, 0.20918499921528008, 0.2023723170532208, 0.21117129611434646, 0.22822811751096714, 0.2792690356377813, 0.2921110847630865, 0.25799756790638323, 0.16920364713649202, 0.17747372707530312, 0.16880572152173134, 0.18878055617090964, 0.2125164140771125, 0.14975883215788327, 0.1522130597256128, 0.15595018873952102, 0.16619604702479354, 0.3332526739328077, 0.16164695192203224, 0.15628391285032175, 0.15530747580095255, 0.17227952149093456, 0.16733815459515425], 'val_acc': [0.8975644111633301, 0.937055230140686, 0.8977648615837097, 0.9222211241722107, 0.9111957550048828, 0.9543951153755188, 0.9516888856887817, 0.9721359014511108, 0.9527913928031921, 0.9048812389373779, 0.9592061638832092, 0.9313420653343201, 0.9455748200416565, 0.9467775821685791, 0.9682269096374512, 0.9613109827041626, 0.9763455986976624, 0.9732384085655212, 0.9676254987716675, 0.864388108253479, 0.9598075151443481, 0.9545955657958984, 0.9633156061172485, 0.9507867693901062, 0.9528916478157043], 'val_f1_macro': [0.7510247230529785, 0.7973975539207458, 0.7635707855224609, 0.8048037886619568, 0.7733174562454224, 0.8490808606147766, 0.8303771018981934, 0.882817268371582, 0.8186955451965332, 0.7539255023002625, 0.8604837656021118, 0.8139449954032898, 0.8258072733879089, 0.8287456631660461, 0.8805095553398132, 0.8573481440544128, 0.9062201380729675, 0.895543098449707, 0.8851456046104431, 0.7253956198692322, 0.8631518483161926, 0.8390001654624939, 0.8673654794692993, 0.838657796382904, 0.8434592485427856]}, 'final_val_acc': 0.9528916478157043, 'final_val_f1_macro': 0.8434592485427856, 'params': 376636, 'model_name': 'LightSE1D-CNN-(OptionalTransformer)', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 0.0006071989493441302, 'epochs': 25, 'batch_size': 8, 'hidden_size': 103, 'dropout': 0.2335960277973153, 'embed_dim': 96, 'num_heads': 2}}
+2025-09-16 04:40:29,717 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) took 2763.102s
+2025-09-16 04:40:29,719 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-16 04:40:29,719 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.001s
+2025-09-16 04:40:29,719 - INFO - bo.run_bo - Recorded observation #2: hparams={'lr': 0.0006071989493441302, 'epochs': np.int64(25), 'batch_size': 8, 'hidden_size': np.int64(103), 'dropout': 0.2335960277973153}, value=0.0000
+2025-09-16 04:40:29,719 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 2: {'lr': 0.0006071989493441302, 'epochs': np.int64(25), 'batch_size': 8, 'hidden_size': np.int64(103), 'dropout': 0.2335960277973153} -> 0.0000
+2025-09-16 04:40:29,722 - INFO - bo.run_bo - BO Trial 3: Initial random exploration
+2025-09-16 04:40:29,722 - INFO - bo.run_bo - [PROFILE] suggest() took 0.003s
+2025-09-16 04:40:29,723 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-16 04:40:29,723 - INFO - _models.training_function_executor - Executing training function: LightSE1D-CNN-(OptionalTransformer)
+2025-09-16 04:40:29,723 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 3.727925903376984e-05, 'epochs': 5, 'batch_size': 8, 'hidden_size': 273, 'dropout': 0.5053991405867774}
+2025-09-16 04:40:29,731 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 3.727925903376984e-05, 'epochs': 5, 'batch_size': 8, 'hidden_size': 273, 'dropout': 0.5053991405867774, 'embed_dim': 96, 'num_heads': 2}

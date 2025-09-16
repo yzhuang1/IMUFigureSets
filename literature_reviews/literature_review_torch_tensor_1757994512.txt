@@ -1,0 +1,66 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-16 03:48:32
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "torch_tensor",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+Problem focus: beat-level multiclass arrhythmia classification on MIT‑BIH (2‑lead ECG, sequence input e.g., 1000×2 tensor) with 5 classes following AAMI EC57 superclasses (N, S, V, F, Q). We searched 2023–2025 literature emphasizing methods with MIT‑BIH results, inter‑patient evaluation when available, and practical PyTorch implementability. Key recent directions coalesce around three families: (1) lightweight 1D CNNs with attention; (2) compact Transformers adapted to 1D signals; (3) hybrid CNN‑Transformer pipelines; with a growing line of state‑space/Mamba models. 
+
+Strong recent baselines on MIT‑BIH 5‑class: 
+- Lightweight multi‑lead CNN + channel attention (SE). A 2025 Sensors paper proposes a simple 1D CNN with channel attention that natively supports 2‑lead and 12‑lead ECG, reporting 99.18% accuracy and 99.18% F1 on MIT‑BIH; it explicitly targets multi‑lead inputs, aligning with a (T,2) tensor and emphasizing efficiency. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542)) 
+- CAT‑Net (CNN + attention + Transformer encoder). In Biomedical Signal Processing and Control (2024), CAT‑Net addresses minority‑class imbalance via SMOTE‑Tomek and achieves 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class; code is available, easing PyTorch re‑implementation. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai)) 
+- Tiny ECG Transformer for embedded MCUs. A 2024 work demonstrates a 6k‑parameter Transformer reaching 98.97% accuracy on MIT‑BIH 5‑class with 8‑bit inference; measured latency is 4.28 ms and 0.09 mJ on GAP9, making it exceptionally deployable while retaining competitive accuracy. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai)) 
+- Swin‑Transformer on CWT time‑frequency maps. A 2024 Frontiers study reaches 99.34% (intra‑patient) and 98.37% (inter‑patient) accuracy on MIT‑BIH by converting beats to wavelet time‑frequency images and training a hierarchical Transformer, highlighting strong generalization under inter‑patient protocols. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full)) 
+
+Other notable signals: (i) Dual‑attention hybrid networks report very high inter‑patient accuracy (e.g., 99.98%), though such numbers may reflect particular segmentation/split choices and warrant careful replication; still, they underline the efficacy of joint local‑global attention. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/37116424/)) (ii) Emerging Mamba/SSM‑based ECG models (e.g., MambaCapsule) claim >99% accuracy and improved explainability, suggesting a promising efficiency–context trade‑off, but MIT‑BIH beat‑class protocols vary across works. ([arxiv.org](https://arxiv.org/abs/2407.20893?utm_source=openai)) 
+
+Surveys/meta‑analyses from 2023–2024 concur that: (a) inter‑patient evaluation is critical to avoid patient‑overlap leakage; (b) CNNs with attention and compact Transformers are currently the best accuracy–efficiency frontier; and (c) addressing class imbalance (especially S and F) via sampling, focal/class‑balanced loss, or auxiliary RR‑interval features materially boosts macro‑F1. ([mdpi.com](https://www.mdpi.com/2076-3417/13/8/4964?utm_source=openai)) 
+
+Computational considerations: 
+- Tiny Transformer (6k params, int8) offers the clearest resource profile for near‑real‑time or edge deployment. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai)) 
+- CNN+SE multi‑lead model is intentionally lightweight (1D conv blocks + SE); while exact FLOPs aren’t detailed, it’s simpler than image‑transformer pipelines and natively handles 2‑lead inputs, lowering pre/post‑processing overhead. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542)) 
+- Swin/CWT adds a spectrogram step and larger model; accuracy is strong, but compute/memory are higher than 1D CNN/Transformer variants. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full)) 
+
+Implementation guidance (PyTorch): for a 1000×2 input, strong practice is a 1D conv stem over time with channels=2, followed by either (a) a compact Transformer encoder block with 1D positional encoding; or (b) a pure CNN+SE stack. Use inter‑patient DS1/DS2 splits to match common MIT‑BIH protocols; mitigate class imbalance with focal or class‑balanced loss and/or SMOTE‑Tomek at the beat level when training per‑beat classifiers. ([github.com](https://github.com/mondejar/ecg-classification?utm_source=openai))
+
+KEY FINDINGS:
+1. Multi‑lead capable 1D CNN + SE attention achieves state‑of‑the‑art MIT‑BIH 5‑class performance while staying lightweight (Accuracy 99.18%, F1 99.18%) and directly supports 2‑lead inputs, matching a (T,2) tensor. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542))
+2. A 6k‑parameter Tiny Transformer reaches 98.97% accuracy on MIT‑BIH 5‑class with int8 inference and measured 4.28 ms / 0.09 mJ per inference on GAP9, evidencing an excellent accuracy–efficiency balance for sequence ECG. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+3. CNN–Transformer hybrids (CAT‑Net) improve minority‑class performance via attention and SMOTE‑Tomek, reporting 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class; open code facilitates PyTorch replication. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. Adopt a Lightweight 1D CNN + SE (channel attention) architecture tailored for two‑lead inputs: 3–5 temporal conv blocks (kernel 7–15) with residual shortcuts, SE after each block, global average pooling, and a small MLP head (softmax over 5 AAMI classes). Justification: directly matches (1000,2) sequences and multi‑lead use; reported 99.18% Acc/99.18% F1 on MIT‑BIH; simpler and more computationally efficient than image‑transformer pipelines while retaining top‑tier accuracy. If further global context is needed, append a single compact Transformer encoder (2–4 heads) after the conv stem. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542))
+
+RECENT PAPERS:
+- Lightweight Deep Learning Architecture for Multi‑Lead ECG Arrhythmia Detection (Sensors, 2025): Introduces a simple 1D CNN + SE attention that natively supports 2‑lead/12‑lead inputs; on MIT‑BIH reports 99.18% accuracy and 99.18% F1, offering a strong accuracy–efficiency option for multi‑lead sequences.
+- CAT‑Net: Convolution, Attention, and Transformer based Network for Single‑lead ECG Arrhythmia Classification (Elsevier, 2024): Hybrid CNN–Transformer with class imbalance handling (SMOTE‑Tomek); achieves 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class; code available for reproduction/transfer to PyTorch.
+- A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (arXiv, 2024): Compact Transformer (≈6k params) with int8 inference; 98.97% accuracy on MIT‑BIH 5‑class; 4.28 ms and 0.09 mJ per inference on GAP9; strong for edge deployment.
+- A novel method of Swin Transformer with time‑frequency characteristics for ECG‑based arrhythmia detection (Frontiers, 2024): CWT spectrogram + Swin Transformer; reports 99.34% intra‑patient and 98.37% inter‑patient accuracy on MIT‑BIH, highlighting robust generalization under inter‑patient splits.
+- Automated inter‑patient arrhythmia classification with dual attention neural network (CMiPB, 2023): Dual attention hybrid (local + global) reporting 99.98% 5‑class inter‑patient accuracy on MIT‑BIH; demonstrates the potential of attention‑centric designs (requires careful replication).
+
+==================================================

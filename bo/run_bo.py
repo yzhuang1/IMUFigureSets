@@ -147,8 +147,8 @@ class BayesianOptimizer:
                 constrained['d_model'] = new_d_model
         
         # Constraint 3: hidden_size must be divisible by num_heads (for some attention models)
-        if 'hidden_size' in constrained and 'num_heads' in constrained and 'embed_dim' not in constrained and 'd_model' not in constrained:
-            # Only apply this if embed_dim and d_model are not present (to avoid double-fixing)
+        if 'hidden_size' in constrained and 'num_heads' in constrained:
+            # Apply this constraint regardless of other parameters being present
             hidden_size = int(constrained['hidden_size'])
             num_heads = int(constrained['num_heads'])
             
@@ -163,7 +163,7 @@ class BayesianOptimizer:
             constraint_params.append('embed_dim/num_heads')
         if 'd_model' in constrained and 'num_heads' in constrained:
             constraint_params.append('d_model/num_heads')
-        if 'hidden_size' in constrained and 'num_heads' in constrained and 'embed_dim' not in constrained and 'd_model' not in constrained:
+        if 'hidden_size' in constrained and 'num_heads' in constrained:
             constraint_params.append('hidden_size/num_heads')
         
         if constraint_params:

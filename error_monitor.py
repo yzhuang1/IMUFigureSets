@@ -37,7 +37,14 @@ class ErrorTerminator:
             "pipeline error", "compression failed", "❌ compression failed",
             "failed to load", "could not load", "not found", "❌ pipeline error",
             "critical error detected", "terminating program", "🚨",
-            "error monitoring", "monitoring activated", "terminate on"
+            "error monitoring", "monitoring activated", "terminate on",
+            
+            # Training errors that should trigger retry cycles, not termination
+            "training execution failed", "hidden_size must be divisible", 
+            "training function generation attempt", "debug attempt", 
+            "bo training objective failed", "model architecture validation failed",
+            "hyperparameter constraint", "divisible by nheads", "divisible by num_heads",
+            "failed to parse", "generation attempt", "regenerating code"
         ]
         self.ignore_patterns = [p.lower() for p in (ignore_patterns or [])] + default_ignore_patterns
         self.original_stdout = sys.stdout
@@ -203,6 +210,20 @@ def is_error_monitoring_active() -> bool:
     """Check if error monitoring is currently active"""
     global _global_terminator
     return _global_terminator is not None and _global_terminator.is_monitoring
+
+def temporarily_disable_error_monitoring():
+    """Temporarily disable error monitoring (for debug cycles)"""
+    global _global_terminator
+    if _global_terminator:
+        _global_terminator.terminate_on_error = False
+        print("🔧 Error monitoring temporarily disabled for debug cycles")
+
+def re_enable_error_monitoring():
+    """Re-enable error monitoring after debug cycles"""
+    global _global_terminator
+    if _global_terminator:
+        _global_terminator.terminate_on_error = True
+        print("🔍 Error monitoring re-enabled after debug cycles")
 
 # Convenience function for enabling with common patterns
 def enable_strict_error_monitoring():

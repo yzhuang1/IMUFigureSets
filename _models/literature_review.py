@@ -129,42 +129,52 @@ class LiteratureReviewGenerator:
         Source: {config.dataset_source}"""
         
         research_prompt = f"""
-        Conduct a comprehensive literature review for a machine learning classification problem with the following characteristics:
-
+        SYSTEMATIC LITERATURE REVIEW TASK:
+        
+        STEP 1 - PROBLEM ANALYSIS:
         Data Type: {data_profile.get('data_type', 'unknown')}
         Input Shape: {input_shape}
         Number of Classes: {num_classes}
         Number of Samples: {data_profile.get('num_samples', 'unknown')}
         Is Sequence Data: {data_profile.get('is_sequence', False)}{dataset_context}
-
-        Please provide a structured literature review including:
-
-        1. RECENT DEVELOPMENTS (2023-2025):
-           - Latest state-of-the-art methods for this type of problem
-           - Recent breakthrough papers and their key contributions
-           - Emerging architectures and techniques
-
-        2. RECOMMENDED APPROACHES:
-           - Top 3-5 most effective methods for this specific problem type
-           - Rationale for why these approaches work well
-           - Typical hyperparameter ranges and architecture choices
-
-        3. KEY FINDINGS:
-           - Best practices for this type of data and problem size
-           - Common pitfalls to avoid
-           - Performance benchmarks and expected accuracy ranges
-
-        4. IMPLEMENTATION CONSIDERATIONS:
-           - PyTorch-specific implementation tips
-           - Memory and computational requirements
-           - Regularization and optimization strategies
-
-        Format your response as structured JSON with the following fields:
-        - review_text: comprehensive review (2-3 paragraphs)
-        - key_findings: list of 5-7 key findings
-        - recommended_approaches: list of 3-5 recommended methods with brief descriptions
-        - recent_papers: list of recent relevant papers with titles and key contributions
-        - confidence: confidence score (0.0-1.0)
+        
+        STEP 2 - RESEARCH METHODOLOGY:
+        1. Search for state-of-the-art papers specifically addressing this problem type
+        2. Focus on papers with similar data characteristics (shape, size, domain)
+        3. Prioritize papers with empirical results and benchmark comparisons
+        4. Look for recent surveys or meta-analyses in this domain
+        
+        STEP 3 - INFORMATION EXTRACTION:
+        For each relevant paper, extract:
+        - Model architecture details
+        - Performance metrics on similar datasets
+        - Key innovations or techniques
+        - Computational requirements
+        
+        STEP 4 - SYNTHESIS AND RECOMMENDATION:
+        Based on the research, provide ONE BEST model recommendation that:
+        - Matches the data characteristics
+        - Has proven performance on similar problems
+        - Is implementable in PyTorch
+        - Balances accuracy with computational efficiency
+        
+        REQUIRED OUTPUT FORMAT (JSON):
+        {{
+            "review_text": "Comprehensive summary of research findings with specific paper citations and performance metrics",
+            "key_findings": [
+                "Specific finding with paper reference and metrics",
+                "Another key insight with quantitative evidence",
+                "Third finding with architectural details"
+            ],
+            "recommended_approaches": ["ONE specific model architecture with justification"],
+            "recent_papers": [
+                {{"title": "Paper Title", "contribution": "Specific contribution and results"}},
+                {{"title": "Paper Title 2", "contribution": "Key innovation and performance"}}
+            ],
+            "confidence": 0.0-1.0
+        }}
+        
+        FOCUS: Provide specific, actionable recommendations with quantitative evidence from recent literature.
         """
 
         # Get literature review from GPT-5 with web search
@@ -292,8 +302,8 @@ KEY FINDINGS:
         if review.recent_papers:
             review_content += f"\nRECENT PAPERS:\n"
             for paper in review.recent_papers:
-                title = str(paper.get('title', 'Unknown title')) if paper.get('title') else 'Unknown title'
-                contribution = str(paper.get('contribution', 'No description')) if paper.get('contribution') else 'No description'
+                title = paper.get('title', 'Unknown title') if isinstance(paper, dict) else 'Unknown title'
+                contribution = paper.get('contribution', 'No description') if isinstance(paper, dict) else 'No description'
                 review_content += f"- {title}: {contribution}\n"
 
         review_content += f"\n" + "="*50 + "\n"

@@ -400,9 +400,17 @@ class UniversalConverter:
         converter = self.converters.get(data_type)
         if converter is None:
             # Try universal conversion
-            return self._convert_numpy(data, labels, **kwargs)
+            dataset, collate_fn, updated_profile = self._convert_numpy(data, labels, **kwargs)
+        else:
+            dataset, collate_fn, updated_profile = converter(data, labels, **kwargs)
         
-        return converter(data, labels, **kwargs)
+        # Update data_type to reflect conversion to PyTorch tensors
+        original_type = updated_profile.data_type
+        updated_profile.data_type = "torch_tensor"
+        
+        logger.info(f"Data conversion: {original_type} -> torch_tensor")
+        
+        return dataset, collate_fn, updated_profile
 
 # Global converter instance
 universal_converter = UniversalConverter()

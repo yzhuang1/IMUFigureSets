@@ -12,8 +12,8 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from models.ai_code_generator import generate_training_code_for_data, ai_code_generator
-from models.training_function_executor import training_executor, BO_TrainingObjective
+from _models.ai_code_generator import generate_training_code_for_data, ai_code_generator
+from _models.training_function_executor import training_executor, BO_TrainingObjective
 from evaluation.evaluate import evaluate_model
 from visualization import generate_bo_charts, create_charts_folder
 from config import config
@@ -72,29 +72,24 @@ class CodeGenerationPipelineOrchestrator:
         
         # STEP 1: AI Code Generation
         logger.info("🤖 STEP 1: AI Training Code Generation")
-        print("\n🤖 AI Code Generation")
         code_rec = self._generate_training_code(input_shape, num_classes)
         
         # STEP 2: Save to JSON
         logger.info("💾 STEP 2: Save Training Function to JSON")
-        print("💾 Saving Function")
         json_filepath = self._save_training_function(code_rec)
         
         # STEP 3: Bayesian Optimization
         logger.info("🔍 STEP 3: Bayesian Optimization")
-        print("🔍 Bayesian Optimization")
         bo_results = self._run_bayesian_optimization(X, y, device, code_rec)
         
         # STEP 4: Final Training with Optimized Parameters
         logger.info("🚀 STEP 4: Final Training Execution")
-        print("🚀 Final Training")
         final_model, training_results = self._execute_final_training(
             X, y, device, json_filepath, bo_results
         )
         
         # STEP 5: Performance Analysis
         logger.info("📊 STEP 5: Performance Analysis")
-        print("📊 Performance Analysis")
         performance_score = training_results['final_metrics']['macro_f1']
         
         # Record single attempt
@@ -119,11 +114,6 @@ class CodeGenerationPipelineOrchestrator:
         training_results['pipeline_history'] = self.pipeline_history
         training_results['total_attempts'] = 1
         training_results['successful_attempts'] = 1
-        
-        # Clean completion message
-        print(f"\n🎉 CODE GENERATION PIPELINE COMPLETE!")
-        print(f"📊 Model: {training_results.get('model_name', 'Unknown')}")
-        print(f"🏆 Score: {performance_score:.4f}")
         
         # Also log for records
         logger.info(f"CODE GENERATION PIPELINE COMPLETE!")
@@ -244,7 +234,7 @@ class CodeGenerationPipelineOrchestrator:
             
             # Show trial progress when progress bars are disabled (every 3rd trial to reduce noise)
             if disable_progress and (trial + 1) % 3 == 0:
-                print(f"  BO Trial {trial + 1}/{config.max_bo_trials}: {hparams}")
+                print(f"🔍 BO Trial {trial + 1}/{config.max_bo_trials}: {hparams}")
             
             value, metrics = objective_func(hparams)
             results.append({

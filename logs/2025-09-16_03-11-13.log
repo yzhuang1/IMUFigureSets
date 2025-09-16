@@ -1,0 +1,49 @@
+2025-09-16 03:11:13,593 - INFO - __main__ - Logging system initialized successfully
+2025-09-16 03:11:13,595 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'y.npy', 'X.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-16 03:11:13,595 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-16 03:11:13,595 - INFO - __main__ - Attempting to load: y.npy
+2025-09-16 03:11:13,597 - INFO - __main__ - Attempting to load: X.npy
+2025-09-16 03:11:13,897 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-16 03:11:14,193 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-16 03:11:14,193 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-16 03:11:14,193 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-16 03:11:14,206 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-16 03:11:14,206 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-16 03:11:14,207 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-16 03:11:14,207 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-16 03:11:14,207 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-16 03:11:14,207 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-16 03:11:14,208 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-16 03:11:14,208 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-16 03:11:14,209 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-16 03:11:14,852 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-16 03:11:14,853 - INFO - class_balancing - Class imbalance analysis:
+2025-09-16 03:11:14,853 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-16 03:11:14,853 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-16 03:11:14,853 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-16 03:11:14,853 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-16 03:11:14,854 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-16 03:11:14,854 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-16 03:11:14,855 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-16 03:11:14,855 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-16 03:11:16,148 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-16 03:11:16,150 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-16 03:11:16,151 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-16 03:11:16,151 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-16 03:11:16,151 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-16 03:11:16,151 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-16 03:11:16,151 - INFO - models.ai_code_generator - Conducting literature review before code generation...
+2025-09-16 03:12:35,199 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-16 03:12:35,388 - WARNING - models.ai_code_generator - Literature review failed: 'str' object has no attribute 'get', proceeding without it
+2025-09-16 03:12:35,388 - INFO - models.ai_code_generator - Making API call to gpt-5
+2025-09-16 03:12:35,389 - INFO - models.ai_code_generator - Prompt length: 2325 characters
+2025-09-16 03:12:35,389 - INFO - models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-16 03:12:35,389 - INFO - models.ai_code_generator - Calling self.client.responses.create...
+2025-09-16 03:12:35,389 - INFO - models.ai_code_generator - Model parameter: gpt-5
+2025-09-16 03:12:35,389 - INFO - models.ai_code_generator - Input prompt preview: Generate PyTorch training function for 5-class classification.
+
+Data: torch_tensor, shape (1000, 2), 62352 samples
+
+Dataset: MIT-BIH Arrhythmia Database
+Source: https://physionet.org/content/mitdb/1.0...
