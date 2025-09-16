@@ -124,27 +124,19 @@ Response JSON format:
                 input=prompt
             )
             
-            logger.info("API call completed successfully")
-            logger.info(f"Response type: {type(response)}")
-            logger.info(f"Response attributes: {dir(response)}")
             
             # Extract the output text
             if hasattr(response, 'output_text'):
-                logger.info("Using response.output_text")
                 result = response.output_text
             elif hasattr(response, 'choices') and len(response.choices) > 0:
-                logger.info("Using response.choices[0].message.content")
                 result = response.choices[0].message.content
             elif hasattr(response, 'text'):
-                logger.info("Using response.text")
                 result = response.text
             else:
                 logger.warning("Unexpected response format, trying to extract content")
                 logger.warning(f"Response object: {response}")
                 result = str(response)
             
-            logger.info(f"Extracted result length: {len(result) if result else 0} characters")
-            logger.info(f"Result preview: {result[:200] if result else 'None'}...")
             
             if result:
                 logger.info("Successfully extracted response content")

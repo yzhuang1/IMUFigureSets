@@ -25,17 +25,12 @@ logger = logging.getLogger(__name__)
 class CodeGenerationPipelineOrchestrator:
     """Orchestrates ML pipeline with AI-generated training functions"""
     
-    def __init__(self, data_profile: Dict[str, Any], max_model_attempts: Optional[int] = None):
+    def __init__(self, data_profile: Dict[str, Any]):
         self.data_profile = data_profile
-        self.max_model_attempts = max_model_attempts or config.max_model_selection_attempts
         self.generated_functions = []
         self.pipeline_history = []
         
-        # Performance thresholds
-        self.min_acceptable_f1 = 0.3
-        self.min_acceptable_accuracy = 0.4
-        
-        logger.info(f"Code generation pipeline orchestrator initialized with max {self.max_model_attempts} attempts")
+        logger.info("Code generation pipeline orchestrator initialized (no retry logic)")
     
     def run_complete_pipeline(
         self,
@@ -46,7 +41,7 @@ class CodeGenerationPipelineOrchestrator:
         **kwargs
     ) -> Tuple[torch.nn.Module, Dict[str, Any]]:
         """
-        Run complete pipeline with AI code generation
+        Run complete pipeline with AI code generation (single attempt, fail fast)
         
         Flow: Code Generation → Save to JSON → BO → Execute Training → Evaluation
         
@@ -58,9 +53,9 @@ class CodeGenerationPipelineOrchestrator:
             **kwargs: Additional parameters
             
         Returns:
-            Tuple[model, results]: Best model and pipeline results
+            Tuple[model, results]: Model and pipeline results
         """
-        logger.info("Starting code generation pipeline execution")
+        logger.info("Starting code generation pipeline execution (single attempt, fail fast)")
         logger.info("Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation")
         
         # Create consistent data splits at the beginning
@@ -71,157 +66,77 @@ class CodeGenerationPipelineOrchestrator:
         std_stats = compute_standardization_stats()
         logger.info("Computed standardization statistics from training data only")
         
-        best_model = None
-        best_results = None
-        best_score = -float('inf')
+        logger.info(f"\n{'='*60}")
+        logger.info(f"PIPELINE EXECUTION (SINGLE ATTEMPT)")
+        logger.info(f"{'='*60}")
         
-        # Check if we should disable progress bars due to verbose logging
-        logger_level = logging.getLogger().getEffectiveLevel()
-        disable_progress = logger_level <= logging.INFO
+        # STEP 1: AI Code Generation
+        logger.info("🤖 STEP 1: AI Training Code Generation")
+        print("\n🤖 AI Code Generation")
+        code_rec = self._generate_training_code(input_shape, num_classes)
         
-        # Progress bar for pipeline attempts
-        pipeline_pbar = tqdm(range(self.max_model_attempts), 
-                            desc="🚀 ML Pipeline", 
-                            unit="attempt",
-                            position=0,
-                            leave=True,
-                            disable=disable_progress,
-                            file=sys.stdout,
-                            dynamic_ncols=True,
-                            ascii=True)
+        # STEP 2: Save to JSON
+        logger.info("💾 STEP 2: Save Training Function to JSON")
+        print("💾 Saving Function")
+        json_filepath = self._save_training_function(code_rec)
         
-        for attempt in pipeline_pbar:
-            logger.info(f"\n{'='*60}")
-            logger.info(f"PIPELINE ATTEMPT {attempt + 1}/{self.max_model_attempts}")
-            logger.info(f"{'='*60}")
-            
-            try:
-                # STEP 1: AI Code Generation
-                if disable_progress:
-                    print(f"\n🤖 AI Code Generation [{attempt + 1}/{self.max_model_attempts}]")
-                else:
-                    pipeline_pbar.set_description(f"🤖 AI Code Generation [{attempt + 1}/{self.max_model_attempts}]")
-                logger.info("🤖 STEP 1: AI Training Code Generation")
-                code_rec = self._generate_training_code(input_shape, num_classes)
-                
-                # STEP 2: Save to JSON
-                if disable_progress:
-                    print(f"💾 Saving Function [{attempt + 1}/{self.max_model_attempts}]")
-                else:
-                    pipeline_pbar.set_description(f"💾 Saving Function [{attempt + 1}/{self.max_model_attempts}]")
-                logger.info("💾 STEP 2: Save Training Function to JSON")
-                json_filepath = self._save_training_function(code_rec)
-                
-                # STEP 3: Bayesian Optimization
-                if disable_progress:
-                    print(f"🔍 Bayesian Optimization [{attempt + 1}/{self.max_model_attempts}]")
-                else:
-                    pipeline_pbar.set_description(f"🔍 Bayesian Optimization [{attempt + 1}/{self.max_model_attempts}]")
-                logger.info("🔍 STEP 3: Bayesian Optimization")
-                bo_results = self._run_bayesian_optimization(X, y, device, code_rec)
-                
-                # STEP 4: Final Training with Optimized Parameters
-                pipeline_pbar.set_description(f"🚀 Final Training [{attempt + 1}/{self.max_model_attempts}]")
-                logger.info("🚀 STEP 4: Final Training Execution")
-                final_model, training_results = self._execute_final_training(
-                    X, y, device, json_filepath, bo_results
-                )
-                
-                # STEP 5: Performance Analysis
-                if disable_progress:
-                    print(f"📊 Performance Analysis [{attempt + 1}/{self.max_model_attempts}]")
-                else:
-                    pipeline_pbar.set_description(f"📊 Performance Analysis [{attempt + 1}/{self.max_model_attempts}]")
-                logger.info("📊 STEP 5: Performance Analysis")
-                performance_score = training_results['final_metrics']['macro_f1']
-                is_acceptable = self._is_performance_acceptable(training_results['final_metrics'])
-                
-                # Record attempt
-                attempt_record = {
-                    'attempt': attempt + 1,
-                    'model_name': code_rec.model_name,
-                    'json_filepath': json_filepath,
-                    'bo_best_params': bo_results['best_params'],
-                    'bo_best_score': bo_results['best_value'],
-                    'final_metrics': training_results['final_metrics'],
-                    'performance_score': performance_score,
-                    'acceptable': is_acceptable,
-                    'reasoning': code_rec.reasoning,
-                    'confidence': code_rec.confidence
-                }
-                self.pipeline_history.append(attempt_record)
-                
-                logger.info(f"Generated Model: {code_rec.model_name}")
-                logger.info(f"BO Score: {bo_results['best_value']:.4f}")
-                logger.info(f"Final Score: {performance_score:.4f}")
-                logger.info(f"Acceptable: {is_acceptable}")
-                
-                # Update best if this is better
-                if performance_score > best_score:
-                    best_model = final_model
-                    best_results = training_results
-                    best_score = performance_score
-                    logger.info(f"🏆 New best model: {code_rec.model_name} (score: {performance_score:.4f})")
-                
-                # STEP 6: Decision - Accept or Continue
-                if is_acceptable:
-                    logger.info("✅ Model performance is acceptable! Stopping pipeline.")
-                    logger.info(f"Final model: {code_rec.model_name}")
-                    logger.info(f"Final metrics: {dict(training_results['final_metrics']) if training_results['final_metrics'] else 'None'}")
-                    break
-                else:
-                    logger.info("❌ Model performance below threshold. Generating new training function...")
-                    if attempt < self.max_model_attempts - 1:
-                        logger.info(f"Will generate new training function for attempt {attempt + 2}")
-                    
-            except Exception as e:
-                logger.error(f"Pipeline attempt {attempt + 1} failed: {e}")
-                attempt_record = {
-                    'attempt': attempt + 1,
-                    'model_name': f"failed_attempt_{attempt + 1}",
-                    'error': str(e),
-                    'acceptable': False,
-                    'performance_score': 0.0
-                }
-                self.pipeline_history.append(attempt_record)
-                continue
+        # STEP 3: Bayesian Optimization
+        logger.info("🔍 STEP 3: Bayesian Optimization")
+        print("🔍 Bayesian Optimization")
+        bo_results = self._run_bayesian_optimization(X, y, device, code_rec)
         
-        # Close pipeline progress bar
-        pipeline_pbar.close()
+        # STEP 4: Final Training with Optimized Parameters
+        logger.info("🚀 STEP 4: Final Training Execution")
+        print("🚀 Final Training")
+        final_model, training_results = self._execute_final_training(
+            X, y, device, json_filepath, bo_results
+        )
         
-        if best_model is None:
-            raise RuntimeError("Pipeline failed: No successful code generation after all attempts")
+        # STEP 5: Performance Analysis
+        logger.info("📊 STEP 5: Performance Analysis")
+        print("📊 Performance Analysis")
+        performance_score = training_results['final_metrics']['macro_f1']
+        
+        # Record single attempt
+        attempt_record = {
+            'attempt': 1,
+            'model_name': code_rec.model_name,
+            'json_filepath': json_filepath,
+            'bo_best_params': bo_results['best_params'],
+            'bo_best_score': bo_results['best_value'],
+            'final_metrics': training_results['final_metrics'],
+            'performance_score': performance_score,
+            'reasoning': code_rec.reasoning,
+            'confidence': code_rec.confidence
+        }
+        self.pipeline_history.append(attempt_record)
+        
+        logger.info(f"Generated Model: {code_rec.model_name}")
+        logger.info(f"BO Score: {bo_results['best_value']:.4f}")
+        logger.info(f"Final Score: {performance_score:.4f}")
         
         # Enhance results with pipeline history
-        best_results['pipeline_history'] = self.pipeline_history
-        best_results['total_attempts'] = len(self.pipeline_history)
-        best_results['successful_attempts'] = len([a for a in self.pipeline_history if a.get('acceptable', False)])
+        training_results['pipeline_history'] = self.pipeline_history
+        training_results['total_attempts'] = 1
+        training_results['successful_attempts'] = 1
         
         # Clean completion message
         print(f"\n🎉 CODE GENERATION PIPELINE COMPLETE!")
-        print(f"📊 Best model: {best_results.get('model_name', 'Unknown')}")
-        print(f"🏆 Best score: {best_score:.4f}")
-        print(f"🔄 Total attempts: {len(self.pipeline_history)}")
+        print(f"📊 Model: {training_results.get('model_name', 'Unknown')}")
+        print(f"🏆 Score: {performance_score:.4f}")
         
         # Also log for records
         logger.info(f"CODE GENERATION PIPELINE COMPLETE!")
-        logger.info(f"Best model: {best_results.get('model_name', 'Unknown')}")
-        logger.info(f"Best score: {best_score:.4f}")
-        logger.info(f"Total attempts: {len(self.pipeline_history)}")
+        logger.info(f"Model: {training_results.get('model_name', 'Unknown')}")
+        logger.info(f"Score: {performance_score:.4f}")
         
-        return best_model, best_results
+        return final_model, training_results
     
     def _generate_training_code(self, input_shape: tuple, num_classes: int):
         """Generate training code using AI"""
         
-        # Modify data profile to encourage variety if we've tried models before
-        modified_profile = self.data_profile.copy()
-        if len(self.pipeline_history) > 0:
-            tried_models = [a.get('model_name', '') for a in self.pipeline_history]
-            modified_profile['previous_attempts'] = tried_models
-        
         code_rec = generate_training_code_for_data(
-            modified_profile, input_shape, num_classes
+            self.data_profile, input_shape, num_classes
         )
         
         logger.info(f"Generated training function: {code_rec.model_name}")
@@ -267,14 +182,8 @@ class CodeGenerationPipelineOrchestrator:
         """Run Bayesian Optimization for hyperparameter tuning"""
         logger.info(f"Running BO for generated training function: {code_rec.model_name}")
         
-        # Use subset for BO
-        subset_size = min(5000, len(X))
-        import random
-        indices = random.sample(range(len(X)), subset_size)
-        X_subset = torch.tensor(X[indices], dtype=torch.float32)
-        y_subset = torch.tensor(y[indices], dtype=torch.long)
-        
-        logger.info(f"BO dataset size: {len(X_subset)} samples")
+        # Use full centralized dataset for BO
+        logger.info(f"BO dataset size: {len(X)} samples (using full dataset)")
         logger.info(f"BO will optimize: {code_rec.bo_parameters}")
         
         # Create training data for objective function
@@ -285,8 +194,8 @@ class CodeGenerationPipelineOrchestrator:
             "bo_parameters": code_rec.bo_parameters
         }
         
-        # Create BO objective function
-        objective_func = BO_TrainingObjective(training_data, X_subset, y_subset, device)
+        # Create BO objective function with centralized splits (no subset)
+        objective_func = BO_TrainingObjective(training_data, None, None, device)
         
         # Set up search space
         from bo.run_bo import BayesianOptimizer
@@ -337,30 +246,23 @@ class CodeGenerationPipelineOrchestrator:
             if disable_progress and (trial + 1) % 3 == 0:
                 print(f"  BO Trial {trial + 1}/{config.max_bo_trials}: {hparams}")
             
-            try:
-                value, metrics = objective_func(hparams)
-                results.append({
-                    'trial': trial + 1,
-                    'hparams': hparams,
-                    'value': value,
-                    'metrics': metrics
-                })
-                
-                bo_optimizer.observe(hparams, value)
-                
-                # Update best score for progress bar
-                best_score = max(best_score, value)
-                pbar.set_postfix_str(f"{best_score:.4f}")
-                
-                # Only log every 3rd trial or best scores to reduce noise
-                if (trial + 1) % 3 == 0 or value >= best_score:
-                    logger.info(f"BO Trial {trial + 1}: {hparams} -> {value:.4f}")
-                
-            except Exception as e:
-                logger.error(f"BO Trial {trial + 1} failed: {e}")
-                bo_optimizer.observe(hparams, 0.0)
-                pbar.set_postfix_str(f"{best_score:.4f} (Failed)")
-                continue
+            value, metrics = objective_func(hparams)
+            results.append({
+                'trial': trial + 1,
+                'hparams': hparams,
+                'value': value,
+                'metrics': metrics
+            })
+            
+            bo_optimizer.observe(hparams, value)
+            
+            # Update best score for progress bar
+            best_score = max(best_score, value)
+            pbar.set_postfix_str(f"{best_score:.4f}")
+            
+            # Only log every 3rd trial or best scores to reduce noise
+            if (trial + 1) % 3 == 0 or value >= best_score:
+                logger.info(f"BO Trial {trial + 1}: {hparams} -> {value:.4f}")
         
         pbar.close()
         
@@ -471,19 +373,6 @@ class CodeGenerationPipelineOrchestrator:
         
         return trained_model, results
     
-    def _is_performance_acceptable(self, metrics: Dict[str, float]) -> bool:
-        """Determine if model performance is acceptable"""
-        f1_score = metrics.get('macro_f1', 0.0)
-        accuracy = metrics.get('acc', 0.0)
-        
-        acceptable_f1 = f1_score >= self.min_acceptable_f1
-        acceptable_acc = accuracy >= self.min_acceptable_accuracy
-        
-        logger.info(f"Performance check:")
-        logger.info(f"  F1: {f1_score:.4f} ≥ {self.min_acceptable_f1} ? {acceptable_f1}")
-        logger.info(f"  Acc: {accuracy:.4f} ≥ {self.min_acceptable_accuracy} ? {acceptable_acc}")
-        
-        return acceptable_f1 and acceptable_acc
     
     def _generate_bo_charts(self, bo_results: Dict[str, Any], model_name: str):
         """Generate BO charts"""
@@ -514,16 +403,13 @@ class CodeGenerationPipelineOrchestrator:
         if not self.pipeline_history:
             return {'status': 'not_executed'}
         
-        successful_attempts = [a for a in self.pipeline_history if a.get('acceptable', False)]
-        failed_attempts = [a for a in self.pipeline_history if not a.get('acceptable', False)]
-        
         return {
             'total_attempts': len(self.pipeline_history),
-            'successful_attempts': len(successful_attempts),
-            'failed_attempts': len(failed_attempts),
+            'successful_attempts': len(self.pipeline_history),  # Always 1 since we don't retry
+            'failed_attempts': 0,  # Always 0 since failures terminate the program
             'best_score': max(a.get('performance_score', 0) for a in self.pipeline_history),
             'models_generated': [a.get('model_name') for a in self.pipeline_history],
-            'final_success': len(successful_attempts) > 0,
+            'final_success': True,  # Always true since failures terminate
             'pipeline_history': self.pipeline_history,
             'generated_functions': self.generated_functions
         }

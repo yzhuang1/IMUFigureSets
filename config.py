@@ -28,9 +28,7 @@ class Config:
         
         # API call limits to prevent infinite loops and excessive costs
         # These values should be set in .env file, fallback values provided as backup
-        self.max_model_selection_attempts = int(os.getenv("MAX_MODEL_ATTEMPTS") or "4")
-        self.max_bo_trials = int(os.getenv("MAX_BO_TRIALS") or "40") 
-        self.max_evaluation_retries = int(os.getenv("MAX_EVAL_RETRIES") or "2")
+        self.max_bo_trials = int(os.getenv("MAX_BO_TRIALS") or "40")
     
     def _get_openai_api_key(self) -> Optional[str]:
         """Get OpenAI API key from environment variables or .env file"""

@@ -202,119 +202,54 @@ class AIModelCompressor:
         # Create detailed prompt for GPT-5
         prompt = self._create_compression_prompt()
         
-        # Try multiple approaches - GPT-4 first to validate logic, then GPT-5
-        attempts = [
+        # Single API call (no retries, fail fast)
+        logger.info("Making single API call for compression strategy (no retries)")
+        
+        messages = [
             {
-                "name": "GPT-4 Fallback Test",
-                "model": "gpt-4-turbo",
-                "system": "You are a PyTorch compression expert. Generate working compression code.",
-                "max_tokens": 4000,
-                "user_prefix": "Generate JSON compression strategy:"
+                "role": "system",
+                "content": "You are a PyTorch compression expert. Generate working compression code."
             },
             {
-                "name": "GPT-5 Short Direct",
-                "model": config.openai_model,
-                "system": "Respond ONLY with JSON. No reasoning.",
-                "max_tokens": 1000,
-                "user_prefix": "JSON ONLY:"
-            },
-            {
-                "name": "GPT-5 No System Prompt",
-                "model": config.openai_model,
-                "system": "",
-                "max_tokens": 2000,
-                "user_prefix": "Provide JSON compression strategy for LSTM model:"
+                "role": "user", 
+                "content": prompt
             }
         ]
         
-        for i, attempt in enumerate(attempts):
-            try:
-                logger.info(f"GPT-5 Attempt {i+1}: {attempt['name']}")
-                
-                # Prepare user content with prefix
-                user_content = prompt if i == 0 else self._create_simple_prompt()
-                if "user_prefix" in attempt:
-                    user_content = attempt["user_prefix"] + "\\n\\n" + user_content
-                
-                messages = [
-                    {
-                        "role": "system",
-                        "content": attempt["system"]
-                    },
-                    {
-                        "role": "user", 
-                        "content": user_content
-                    }
-                ]
-                
-                response = self.client.chat.completions.create(
-                    model=attempt["model"],
-                    messages=messages,
-                    max_completion_tokens=attempt["max_tokens"]
-                )
-                
-                # Parse the response - Debug GPT-5 response structure
-                logger.info("=== GPT-5 Response Debug ===")
-                logger.info(f"Model used: {response.model}")
-                logger.info(f"Finish reason: {response.choices[0].finish_reason}")
-                logger.info(f"Total tokens: {response.usage.total_tokens}")
-                logger.info(f"Completion tokens: {response.usage.completion_tokens}")
-                # Handle reasoning tokens safely (GPT-4 may not have this)
-                reasoning_tokens = getattr(response.usage.completion_tokens_details, 'reasoning_tokens', 0) if hasattr(response.usage, 'completion_tokens_details') else 0
-                logger.info(f"Reasoning tokens: {reasoning_tokens}")
-                
-                if response.choices and len(response.choices) > 0:
-                    choice = response.choices[0]
-                    response_content = choice.message.content
-                    
-                    logger.info(f"Response content length: {len(response_content) if response_content else 0}")
-                    logger.info(f"Message role: {choice.message.role}")
-                    logger.info(f"Has refusal: {choice.message.refusal is not None}")
-                    
-                    # Check if we got reasoning tokens but no content
-                    if not response_content and reasoning_tokens > 0:
-                        logger.warning("GPT-5 used reasoning tokens but returned empty content")
-                        logger.info("This might be due to the response format or prompt structure")
-                        continue  # Try next attempt
-                    
-                    if response_content and len(response_content.strip()) > 0:
-                        logger.info(f"GPT-5 response captured successfully on attempt {i+1}")
-                        break  # Success - exit the loop
-                    else:
-                        logger.warning(f"Attempt {i+1} returned empty content, trying next approach...")
-                        continue
-                else:
-                    logger.error(f"Attempt {i+1}: No response choices available")
-                    continue
-                    
-            except Exception as attempt_error:
-                logger.error(f"Attempt {i+1} failed: {attempt_error}")
-                if i == len(attempts) - 1:  # Last attempt
-                    raise
-                continue
+        response = self.client.chat.completions.create(
+            model=config.openai_model,
+            messages=messages,
+            max_completion_tokens=4000
+        )
         
-        # Check if we got any content - if not, use manual fallback
+        # Parse the response - Debug response structure
+        logger.info("=== API Response Debug ===")
+        logger.info(f"Model used: {response.model}")
+        logger.info(f"Finish reason: {response.choices[0].finish_reason}")
+        logger.info(f"Total tokens: {response.usage.total_tokens}")
+        logger.info(f"Completion tokens: {response.usage.completion_tokens}")
+        # Handle reasoning tokens safely
+        reasoning_tokens = getattr(response.usage.completion_tokens_details, 'reasoning_tokens', 0) if hasattr(response.usage, 'completion_tokens_details') else 0
+        logger.info(f"Reasoning tokens: {reasoning_tokens}")
+        
+        if not response.choices or len(response.choices) == 0:
+            raise RuntimeError("No response choices available from API")
+        
+        choice = response.choices[0]
+        response_content = choice.message.content
+        
+        logger.info(f"Response content length: {len(response_content) if response_content else 0}")
+        logger.info(f"Message role: {choice.message.role}")
+        logger.info(f"Has refusal: {choice.message.refusal is not None}")
+        
+        # Check if we got reasoning tokens but no content
+        if not response_content and reasoning_tokens > 0:
+            raise RuntimeError("API used reasoning tokens but returned empty content")
+        
         if not response_content or len(response_content.strip()) == 0:
-            logger.warning("All GPT-5 attempts returned empty content")
-            logger.info("Falling back to manual LSTM compression strategy")
-            manual_strategy = self._create_manual_strategy_from_response("")
-            self.compression_functions = manual_strategy
-            
-            # Save manual strategy
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            strategy_file = f"{self.functions_dir}/manual_compression_strategy_{timestamp}.json"
-            
-            with open(strategy_file, 'w') as f:
-                json.dump({
-                    'model_info': self.model_info,
-                    'compression_strategy': manual_strategy,
-                    'gpt_response': "Manual fallback due to GPT-5 reasoning mode issue",
-                    'timestamp': timestamp,
-                    'fallback_reason': "GPT-5 used all tokens for reasoning, no output content"
-                }, f, indent=2, cls=NumpyEncoder)
-            
-            logger.info(f"Manual compression strategy saved to: {strategy_file}")
-            return manual_strategy
+            raise RuntimeError("API returned empty content")
+        
+        logger.info("API response captured successfully")
         
         # Save the raw response first
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -796,4 +731,8 @@ def main():
         print(f"\\n❌ Pipeline error: {e}")
 
 if __name__ == "__main__":
+    # Enable error monitoring to terminate on any ERROR
+    from error_monitor import enable_strict_error_monitoring
+    enable_strict_error_monitoring()
+    
     main()

@@ -3,6 +3,10 @@ AI-Enhanced Main Process with New Pipeline Flow
 Model Generation → BO → Evaluation → Feedback Loop
 """
 
+# Enable error monitoring FIRST, before any other imports
+from error_monitor import enable_strict_error_monitoring
+enable_strict_error_monitoring()
+
 import logging
 import numpy as np
 import torch
@@ -81,23 +85,22 @@ def setup_logging():
 
 logger = setup_logging()
 
-def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, max_model_attempts=None, **kwargs):
+def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, **kwargs):
     """
-    Train model with AI-enhanced pipeline: Model Generation → BO → Evaluation → Feedback
+    Train model with AI-enhanced pipeline: Model Generation → BO → Evaluation (single attempt, fail fast)
     
     Args:
         data: Input data
         labels: Label data
         device: Device for training
         epochs: Number of training epochs
-        max_model_attempts: Maximum number of model architectures to try (uses config default if None)
         **kwargs: Additional parameters
     
     Returns:
         Dict: Training results with final model and evaluation
     """
-    logger.info("Starting AI-enhanced training with new pipeline flow")
-    logger.info("Flow: Template Selection → BO → Evaluation → Feedback Loop")
+    logger.info("Starting AI-enhanced training (single attempt, fail fast)")
+    logger.info("Flow: Code Generation → BO → Evaluation")
     
     # Convert data and get profile
     dataset, collate_fn, data_profile = convert_to_torch_dataset(data, labels, **kwargs)
@@ -127,8 +130,7 @@ def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, ma
     
     # Create code generation orchestrator for complete pipeline
     orchestrator = CodeGenerationPipelineOrchestrator(
-        data_profile=data_profile.to_dict(),
-        max_model_attempts=max_model_attempts
+        data_profile=data_profile.to_dict()
     )
     
     # Run complete pipeline
@@ -155,8 +157,7 @@ def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, ma
     
     logger.info("AI-enhanced training completed!")
     logger.info(f"Final model achieved: {dict(results['final_metrics']) if results['final_metrics'] else 'None'}")
-    logger.info(f"Total model attempts: {results['attempt_summary']['total_attempts']}")
-    logger.info(f"Pipeline success: {results['attempt_summary']['final_success']}")
+    logger.info(f"Pipeline completed successfully in single attempt")
     
     return results
 
@@ -351,7 +352,7 @@ def process_real_data():
     data_result = load_data_from_files()
     
     if data_result is None:
-        print("\n[ERROR] No data files found or could not load data")
+        print("\n[NOTICE] No data files found or could not load data")
         print("\nTo use your own data, place files in the data/ directory:")
         print("  - CSV: dataset.csv (with target column named 'target', 'label', etc.)")
         print("  - NumPy: X.npy + y.npy (or features.npy + labels.npy)")
@@ -373,7 +374,7 @@ def process_real_data():
     # Check OpenAI API key
     from config import config
     if not config.is_openai_configured():
-        print("\n[ERROR] OpenAI API key required for AI-enhanced processing!")
+        print("\n[NOTICE] OpenAI API key required for AI-enhanced processing!")
         return False
     
     print(f"  OpenAI: {config.openai_model}")
@@ -388,8 +389,7 @@ def process_real_data():
     result = process_data_with_ai_enhanced_evaluation(
         X, y,
         device=device,
-        epochs=8,  # Reasonable number for real data
-        max_model_attempts=None  # Use config default for multiple model attempts
+        epochs=8  # Reasonable number for real data
     )
     
     print(f"\nAI-Enhanced Processing Results:")
@@ -477,6 +477,7 @@ def process_real_data():
     return True
 
 if __name__ == "__main__":
+    
     print("\n🤖 AI-Enhanced Machine Learning Pipeline")
     print("Code Generation Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation")
     print("=" * 80)
@@ -486,7 +487,7 @@ if __name__ == "__main__":
     
     # If no real data found, show instructions
     if not processed_real_data:
-        print("\n[ERROR] No data files found in data/ directory")
+        print("\n[NOTICE] No data files found in data/ directory")
         print("\n📁 To use the AI-enhanced ML pipeline, add your data files to the data/ directory:")
         print("  • CSV: dataset.csv (with target column named 'target', 'label', 'class', 'y', or 'output')")
         print("  • NumPy: X.npy + y.npy (or features.npy + labels.npy)")

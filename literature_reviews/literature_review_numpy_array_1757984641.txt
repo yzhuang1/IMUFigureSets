@@ -1,0 +1,63 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-16 01:04:01
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "numpy_array",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+Between 2023 and 2025, ECG arrhythmia classification has been driven by three trends: (1) hybrid CNN–Transformer encoders that capture local morphology and longer-range rhythm dependencies; (2) self-supervised pretraining (masked modeling and contrastive/non-contrastive objectives) that leverages large unlabeled ECG corpora and transfers well to MIT-BIH; and (3) domain generalization techniques that explicitly reduce patient-specific bias under the AAMI 5-class, inter-patient evaluation protocol. Representative works include ST-MEM (spatio-temporal masked ECG modeling), NERULA (dual-pathway masked + non-contrastive SSL), masked autoencoder pretraining for ECG, and adversarial beat-score maps that improve inter-patient generalization. Foundation-model style pretraining on millions of ECGs has also emerged, enabling strong downstream performance with light fine-tuning. These advances sit atop long-standing best practices for MIT-BIH: adopt the AAMI N/S/V/F/Q groups, use the de Chazal DS1/DS2 inter-patient split, and exclude paced-beat records when required by the AAMI protocol. ([arxiv.org](https://arxiv.org/abs/2402.09450?utm_source=openai))
+
+For your setup (numpy_array, shape=(1000, 2), 5 classes, sequence data; MIT-BIH), the most reliable pipelines couple careful preprocessing (bandpass/notch, z-score per record, R-peak–centered windows or fixed 1000-sample segments) with either a strong 1D CNN/TCN baseline or a compact Conv+Transformer encoder, optionally initialized from SSL. Under a strict inter-patient paradigm, recent, carefully controlled studies commonly report overall accuracy in roughly the low- to mid-90s with SVEB (S) remaining hardest; works that report ~99%+ inter-patient accuracy should be scrutinized for protocol details, while others explicitly show substantial drops from intra- to inter-patient evaluation (e.g., ~98.7% to ~91.2%), underscoring the importance of fair splits and class imbalance handling. Domain-invariant representations (e.g., beat-score maps with adversarial pretraining) and SSL pretraining tend to improve generalization without heavy augmentation. ([aimspress.com](https://www.aimspress.com/article/doi/10.3934/mbe.2024243?utm_source=openai))
+
+KEY FINDINGS:
+1. Use the AAMI 5-class grouping (N/S/V/F/Q) and the de Chazal DS1/DS2 inter-patient split for fair evaluation; exclude paced-beat records when adhering to AAMI recommendations. ([ar5iv.labs.arxiv.org](https://ar5iv.labs.arxiv.org/html/1812.07421v2?utm_source=openai))
+2. Hybrid Conv+Transformer encoders and CNN/TCN backbones remain strong for 1D ECG, capturing local waveforms and longer temporal context efficiently on segments of ~1000 samples. ([github.com](https://github.com/tami64/ECGformer?utm_source=openai))
+3. Self-supervised ECG pretraining (masked modeling, dual-pathway SSL) consistently boosts downstream arrhythmia classification, especially with limited labels or class imbalance. ([arxiv.org](https://arxiv.org/abs/2402.09450?utm_source=openai))
+4. Foundation-model style pretraining on millions of ECGs is emerging and can provide robust starting points for fine-tuning on MIT-BIH. ([medrxiv.org](https://www.medrxiv.org/content/10.1101/2025.03.02.25322575v1?utm_source=openai))
+5. Inter-patient performance is typically lower than intra-patient; realistic inter-patient overall accuracy often falls in the ~90–96% range, with SVEB (S) the most challenging class. ([aimspress.com](https://www.aimspress.com/article/doi/10.3934/mbe.2024243?utm_source=openai))
+6. Domain generalization via adversarial learning (e.g., patient-invariant beat-score maps) can noticeably improve inter-patient F1 and cross-database robustness. ([mdpi.com](https://www.mdpi.com/2076-3417/14/16/7227?utm_source=openai))
+7. Reported near-perfect inter-patient scores require careful verification of splits, record exclusions, and leakage controls; protocol details materially affect results. ([arxiv.org](https://arxiv.org/html/2404.15367?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. {'name': 'Conv-TCN (dilated 1D CNN) with Squeeze-and-Excitation', 'why_it_works': 'Dilated temporal convolutions capture morphology and rhythm over hundreds of samples; channel attention enhances lead fusion for (1000,2) inputs.', 'typical_settings': '3–5 residual blocks; kernel sizes 7–15; dilations 1–16; 64–256 channels; dropout 0.1–0.3; AdamW lr=1e-3–3e-4, weight_decay=1e-4–1e-2; batch 64–256.', 'pytorch_notes': 'Use Conv1d with grouped/depthwise layers for efficiency; AMP (autocast+GradScaler); class-weighted cross-entropy or focal loss for S and F classes. ([aimspress.com](https://www.aimspress.com/article/doi/10.3934/mbe.2024243?utm_source=openai))'}
+2. {'name': 'Conv front-end + Transformer encoder', 'why_it_works': 'Convs downsample/noise-suppress; 2–4 Transformer layers model longer dependencies and beat-to-beat context on short segments.', 'typical_settings': 'Conv stride 2–4 to L≈250–500; 2–4 encoder layers, d_model 128–256, 4–8 heads, dropout 0.1; label smoothing 0.05–0.1.', 'pytorch_notes': 'torch.nn.MultiheadAttention with relative positions or rotary embeddings; gradient clipping 0.5–1.0; warmup 1–3k steps, cosine decay. ([github.com](https://github.com/tami64/ECGformer?utm_source=openai))'}
+3. {'name': 'Self-supervised pretraining + lightweight classifier', 'why_it_works': 'Masked reconstruction and non-/contrastive objectives learn robust morphology/rhythm features; fine-tuning improves generalization under inter-patient splits.', 'typical_settings': 'Pretrain 50–200 epochs with 30–70% masking; projection dim 128–256; fine-tune with small head (MLP or 1–2 conv blocks); mixup 0.1–0.3 optional.', 'pytorch_notes': 'Implement MAE/Masked modeling in PyTorch; freeze early layers for first 5–10 epochs of fine-tuning; use lower lr for backbone (×0.1). ([arxiv.org](https://arxiv.org/abs/2402.09450?utm_source=openai))'}
+4. {'name': 'Beat-score maps + adversarial domain generalization', 'why_it_works': 'Pretraining a beat classifier to form patient-invariant beat-score maps reduces identity bias; downstream CNN uses PI-BSMs for rhythm classification.', 'typical_settings': 'Adversarial pretraining on source beats; then CNN with 3–5 conv blocks on BSMs; focal or class-balanced loss.', 'pytorch_notes': 'Two-tower setup with gradient reversal for patient-ID adversary; monitor per-class F1, especially S and F. ([mdpi.com](https://www.mdpi.com/2076-3417/14/16/7227?utm_source=openai))'}
+5. {'name': 'Foundation-model adaptation (if resources allow)', 'why_it_works': 'Large SSL-pretrained ECG encoders transfer strongly; shallow heads suffice for 5-class AAMI tasks.', 'typical_settings': 'Freeze most layers; lr_backbone≈1e-5–3e-5, lr_head≈1e-3; 10–30 epochs fine-tuning.', 'pytorch_notes': 'Load checkpoints, replace head, use mixed precision; ensure input scaling/lead ordering match pretraining. ([medrxiv.org](https://www.medrxiv.org/content/10.1101/2025.03.02.25322575v1?utm_source=openai))'}
+
+RECENT PAPERS:
+- Guiding Masked Representation Learning to Capture Spatio-Temporal Relationship of Electrocardiogram (ST-MEM), 2024: No description
+- NERULA: A Dual-Pathway Self-Supervised Learning Framework for ECG, 2024: No description
+- Unsupervised Pre-Training Using Masked Autoencoders for ECG Analysis, 2023: No description
+- Enhancing Inter-Patient Performance for Arrhythmia Classification with Adversarial Learning Using Beat-Score Maps, 2024: No description
+- ECGformer: Leveraging Transformer for ECG Heartbeat Arrhythmia Classification, 2023: No description
+- Self-supervised inter–intra period-aware ECG representation learning for AF detection, 2024: No description
+- Foundation models for generalizable ECG interpretation (DeepECG-SSL/SL), 2025 (preprint): No description
+- ECG-DETR: Transformer-based arrhythmia detection on continuous ECG, 2022: No description
+- Arrhythmia classification via multi-path CNN and improved focal loss, 2024: No description
+
+==================================================

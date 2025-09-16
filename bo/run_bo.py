@@ -118,6 +118,61 @@ class BayesianOptimizer:
         logger.info(f"Converted GPT search space: {len(search_space)} parameters")
         return search_space
     
+    def _apply_parameter_constraints(self, hparams: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Apply parameter constraints based on which parameters are present
+        Only applies constraints when both required parameters exist
+        """
+        constrained = hparams.copy()
+        
+        # Constraint 1: embed_dim must be divisible by num_heads
+        if 'embed_dim' in constrained and 'num_heads' in constrained:
+            embed_dim = int(constrained['embed_dim'])
+            num_heads = int(constrained['num_heads'])
+            
+            if embed_dim % num_heads != 0:
+                # Adjust embed_dim to be divisible by num_heads
+                new_embed_dim = ((embed_dim // num_heads) + 1) * num_heads
+                logger.info(f"BO constraint applied: embed_dim {embed_dim} -> {new_embed_dim} (divisible by num_heads={num_heads})")
+                constrained['embed_dim'] = new_embed_dim
+        
+        # Constraint 2: d_model must be divisible by num_heads (alternative to embed_dim)
+        if 'd_model' in constrained and 'num_heads' in constrained:
+            d_model = int(constrained['d_model'])
+            num_heads = int(constrained['num_heads'])
+            
+            if d_model % num_heads != 0:
+                new_d_model = ((d_model // num_heads) + 1) * num_heads
+                logger.info(f"BO constraint applied: d_model {d_model} -> {new_d_model} (divisible by num_heads={num_heads})")
+                constrained['d_model'] = new_d_model
+        
+        # Constraint 3: hidden_size must be divisible by num_heads (for some attention models)
+        if 'hidden_size' in constrained and 'num_heads' in constrained and 'embed_dim' not in constrained and 'd_model' not in constrained:
+            # Only apply this if embed_dim and d_model are not present (to avoid double-fixing)
+            hidden_size = int(constrained['hidden_size'])
+            num_heads = int(constrained['num_heads'])
+            
+            if hidden_size % num_heads != 0:
+                new_hidden_size = ((hidden_size // num_heads) + 1) * num_heads
+                logger.info(f"BO constraint applied: hidden_size {hidden_size} -> {new_hidden_size} (divisible by num_heads={num_heads})")
+                constrained['hidden_size'] = new_hidden_size
+        
+        # Log which constraints were checked
+        constraint_params = []
+        if 'embed_dim' in constrained and 'num_heads' in constrained:
+            constraint_params.append('embed_dim/num_heads')
+        if 'd_model' in constrained and 'num_heads' in constrained:
+            constraint_params.append('d_model/num_heads')
+        if 'hidden_size' in constrained and 'num_heads' in constrained and 'embed_dim' not in constrained and 'd_model' not in constrained:
+            constraint_params.append('hidden_size/num_heads')
+        
+        if constraint_params:
+            logger.debug(f"Applied constraints for: {', '.join(constraint_params)}")
+        else:
+            logger.debug("No attention model constraints needed for current parameter set")
+        
+        return constrained
+    
     def suggest(self) -> Dict[str, Any]:
         """
         Suggest next hyperparameters using BO acquisition function
@@ -152,6 +207,9 @@ class BayesianOptimizer:
                 "hidden": random.choice([32, 64, 128, 256]),
             }
             logger.info(f"BO Trial {self.n_calls}: Random search fallback")
+        
+        # Apply constraints to ensure parameter compatibility (only if relevant parameters exist)
+        hparams = self._apply_parameter_constraints(hparams)
         
         # Store parameter vector for observation later
         self._last_suggested = [hparams[name] for name in self.param_names]

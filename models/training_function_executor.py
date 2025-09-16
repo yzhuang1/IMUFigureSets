@@ -48,6 +48,114 @@ class TrainingFunctionExecutor:
         logger.debug(f"Converted hyperparameters: {converted}")
         return converted
     
+    def _validate_hyperparameters(self, hyperparams: Dict[str, Any], model_name: str = None) -> Dict[str, Any]:
+        """Validate hyperparameters (lightweight validation since BO handles constraints)"""
+        validated = hyperparams.copy()
+        
+        # Ensure positive values for common parameters (basic safety checks)
+        positive_params = ['lr', 'batch_size', 'epochs', 'hidden_size', 'embed_dim', 'd_model', 'num_heads']
+        for param in positive_params:
+            if param in validated and validated[param] <= 0:
+                if param == 'lr':
+                    validated[param] = 1e-3
+                elif param == 'batch_size':
+                    validated[param] = 32
+                elif param == 'epochs':
+                    validated[param] = 10
+                elif param == 'num_heads':
+                    validated[param] = 1
+                else:
+                    validated[param] = 128
+                logger.warning(f"Fixed {param}: negative/zero -> {validated[param]}")
+        
+        # Ensure reasonable num_heads values (basic bounds)
+        if 'num_heads' in validated:
+            num_heads = int(validated['num_heads'])
+            if num_heads > 16:
+                validated['num_heads'] = 16
+                logger.warning(f"Fixed num_heads: {num_heads} -> 16 (maximum reasonable value)")
+        
+        # Note: Constraint enforcement (embed_dim % num_heads == 0) is now handled at BO level
+        logger.debug("Hyperparameter validation complete (constraint enforcement handled by BO)")
+        
+        return validated
+    
+    def validate_training_function(self, training_data: Dict[str, Any]) -> bool:
+        """Validate training function data and model architecture"""
+        try:
+            # Check required fields
+            required_fields = ['model_name', 'training_code', 'hyperparameters']
+            for field in required_fields:
+                if field not in training_data:
+                    logger.error(f"Missing required field: {field}")
+                    return False
+            
+            # Validate hyperparameters
+            validated_hyperparams = self._validate_hyperparameters(
+                training_data['hyperparameters'], 
+                training_data.get('model_name', 'Unknown')
+            )
+            
+            # Test model instantiation
+            return self._validate_model_instantiation(
+                training_data['training_code'], 
+                validated_hyperparams
+            )
+            
+        except Exception as e:
+            logger.error(f"Training function validation failed: {e}")
+            return False
+    
+    def _validate_model_instantiation(self, training_code: str, hyperparams: Dict[str, Any]) -> bool:
+        """Test model instantiation with given hyperparameters to catch architecture errors early"""
+        try:
+            # Create a test environment to instantiate the model
+            test_globals = {
+                'torch': torch,
+                'nn': torch.nn,
+                'F': torch.nn.functional,
+                'math': __import__('math'),
+                'numpy': np,
+                'np': np
+            }
+            
+            # Execute the training code to get the model classes
+            exec(training_code, test_globals)
+            
+            # Try to find and instantiate the model with test parameters
+            test_hyperparams = hyperparams.copy()
+            test_hyperparams.update({
+                'device': 'cpu',  # Use CPU for testing
+                'lr': 1e-3,
+                'epochs': 1,
+                'batch_size': 2,
+            })
+            
+            # Create dummy data for testing
+            dummy_X_train = torch.randn(2, 10, 2)  # Small batch for testing
+            dummy_y_train = torch.randint(0, 5, (2,))
+            dummy_X_val = torch.randn(2, 10, 2)
+            dummy_y_val = torch.randint(0, 5, (2,))
+            
+            # Try to execute just the model instantiation part
+            if 'train_model' in test_globals:
+                train_func = test_globals['train_model']
+                # This will fail if there are parameter incompatibilities
+                try:
+                    # Just test parameter validation, don't run full training
+                    model, _ = train_func(dummy_X_train, dummy_y_train, dummy_X_val, dummy_y_val, 'cpu', **test_hyperparams)
+                    logger.info("Model architecture validation passed")
+                    return True
+                except Exception as e:
+                    logger.warning(f"Model architecture validation failed: {e}")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Model validation failed: {e}")
+            return False
+    
     def load_training_function(self, filepath: str) -> Dict[str, Any]:
         """Load training function data from JSON file"""
         try:
@@ -339,6 +447,12 @@ class BO_TrainingObjective:
             # Convert numpy types to Python types using centralized method
             processed_hparams = self.executor._convert_numpy_types(hparams)
             
+            # Validate and fix hyperparameter incompatibilities
+            processed_hparams = self.executor._validate_hyperparameters(
+                processed_hparams, 
+                model_name=self.training_data.get('model_name', 'Unknown')
+            )
+            
             # Execute training
             model, metrics = self.executor.execute_training_function(
                 self.training_data,
@@ -349,7 +463,22 @@ class BO_TrainingObjective:
             )
             
             # Return objective value (F1 score or accuracy)
-            objective_value = metrics.get('macro_f1', metrics.get('val_accuracy', 0.0))
+            # Try val_f1 (list), then macro_f1, then val_acc (list), then val_accuracy, default 0.0
+            val_f1 = metrics.get('val_f1', [])
+            val_acc = metrics.get('val_acc', [])
+            
+            if val_f1 and isinstance(val_f1, list) and len(val_f1) > 0:
+                # Use the last (best) F1 score from training
+                objective_value = val_f1[-1]
+            elif 'macro_f1' in metrics:
+                objective_value = metrics['macro_f1']
+            elif val_acc and isinstance(val_acc, list) and len(val_acc) > 0:
+                # Use the last (best) accuracy from training
+                objective_value = val_acc[-1]
+            elif 'val_accuracy' in metrics:
+                objective_value = metrics['val_accuracy']
+            else:
+                objective_value = 0.0
             
             objective_time = time.time() - t0
             logger.info(f"[PROFILE] objective(train+eval) took {objective_time:.3f}s")

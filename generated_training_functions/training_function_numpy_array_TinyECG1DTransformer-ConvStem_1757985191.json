@@ -1,0 +1,79 @@
+{
+  "model_name": "TinyECG1DTransformer-ConvStem",
+  "training_code": "import torch\\nimport torch.nn as nn\\nimport torch.nn.functional as F\\nfrom torch.utils.data import DataLoader, TensorDataset\\n\\n\\ndef train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\\n    \"\"\"\\n    Train a lightweight 1D Conv stem + Tiny Transformer for 5-class ECG classification.\\n\\n    Expected input per sample: shape (1000, 2) [time, leads], but the model also\\n    accepts (2, 1000).\\n\\n    Args:\\n        X_train, y_train, X_val, y_val: PyTorch tensors.\\n            - X_*: float32, shape (N, 1000, 2) or (N, 2, 1000)\\n            - y_*: long, shape (N,) in {0..4}\\n        device: torch.device('cuda') or torch.device('cpu')\\n        **hyperparams: optional overrides for defaults below.\\n\\n    Returns: (model, metrics) where metrics is a dict with epoch-wise and best scores.\\n    \"\"\"\\n\\n    # ------------------------- Defaults & Hyperparams ------------------------- #\\n    cfg = {\\n        'lr': 1e-3,\\n        'epochs': 15,\\n        'batch_size': 128,\\n        'hidden_size': 96,          # keep small to stay <256K params\\n        'num_heads': 4,\\n        'depth': 2,\\n        'dropout': 0.1,\\n        'weight_decay': 1e-4,\\n        'label_smoothing': 0.05,\\n        'grad_clip': 1.0,\\n        'use_focal': False,\\n        'focal_gamma': 2.0,\\n        'seed': 42,\\n    }\\n    cfg.update(hyperparams)\\n\\n    torch.manual_seed(cfg['seed'])\\n    if device.type == 'cuda':\\n        torch.cuda.manual_seed_all(cfg['seed'])\\n\\n    num_classes = 5\\n\\n    # ----------------------------- Helper Modules ---------------------------- #\\n    class SinusoidalPositionalEncoding(nn.Module):\\n        def __init__(self, d_model, max_len=1200):\\n            super().__init__()\\n            pe = torch.zeros(max_len, d_model)\\n            position = torch.arange(0, max_len).unsqueeze(1).float()\\n            div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))\\n            pe[:, 0::2] = torch.sin(position * div_term)\\n            pe[:, 1::2] = torch.cos(position * div_term)\\n            self.register_buffer('pe', pe)  # not a parameter\\n        def forward(self, x):  # x: (B, L, E)\\n            L = x.size(1)\\n            return x + self.pe[:L].unsqueeze(0)\\n\\n    class TinyECGTransformer(nn.Module):\\n        def __init__(self, in_ch=2, hidden=96, heads=4, depth=2, dropout=0.1, num_classes=5):\\n            super().__init__()\\n            # Conv stem to capture local P-QRS-T morphology\\n            self.stem = nn.Sequential(\\n                nn.Conv1d(in_ch, hidden // 2, kernel_size=7, padding=3, bias=False),\\n                nn.BatchNorm1d(hidden // 2),\\n                nn.GELU(),\\n                nn.Conv1d(hidden // 2, hidden, kernel_size=7, padding=3, bias=False),\\n                nn.BatchNorm1d(hidden),\\n                nn.GELU(),\\n                nn.Dropout(dropout),\\n            )\\n            self.pos = SinusoidalPositionalEncoding(hidden, max_len=1200)\\n            encoder_layer = nn.TransformerEncoderLayer(\\n                d_model=hidden, nhead=heads, dim_feedforward=hidden * 2, dropout=dropout,\\n                batch_first=True, norm_first=True, activation='gelu'\\n            )\\n            self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=depth)\\n            self.norm = nn.LayerNorm(hidden)\\n            self.head = nn.Sequential(\\n                nn.Dropout(dropout),\\n                nn.Linear(hidden, num_classes)\\n            )\\n\\n        def forward(self, x):  # x: (B, 1000, 2) or (B, 2, 1000)\\n            if x.dim() != 3:\\n                raise ValueError('Input must be 3D: (B, T, C) or (B, C, T)')\\n            # Arrange to (B, C, T) for conv\\n            if x.size(1) == 2:  # (B, 2, T) already\\n                x_c = x\\n            elif x.size(2) == 2:  # (B, T, 2) -> (B, 2, T)\\n                x_c = x.transpose(1, 2).contiguous()\\n            else:\\n                raise ValueError('Expected 2 leads; got shape {}'.format(tuple(x.shape)))\\n\\n            feats = self.stem(x_c)                 # (B, hidden, T)\\n            feats = feats.transpose(1, 2).contiguous()  # (B, T, hidden)\\n            feats = self.pos(feats)\\n            feats = self.encoder(feats)\\n            feats = self.norm(feats)\\n            # Global average pooling over time dimension\\n            pooled = feats.mean(dim=1)             # (B, hidden)\\n            logits = self.head(pooled)\\n            return logits\\n\\n    class FocalLoss(nn.Module):\\n        def __init__(self, alpha=None, gamma=2.0, reduction='mean', label_smoothing=0.0):\\n            super().__init__()\\n            self.gamma = gamma\\n            self.reduction = reduction\\n            self.label_smoothing = label_smoothing\\n            if alpha is not None:\\n                self.register_buffer('alpha', alpha.float())\\n            else:\\n                self.alpha = None\\n        def forward(self, logits, target):\\n            # Apply label smoothing by mixing with uniform targets when not using standard CE\\n            if self.label_smoothing > 0.0:\\n                n_classes = logits.size(1)\\n                with torch.no_grad():\\n                    true_dist = torch.zeros_like(logits)\\n                    true_dist.fill_(self.label_smoothing / (n_classes - 1))\\n                    true_dist.scatter_(1, target.unsqueeze(1), 1.0 - self.label_smoothing)\\n                log_probs = F.log_softmax(logits, dim=1)\\n                probs = log_probs.exp()\\n                focal = (1.0 - probs) ** self.gamma\\n                if self.alpha is not None:\\n                    alpha_w = self.alpha.unsqueeze(0)\\n                    loss = - (alpha_w * focal * true_dist * log_probs).sum(dim=1)\\n                else:\\n                    loss = - (focal * true_dist * log_probs).sum(dim=1)\\n            else:\\n                log_probs = F.log_softmax(logits, dim=1)\\n                probs = log_probs.exp()\\n                gather_logp = log_probs.gather(1, target.unsqueeze(1)).squeeze(1)\\n                gather_p = probs.gather(1, target.unsqueeze(1)).squeeze(1)\\n                focal = (1.0 - gather_p) ** self.gamma\\n                if self.alpha is not None:\\n                    alpha_t = self.alpha.gather(0, target)\\n                    loss = - alpha_t * focal * gather_logp\\n                else:\\n                    loss = - focal * gather_logp\\n            if self.reduction == 'mean':\\n                return loss.mean()\\n            elif self.reduction == 'sum':\\n                return loss.sum()\\n            return loss\\n\\n    # --------------------------- Data preparation ---------------------------- #\\n    # DataLoaders; set pin_memory=True only if tensors are on CPU\\n    pin_mem = (X_train.device.type == 'cpu')\\n    train_ds = TensorDataset(X_train, y_train)\\n    val_ds = TensorDataset(X_val, y_val)\\n    train_loader = DataLoader(train_ds, batch_size=cfg['batch_size'], shuffle=True, num_workers=0, pin_memory=pin_mem)\\n    val_loader = DataLoader(val_ds, batch_size=cfg['batch_size'], shuffle=False, num_workers=0, pin_memory=pin_mem)\\n\\n    # ------------------------------- Model ----------------------------------- #\\n    model = TinyECGTransformer(\\n        in_ch=2, hidden=cfg['hidden_size'], heads=cfg['num_heads'], depth=cfg['depth'],\\n        dropout=cfg['dropout'], num_classes=num_classes\\n    ).to(device)\\n\\n    # --------------------------- Loss & Optimizer ---------------------------- #\\n    # Compute inverse-frequency class weights from training labels\\n    with torch.no_grad():\\n        counts = torch.bincount(y_train.to('cpu'), minlength=num_classes).float()\\n        counts[counts == 0] = 1.0\\n        class_weights = (counts.sum() / (counts * num_classes))\\n    class_weights = class_weights.to(device)\\n\\n    if cfg['use_focal']:\\n        criterion = FocalLoss(alpha=class_weights, gamma=cfg['focal_gamma'], label_smoothing=cfg['label_smoothing'])\\n    else:\\n        criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=cfg['label_smoothing'])\\n\\n    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])\\n    use_amp = (device.type == 'cuda')\\n    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)\\n\\n    # ------------------------------- Metrics --------------------------------- #\\n    def accuracy(preds, targets):\\n        return (preds == targets).float().mean().item()\\n\\n    def f1_macro(preds, targets, num_classes=5):\\n        # preds, targets: 1D tensors on CPU\\n        f1s = []\\n        for c in range(num_classes):\\n            tp = ((preds == c) & (targets == c)).sum().item()\\n            fp = ((preds == c) & (targets != c)).sum().item()\\n            fn = ((preds != c) & (targets == c)).sum().item()\\n            denom = (2 * tp + fp + fn)\\n            f1c = (2 * tp / denom) if denom > 0 else 0.0\\n            f1s.append(f1c)\\n        return float(sum(f1s) / len(f1s))\\n\\n    history = {\\n        'train_loss': [], 'val_loss': [],\\n        'train_acc': [], 'val_acc': [],\\n        'val_f1': []\\n    }\\n    best = {'val_f1': -1.0, 'val_acc': -1.0, 'state_dict': None, 'epoch': -1}\\n\\n    # -------------------------------- Train ---------------------------------- #\\n    for epoch in range(cfg['epochs']):\\n        model.train()\\n        running_loss = 0.0\\n        correct = 0\\n        total = 0\\n        for xb, yb in train_loader:\\n            xb = xb.to(device, non_blocking=True).float()\\n            yb = yb.to(device, non_blocking=True).long()\\n\\n            optimizer.zero_grad(set_to_none=True)\\n            with torch.cuda.amp.autocast(enabled=use_amp):\\n                logits = model(xb)\\n                loss = criterion(logits, yb)\\n            scaler.scale(loss).backward()\\n            if cfg['grad_clip'] is not None and cfg['grad_clip'] > 0:\\n                scaler.unscale_(optimizer)\\n                nn.utils.clip_grad_norm_(model.parameters(), cfg['grad_clip'])\\n            scaler.step(optimizer)\\n            scaler.update()\\n\\n            running_loss += loss.item() * xb.size(0)\\n            preds = logits.argmax(dim=1)\\n            correct += (preds == yb).sum().item()\\n            total += yb.size(0)\\n\\n        train_loss = running_loss / max(1, total)\\n        train_acc = correct / max(1, total)\\n\\n        # ------------------------------ Validate ------------------------------ #\\n        model.eval()\\n        val_loss_sum = 0.0\\n        val_total = 0\\n        all_preds = []\\n        all_targets = []\\n        with torch.no_grad():\\n            for xb, yb in val_loader:\\n                xb = xb.to(device, non_blocking=True).float()\\n                yb = yb.to(device, non_blocking=True).long()\\n                with torch.cuda.amp.autocast(enabled=use_amp):\\n                    logits = model(xb)\\n                    loss = criterion(logits, yb)\\n                val_loss_sum += loss.item() * xb.size(0)\\n                val_total += yb.size(0)\\n                all_preds.append(logits.argmax(dim=1).detach().cpu())\\n                all_targets.append(yb.detach().cpu())\\n\\n        val_loss = val_loss_sum / max(1, val_total)\\n        preds_cpu = torch.cat(all_preds, dim=0) if all_preds else torch.empty(0, dtype=torch.long)\\n        targets_cpu = torch.cat(all_targets, dim=0) if all_targets else torch.empty(0, dtype=torch.long)\\n        val_acc = accuracy(preds_cpu, targets_cpu) if val_total > 0 else 0.0\\n        val_f1 = f1_macro(preds_cpu, targets_cpu, num_classes=num_classes) if val_total > 0 else 0.0\\n\\n        history['train_loss'].append(train_loss)\\n        history['val_loss'].append(val_loss)\\n        history['train_acc'].append(train_acc)\\n        history['val_acc'].append(val_acc)\\n        history['val_f1'].append(val_f1)\\n\\n        if val_f1 > best['val_f1']:\\n            best['val_f1'] = val_f1\\n            best['val_acc'] = val_acc\\n            best['epoch'] = epoch\\n            best['state_dict'] = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}\\n\\n    # Load best weights by val_f1\\n    if best['state_dict'] is not None:\\n        model.load_state_dict(best['state_dict'])\\n\\n    metrics = {\\n        'history': history,\\n        'best_val_f1': best['val_f1'],\\n        'best_val_acc': best['val_acc'],\\n        'best_epoch': best['epoch'],\\n    }\\n\\n    return model, metrics\\n",
+  "hyperparameters": {
+    "lr": 0.001,
+    "epochs": 15,
+    "batch_size": 128,
+    "hidden_size": 96
+  },
+  "reasoning": "The model follows recent findings for MIT-BIH AAMI 5-class classification: a compact 1D convolutional stem captures local P–QRS–T morphology and a tiny Transformer encoder models rhythm context across a 1000-sample window. This hybrid is more accurate and efficient than pure CNNs or pure Transformers on raw ECG windows, while staying deployable (<256K parameters). We add sinusoidal positional encoding, AdamW, label smoothing (0.05), class-balanced loss (or optional focal loss), mixed precision, and gradient clipping—simple, robust defaults. For evaluation, report inter-patient DS1→DS2 performance when preparing data to avoid patient overlap per current best practice.",
+  "confidence": 0.9,
+  "bo_parameters": [
+    "lr",
+    "batch_size",
+    "epochs",
+    "hidden_size",
+    "dropout"
+  ],
+  "bo_search_space": {
+    "lr": {
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.1,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32,
+        64,
+        128
+      ]
+    },
+    "epochs": {
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "hidden_size": {
+      "type": "Integer",
+      "low": 32,
+      "high": 512
+    },
+    "dropout": {
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.7
+    }
+  },
+  "data_profile": {
+    "data_type": "numpy_array",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1757985191,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

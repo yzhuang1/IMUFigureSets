@@ -4,7 +4,6 @@ Uses GPT-5 with web search to conduct literature review before training function
 """
 
 import json
-import logging
 import time
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
@@ -12,8 +11,6 @@ from openai import OpenAI
 from config import config
 import os
 from pathlib import Path
-
-logger = logging.getLogger(__name__)
 
 @dataclass
 class LiteratureReview:
@@ -94,7 +91,6 @@ class LiteratureReviewGenerator:
 
     def _call_gpt5_with_web_search(self, query: str, research_prompt: str) -> str:
         """Call GPT-5 with web search using the responses.create method"""
-        logger.info(f"Making GPT-5 literature review call with query: {query}")
 
         # Use the GPT-5 responses.create method with web search
         response = self.client.responses.create(
@@ -113,14 +109,14 @@ class LiteratureReviewGenerator:
         elif hasattr(response, 'text'):
             result = response.text
         else:
-            logger.warning("Unexpected response format, trying to extract content")
+            pass
             result = str(response)
 
-        logger.info("Successfully completed GPT-5 literature review with web search")
         return result
 
     def generate_literature_review(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int) -> LiteratureReview:
         """Generate comprehensive literature review for the given ML problem"""
+        print("Literature review started")
 
         # Create research query
         query = self._create_literature_query(data_profile, input_shape, num_classes)
@@ -176,10 +172,8 @@ class LiteratureReviewGenerator:
 
         # Parse the response
         review = self._parse_literature_review(response, query)
-
-        logger.info(f"Literature review completed with confidence: {review.confidence:.2f}")
-        logger.info(f"Found {len(review.recommended_approaches)} recommended approaches")
-
+        
+        print("Literature review finished")
         return review
 
     def _parse_literature_review(self, response: str, query: str) -> LiteratureReview:
@@ -211,7 +205,6 @@ class LiteratureReviewGenerator:
                 )
             else:
                 # Fallback: parse as plain text
-                logger.warning("Could not parse JSON response, using plain text format")
                 return LiteratureReview(
                     query=query,
                     review_text=response,
@@ -223,7 +216,7 @@ class LiteratureReviewGenerator:
                 )
 
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Failed to parse JSON response: {e}")
+            pass
             # Return plain text review
             return LiteratureReview(
                 query=query,
@@ -309,7 +302,6 @@ KEY FINDINGS:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(review_content)
 
-        logger.info(f"Literature review saved to: {filepath}")
         return str(filepath)
 
     def load_literature_review(self, filepath: str) -> str:

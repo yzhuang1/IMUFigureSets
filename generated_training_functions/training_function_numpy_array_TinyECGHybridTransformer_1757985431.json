@@ -1,0 +1,78 @@
+{
+  "model_name": "TinyECGHybridTransformer",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    import math\n    import torch\n    import torch.nn as nn\n    import torch.nn.functional as F\n    from torch.utils.data import Dataset, DataLoader\n    from torch.utils.data import TensorDataset\n    \n    # -------------------- Hyperparams (defaults) --------------------\n    hp = {\n        'epochs': 10,\n        'lr': 1e-3,\n        'batch_size': 64,\n        'hidden_size': 96,        # Transformer/CNN embed dim (keep small for <256K params)\n        'heads': 4,               # must divide hidden_size; will auto-adjust if needed\n        'layers': 2,              # Transformer encoder layers\n        'dropout': 0.1,\n        'weight_decay': 1e-4,\n        'use_focal': True,\n        'gamma': 2.0,\n        'augment': True,\n        'use_class_weights': True,\n        'num_workers': 0,\n        'grad_clip': 1.0\n    }\n    hp.update(hyperparams or {})\n    \n    # Ensure heads divides hidden\n    if hp['hidden_size'] % hp['heads'] != 0:\n        # reduce heads to a divisor\n        for h in reversed(range(1, hp['heads'] + 1)):\n            if hp['hidden_size'] % h == 0:\n                hp['heads'] = h\n                break\n        if hp['hidden_size'] % hp['heads'] != 0:\n            hp['heads'] = 1\n    \n    # -------------------- Dataset --------------------\n    class ECGDataset(Dataset):\n        def __init__(self, X, y, augment=False):\n            self.X = X\n            self.y = y\n            self.augment = augment\n        def __len__(self):\n            return self.X.shape[0]\n        def _standardize(self, x):\n            # x: (C, L)\n            mean = x.mean(dim=1, keepdim=True)\n            std = x.std(dim=1, keepdim=True)\n            x = (x - mean) / (std + 1e-5)\n            return x\n        def _augment(self, x):\n            # Simple, lightweight augmentations tailored to ECG\n            # amplitude scaling\n            if torch.rand(1) < 0.5:\n                scale = 0.9 + 0.2 * torch.rand(1, device=x.device)\n                x = x * scale\n            # gaussian noise\n            if torch.rand(1) < 0.5:\n                noise_level = 0.01\n                x = x + noise_level * torch.randn_like(x)\n            # small time shift\n            if torch.rand(1) < 0.5:\n                L = x.shape[-1]\n                shift = int(torch.randint(low=-10, high=11, size=(1,)).item())\n                x = torch.roll(x, shifts=shift, dims=-1)\n            return x\n        def __getitem__(self, idx):\n            x = self.X[idx]\n            y = self.y[idx]\n            # Ensure float and shape (C=2, L=1000)\n            x = x.to(torch.float32)\n            if x.dim() == 1:\n                # Unexpected, make it (2, L) if possible\n                raise ValueError('Expected 2D signal per sample, got 1D.')\n            if x.shape[0] == 2:\n                # (2, L) OK\n                pass\n            elif x.shape[-1] == 2:\n                # (L, 2) -> (2, L)\n                x = x.transpose(0, 1).contiguous()\n            else:\n                raise ValueError(f'Input sample must have shape (2, L) or (L, 2); got {tuple(x.shape)}')\n            x = self._standardize(x)\n            if self.augment:\n                x = self._augment(x)\n            return x, y.long()\n    \n    # -------------------- Model --------------------\n    class CNNFrontEnd(nn.Module):\n        def __init__(self, out_channels):\n            super().__init__()\n            # Three Conv1d blocks with strides to reduce L: 1000 -> 125\n            self.net = nn.Sequential(\n                nn.Conv1d(2, 32, kernel_size=7, stride=2, padding=3, bias=False),\n                nn.BatchNorm1d(32),\n                nn.GELU(),\n                nn.Conv1d(32, 64, kernel_size=11, stride=2, padding=5, bias=False),\n                nn.BatchNorm1d(64),\n                nn.GELU(),\n                nn.Conv1d(64, out_channels, kernel_size=7, stride=2, padding=3, bias=False),\n                nn.BatchNorm1d(out_channels),\n                nn.GELU(),\n            )\n        def forward(self, x):  # x: (B, 2, L)\n            return self.net(x)  # (B, C, L')\n    \n    class SinusoidalPositionalEncoding(nn.Module):\n        def __init__(self, dim):\n            super().__init__()\n            self.dim = dim\n        def forward(self, x):  # x: (B, L, D)\n            L = x.size(1)\n            D = self.dim\n            dtype = x.dtype\n            device = x.device\n            pe = torch.zeros(L, D, dtype=dtype, device=device)\n            position = torch.arange(0, L, dtype=dtype, device=device).unsqueeze(1)\n            div_term = torch.exp(torch.arange(0, D, 2, device=device, dtype=dtype) * (-math.log(10000.0) / D))\n            pe[:, 0::2] = torch.sin(position * div_term)\n            pe[:, 1::2] = torch.cos(position * div_term)\n            return pe.unsqueeze(0)  # (1, L, D)\n    \n    class TransformerBlock(nn.Module):\n        def __init__(self, d_model, n_heads, dropout=0.1, ff_mult=2):\n            super().__init__()\n            self.norm1 = nn.LayerNorm(d_model)\n            self.attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout, batch_first=True)\n            self.drop1 = nn.Dropout(dropout)\n            self.norm2 = nn.LayerNorm(d_model)\n            self.ff = nn.Sequential(\n                nn.Linear(d_model, d_model * ff_mult),\n                nn.GELU(),\n                nn.Dropout(dropout),\n                nn.Linear(d_model * ff_mult, d_model),\n            )\n            self.drop2 = nn.Dropout(dropout)\n        def forward(self, x):  # (B, L, D)\n            y = self.norm1(x)\n            y, _ = self.attn(y, y, y, need_weights=False)\n            x = x + self.drop1(y)\n            y = self.norm2(x)\n            y = self.ff(y)\n            return x + self.drop2(y)\n    \n    class TinyECGHybridTransformer(nn.Module):\n        def __init__(self, d_model=96, n_heads=4, n_layers=2, dropout=0.1, n_classes=5):\n            super().__init__()\n            self.cnn = CNNFrontEnd(out_channels=d_model)\n            self.pos = SinusoidalPositionalEncoding(d_model)\n            self.blocks = nn.ModuleList([\n                TransformerBlock(d_model, n_heads, dropout=dropout, ff_mult=2)\n                for _ in range(n_layers)\n            ])\n            self.head = nn.Sequential(\n                nn.LayerNorm(2 * d_model),\n                nn.Dropout(dropout),\n                nn.Linear(2 * d_model, n_classes)\n            )\n        def forward(self, x):  # x: (B, 2, L)\n            z = self.cnn(x)                  # (B, D, L')\n            z = z.transpose(1, 2)            # (B, L', D)\n            z = z + self.pos(z)\n            for blk in self.blocks:\n                z = blk(z)\n            # Global pooling (mean + max)\n            mean_pool = z.mean(dim=1)\n            max_pool, _ = z.max(dim=1)\n            feat = torch.cat([mean_pool, max_pool], dim=-1)\n            logits = self.head(feat)\n            return logits\n    \n    # -------------------- Loss --------------------\n    def make_class_weights(y, num_classes=5):\n        counts = torch.bincount(y.view(-1).cpu(), minlength=num_classes).float()\n        weights = counts.sum() / (counts + 1e-6)\n        weights = weights / weights.mean()\n        return weights\n    \n    class FocalLoss(nn.Module):\n        def __init__(self, gamma=2.0, alpha=None, reduction='mean'):\n            super().__init__()\n            self.gamma = gamma\n            self.alpha = alpha\n            self.reduction = reduction\n        def forward(self, logits, targets):\n            ce = F.cross_entropy(logits, targets, weight=self.alpha, reduction='none')\n            pt = torch.exp(-ce)\n            loss = ((1 - pt) ** self.gamma) * ce\n            if self.reduction == 'mean':\n                return loss.mean()\n            elif self.reduction == 'sum':\n                return loss.sum()\n            else:\n                return loss\n    \n    # -------------------- Metrics --------------------\n    @torch.no_grad()\n    def compute_f1_per_class(y_true, y_pred, num_classes=5):\n        f1 = []\n        eps = 1e-9\n        for c in range(num_classes):\n            tp = ((y_pred == c) & (y_true == c)).sum().item()\n            fp = ((y_pred == c) & (y_true != c)).sum().item()\n            fn = ((y_pred != c) & (y_true == c)).sum().item()\n            prec = tp / (tp + fp + eps)\n            rec = tp / (tp + fn + eps)\n            f1_c = 2 * prec * rec / (prec + rec + eps)\n            f1.append(f1_c)\n        return f1, sum(f1) / len(f1)\n    \n    # -------------------- DataLoaders --------------------\n    # IMPORTANT: pin_memory only if tensors are on CPU\n    pin_mem = (X_train.device.type == 'cpu')\n    nw = hp.get('num_workers', 0) if pin_mem else 0\n    train_ds = ECGDataset(X_train, y_train, augment=hp['augment'])\n    val_ds = ECGDataset(X_val, y_val, augment=False)\n    train_loader = DataLoader(train_ds, batch_size=hp['batch_size'], shuffle=True,\n                              num_workers=nw, pin_memory=pin_mem, drop_last=False)\n    val_loader = DataLoader(val_ds, batch_size=hp['batch_size'], shuffle=False,\n                            num_workers=nw, pin_memory=pin_mem, drop_last=False)\n    \n    # -------------------- Model/Opt/Loss --------------------\n    model = TinyECGHybridTransformer(\n        d_model=hp['hidden_size'],\n        n_heads=hp['heads'],\n        n_layers=hp['layers'],\n        dropout=hp['dropout'],\n        n_classes=5\n    ).to(device)\n    \n    # Parameter count (for reference in metrics)\n    param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)\n    \n    class_weights = None\n    if hp['use_class_weights']:\n        class_weights = make_class_weights(y_train, num_classes=5).to(device)\n    \n    if hp['use_focal']:\n        criterion = FocalLoss(gamma=hp['gamma'], alpha=class_weights)\n    else:\n        criterion = nn.CrossEntropyLoss(weight=class_weights)\n    \n    optimizer = torch.optim.AdamW(model.parameters(), lr=hp['lr'], weight_decay=hp['weight_decay'])\n    \n    # -------------------- Training Loop --------------------\n    torch.backends.cudnn.benchmark = True\n    history = {'train_loss': [], 'val_loss': [], 'val_acc': [], 'val_f1_macro': []}\n    best_val_acc = 0.0\n    best_state = None\n    \n    for epoch in range(hp['epochs']):\n        model.train()\n        running_loss = 0.0\n        n_train = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=pin_mem)\n            yb = yb.to(device, non_blocking=pin_mem)\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if hp['grad_clip'] is not None and hp['grad_clip'] > 0:\n                torch.nn.utils.clip_grad_norm_(model.parameters(), hp['grad_clip'])\n            optimizer.step()\n            batch_size = yb.size(0)\n            running_loss += loss.item() * batch_size\n            n_train += batch_size\n        train_loss = running_loss / max(1, n_train)\n        \n        # Validation\n        model.eval()\n        val_loss = 0.0\n        n_val = 0\n        all_preds = []\n        all_targets = []\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=pin_mem)\n                yb = yb.to(device, non_blocking=pin_mem)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                val_loss += loss.item() * yb.size(0)\n                n_val += yb.size(0)\n                preds = logits.argmax(dim=1)\n                all_preds.append(preds.cpu())\n                all_targets.append(yb.cpu())\n        val_loss = val_loss / max(1, n_val)\n        all_preds = torch.cat(all_preds)\n        all_targets = torch.cat(all_targets)\n        acc = (all_preds == all_targets).float().mean().item()\n        per_class_f1, f1_macro = compute_f1_per_class(all_targets, all_preds, num_classes=5)\n        history['train_loss'].append(train_loss)\n        history['val_loss'].append(val_loss)\n        history['val_acc'].append(acc)\n        history['val_f1_macro'].append(f1_macro)\n        if acc > best_val_acc:\n            best_val_acc = acc\n            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}\n    \n    if best_state is not None:\n        model.load_state_dict(best_state)\n    \n    metrics = {\n        'history': history,\n        'best_val_acc': best_val_acc,\n        'param_count': int(param_count)\n    }\n    return model, metrics\n",
+  "hyperparameters": {
+    "lr": 0.001,
+    "epochs": 10,
+    "batch_size": 64
+  },
+  "reasoning": "Implements a lightweight 1D CNN front end plus a small Transformer encoder, reflecting recent findings that local morphology and global rhythm context together boost 5-class MIT-BIH performance. The model downsamples to ~125 tokens, enabling efficient attention. We include optional focal loss and class weighting to improve sensitivity to minority S/V/F/Q classes as recommended by literature. Simple augmentations (scale, noise, shift) improve robustness. Architecture stays under 256K parameters by using modest channels and 2 Transformer layers, suitable for sequences of length 1000 with 2 leads. Inter-patient split and AAMI mapping are assumed handled upstream.",
+  "confidence": 0.9,
+  "bo_parameters": [
+    "lr",
+    "batch_size",
+    "epochs",
+    "hidden_size",
+    "dropout"
+  ],
+  "bo_search_space": {
+    "lr": {
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.1,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32,
+        64,
+        128
+      ]
+    },
+    "epochs": {
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "hidden_size": {
+      "type": "Integer",
+      "low": 32,
+      "high": 256
+    },
+    "dropout": {
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    }
+  },
+  "data_profile": {
+    "data_type": "numpy_array",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1757985431,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

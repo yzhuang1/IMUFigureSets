@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an AI-enhanced machine learning pipeline that automatically converts various data formats to PyTorch tensors, uses OpenAI's GPT models to generate complete training functions as executable code, and performs Bayesian optimization with AI-generated model architectures. The pipeline features iterative AI evaluation and feedback loops for automated machine learning.
+This is an AI-enhanced machine learning pipeline that automatically converts various data formats to PyTorch tensors, uses OpenAI's GPT models to generate complete training functions as executable code, and performs Bayesian optimization with AI-generated model architectures. The pipeline executes in a single pass with fail-fast behavior for automated machine learning.
 
 ## Development Setup
 
@@ -62,8 +62,8 @@ python main.py
 ## Entry Points
 
 ### Main Pipeline
-- `main.py` - AI-enhanced pipeline with code generation → BO → evaluation → feedback loop
-- `train_with_iterative_selection()` - Complete training workflow with iterative AI code generation
+- `main.py` - AI-enhanced pipeline with code generation → BO → evaluation (single pass, fail-fast)
+- `train_with_iterative_selection()` - Complete training workflow with AI code generation (single attempt)
 - `CodeGenerationPipelineOrchestrator` - Orchestrates ML pipeline with AI-generated training functions
 
 ### Bayesian Optimization
@@ -80,9 +80,7 @@ Configuration is handled through `config.py`:
 - OpenAI model defaults to GPT-4
 
 **API Call Limits (prevents infinite loops and controls costs):**
-- `MAX_MODEL_ATTEMPTS=4` - Maximum model architectures to try (default: 4)
-- `MAX_BO_TRIALS=10` - Maximum Bayesian Optimization trials (default: 10)
-- `MAX_EVAL_RETRIES=2` - Maximum evaluation retries (default: 2)
+- `MAX_BO_TRIALS=40` - Maximum Bayesian Optimization trials (default: 40)
 
 See `API_LIMITS.md` for detailed cost estimates and configuration guide.
 

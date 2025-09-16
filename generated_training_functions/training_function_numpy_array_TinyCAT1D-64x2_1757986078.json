@@ -1,0 +1,80 @@
+{
+  "model_name": "TinyCAT1D-64x2",
+  "training_code": "import torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.data import DataLoader, TensorDataset\nfrom typing import Dict, Tuple\n\nclass DepthwiseSeparableConv1d(nn.Module):\n    def __init__(self, in_ch, out_ch, k=5, dilation=1, dropout=0.0):\n        super().__init__()\n        padding = ((k - 1) // 2) * dilation\n        self.depthwise = nn.Conv1d(in_ch, in_ch, kernel_size=k, groups=in_ch, dilation=dilation, padding=padding, bias=False)\n        self.pointwise = nn.Conv1d(in_ch, out_ch, kernel_size=1, bias=False)\n        self.bn = nn.BatchNorm1d(out_ch)\n        self.act = nn.GELU()\n        self.drop = nn.Dropout(dropout)\n    def forward(self, x):\n        x = self.depthwise(x)\n        x = self.pointwise(x)\n        x = self.bn(x)\n        x = self.act(x)\n        return self.drop(x)\n\nclass TinyCAT1D(nn.Module):\n    def __init__(self, in_ch=2, num_classes=5, hidden_size=64, patch_len=10, n_layers=2, n_heads=2, dropout=0.1, seq_len=1000):\n        super().__init__()\n        # CNN stem (multi-scale-ish with separable conv)\n        self.stem = nn.Sequential(\n            nn.Conv1d(in_ch, 64, kernel_size=7, padding=3, bias=False),\n            nn.BatchNorm1d(64),\n            nn.GELU(),\n            DepthwiseSeparableConv1d(64, 64, k=5, dilation=2, dropout=dropout)\n        )\n        # Patch embedding to tokens for Transformer\n        assert seq_len % patch_len == 0, \"seq_len must be divisible by patch_len\"\n        self.num_tokens = seq_len // patch_len\n        self.patch_embed = nn.Conv1d(64, hidden_size, kernel_size=patch_len, stride=patch_len, bias=True)\n        self.pos_emb = nn.Parameter(torch.zeros(1, self.num_tokens, hidden_size))\n        encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_size, nhead=n_heads, dim_feedforward=hidden_size*4, dropout=dropout, activation='gelu', batch_first=True, norm_first=True)\n        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)\n        self.head = nn.Sequential(\n            nn.LayerNorm(hidden_size),\n            nn.Dropout(dropout),\n            nn.Linear(hidden_size, num_classes)\n        )\n        self._init_weights()\n    def _init_weights(self):\n        nn.init.trunc_normal_(self.pos_emb, std=0.02)\n        for m in self.modules():\n            if isinstance(m, nn.Conv1d):\n                nn.init.kaiming_normal_(m.weight, nonlinearity='gelu')\n            if isinstance(m, nn.Linear):\n                nn.init.trunc_normal_(m.weight, std=0.02)\n                if m.bias is not None:\n                    nn.init.zeros_(m.bias)\n    def forward(self, x):\n        # Accept (B, 2, 1000) or (B, 1000, 2)\n        if x.dim() == 3 and x.size(1) != 2 and x.size(2) == 2:\n            x = x.permute(0, 2, 1)  # to (B, 2, L)\n        x = self.stem(x)  # (B, 64, L)\n        x = self.patch_embed(x)  # (B, hidden, T)\n        x = x.transpose(1, 2)  # (B, T, hidden)\n        x = x + self.pos_emb\n        x = self.encoder(x)  # (B, T, hidden)\n        x = x.mean(dim=1)  # global average over tokens\n        return self.head(x)\n\ndef _balanced_class_weights(y: torch.Tensor, num_classes: int, device: torch.device) -> torch.Tensor:\n    # n_samples / (num_classes * count_c)\n    counts = torch.bincount(y.to(torch.long), minlength=num_classes).float()\n    counts = torch.clamp(counts, min=1.0)\n    weights = (y.numel() / (num_classes * counts)).to(device)\n    return weights\n\ndef _focal_ce_loss(logits, targets, weight=None, gamma=2.0, label_smoothing=0.0):\n    # combines label smoothing with focal modulated CE\n    if label_smoothing > 0.0:\n        num_classes = logits.size(1)\n        with torch.no_grad():\n            true_dist = torch.zeros_like(logits)\n            true_dist.fill_(label_smoothing / (num_classes - 1))\n            true_dist.scatter_(1, targets.unsqueeze(1), 1.0 - label_smoothing)\n        logp = F.log_softmax(logits, dim=1)\n        p = logp.exp()\n        pt = (p * true_dist).sum(dim=1)\n        ce = -(true_dist * logp)\n        if weight is not None:\n            # class-wise weights applied to the hard target class\n            w = weight[targets]\n            ce = ce.sum(dim=1) * w\n        else:\n            ce = ce.sum(dim=1)\n    else:\n        logp = F.log_softmax(logits, dim=1)\n        p = logp.exp()\n        ce = F.nll_loss(logp, targets, weight=weight, reduction='none')\n        pt = p.gather(1, targets.unsqueeze(1)).squeeze(1)\n    loss = ((1.0 - pt).clamp(min=0) ** gamma) * ce\n    return loss.mean()\n\ndef _metrics(y_true: torch.Tensor, y_pred: torch.Tensor, num_classes: int) -> Dict[str, float]:\n    y_true = y_true.to(torch.long)\n    y_pred = y_pred.to(torch.long)\n    acc = (y_true == y_pred).float().mean().item()\n    # Macro-F1\n    f1s = []\n    for c in range(num_classes):\n        tp = ((y_pred == c) & (y_true == c)).sum().item()\n        fp = ((y_pred == c) & (y_true != c)).sum().item()\n        fn = ((y_pred != c) & (y_true == c)).sum().item()\n        denom = (2*tp + fp + fn)\n        f1 = 0.0 if denom == 0 else (2*tp) / denom\n        f1s.append(f1)\n    macro_f1 = float(sum(f1s) / num_classes)\n    return {\"acc\": acc, \"macro_f1\": macro_f1}\n\ndef train_model(X_train: torch.Tensor, y_train: torch.Tensor, X_val: torch.Tensor, y_val: torch.Tensor, device: torch.device, **hyperparams) -> Tuple[nn.Module, Dict]:\n    \"\"\"\n    Train a lightweight CNN+Transformer (TinyCAT1D) for 5-class classification on ECG windows (1000x2).\n    Args:\n        X_train, y_train, X_val, y_val: PyTorch tensors. X can be (N, 2, 1000) or (N, 1000, 2). y int64.\n        device: torch.device to train on.\n        hyperparams: lr, epochs, batch_size, hidden_size, dropout, patch_len, n_layers, n_heads, weight_decay, focal_gamma, label_smoothing, num_workers.\n    Returns:\n        model, history dict with best metrics and per-epoch logs.\n    \"\"\"\n    # Defaults\n    hp = {\n        'lr': 3e-4,\n        'epochs': 30,\n        'batch_size': 128,\n        'hidden_size': 64,\n        'dropout': 0.1,\n        'patch_len': 10,\n        'n_layers': 2,\n        'n_heads': 2,\n        'weight_decay': 1e-4,\n        'focal_gamma': 2.0,\n        'label_smoothing': 0.05,\n        'num_workers': 0,\n        'grad_clip': 1.0\n    }\n    hp.update(hyperparams or {})\n\n    num_classes = 5\n    seq_len = X_train.shape[1] if (X_train.dim() == 3 and X_train.size(1) == 1000) else (X_train.shape[2] if X_train.dim() == 3 else 1000)\n    # Datasets and loaders\n    y_train = y_train.to(torch.long)\n    y_val = y_val.to(torch.long)\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n\n    pin_mem = (X_train.device.type == 'cpu')  # only pin if tensors live on CPU\n    train_loader = DataLoader(train_ds, batch_size=hp['batch_size'], shuffle=True, num_workers=hp['num_workers'], pin_memory=pin_mem)\n    val_loader = DataLoader(val_ds, batch_size=hp['batch_size'], shuffle=False, num_workers=hp['num_workers'], pin_memory=pin_mem)\n\n    model = TinyCAT1D(in_ch=2, num_classes=num_classes, hidden_size=hp['hidden_size'], patch_len=hp['patch_len'], n_layers=hp['n_layers'], n_heads=hp['n_heads'], dropout=hp['dropout'], seq_len=seq_len).to(device)\n\n    # Class imbalance handling with balanced weights + focal modulation\n    class_weights = _balanced_class_weights(y_train.cpu(), num_classes, device)\n\n    optimizer = torch.optim.AdamW(model.parameters(), lr=hp['lr'], weight_decay=hp['weight_decay'])\n\n    history = {\"train_loss\": [], \"val_loss\": [], \"val_acc\": [], \"val_macro_f1\": []}\n    best = {\"epoch\": -1, \"val_macro_f1\": -1.0, \"val_acc\": 0.0, \"state_dict\": None}\n\n    for epoch in range(1, hp['epochs'] + 1):\n        model.train()\n        running_loss = 0.0\n        total = 0\n        for xb, yb in train_loader:\n            non_blocking = (device.type == 'cuda' and pin_mem)\n            xb = xb.to(device, non_blocking=non_blocking)\n            yb = yb.to(device, non_blocking=non_blocking)\n            # Ensure channel-first (B, 2, L)\n            if xb.dim() == 3 and xb.size(1) != 2 and xb.size(2) == 2:\n                xb = xb.permute(0, 2, 1)\n            logits = model(xb)\n            if hp['focal_gamma'] and hp['focal_gamma'] > 0:\n                loss = _focal_ce_loss(logits, yb, weight=class_weights, gamma=hp['focal_gamma'], label_smoothing=hp.get('label_smoothing', 0.0))\n            else:\n                loss = F.cross_entropy(logits, yb, weight=class_weights, label_smoothing=hp.get('label_smoothing', 0.0))\n\n            optimizer.zero_grad(set_to_none=True)\n            loss.backward()\n            if hp.get('grad_clip', 0) and hp['grad_clip'] > 0:\n                nn.utils.clip_grad_norm__(model.parameters(), hp['grad_clip'])\n            optimizer.step()\n\n            bs = yb.size(0)\n            running_loss += loss.item() * bs\n            total += bs\n\n        train_loss = running_loss / max(total, 1)\n\n        # Validation\n        model.eval()\n        val_loss_sum = 0.0\n        val_n = 0\n        all_preds = []\n        all_tgts = []\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                non_blocking = (device.type == 'cuda' and pin_mem)\n                xb = xb.to(device, non_blocking=non_blocking)\n                yb = yb.to(device, non_blocking=non_blocking)\n                if xb.dim() == 3 and xb.size(1) != 2 and xb.size(2) == 2:\n                    xb = xb.permute(0, 2, 1)\n                logits = model(xb)\n                if hp['focal_gamma'] and hp['focal_gamma'] > 0:\n                    loss = _focal_ce_loss(logits, yb, weight=class_weights, gamma=hp['focal_gamma'], label_smoothing=hp.get('label_smoothing', 0.0))\n                else:\n                    loss = F.cross_entropy(logits, yb, weight=class_weights, label_smoothing=hp.get('label_smoothing', 0.0))\n                preds = logits.argmax(dim=1)\n                bs = yb.size(0)\n                val_loss_sum += loss.item() * bs\n                val_n += bs\n                all_preds.append(preds.cpu())\n                all_tgts.append(yb.cpu())\n        val_loss = val_loss_sum / max(val_n, 1)\n        y_pred = torch.cat(all_preds, dim=0)\n        y_true = torch.cat(all_tgts, dim=0)\n        m = _metrics(y_true, y_pred, num_classes)\n\n        history['train_loss'].append(train_loss)\n        history['val_loss'].append(val_loss)\n        history['val_acc'].append(m['acc'])\n        history['val_macro_f1'].append(m['macro_f1'])\n\n        if m['macro_f1'] > best['val_macro_f1']:\n            best['val_macro_f1'] = m['macro_f1']\n            best['val_acc'] = m['acc']\n            best['epoch'] = epoch\n            best['state_dict'] = {k: v.cpu() for k, v in model.state_dict().items()}\n\n    # Load best weights (by macro-F1)\n    if best['state_dict'] is not None:\n        model.load_state_dict({k: v.to(device) for k, v in best['state_dict'].items()})\n\n    metrics = {\n        'best_epoch': best['epoch'],\n        'best_val_macro_f1': best['val_macro_f1'],\n        'best_val_acc': best['val_acc'],\n        'history': history,\n        'params': sum(p.numel() for p in model.parameters())\n    }\n    return model, metrics\n",
+  "hyperparameters": {
+    "lr": 0.0003,
+    "epochs": 30,
+    "batch_size": 128,
+    "hidden_size": 64,
+    "dropout": 0.1
+  },
+  "reasoning": "The model is a lightweight CNN+Transformer (TinyCAT1D): 1D convolutions capture local ECG morphology (P–QRS–T), while a small Transformer encoder models longer-range rhythm dependencies across the 1000-sample window. This hybrid improves recognition of S and F classes reported in recent literature, while keeping parameters under 256k for efficiency. Class imbalance is addressed via balanced class weights and an optional focal loss term, which typically boosts minority-class F1 on MIT-BIH. The training loop is intentionally simple (no schedulers/early stopping) to suit Bayesian Optimization. DataLoader uses pin_memory only when tensors are on CPU, as required.",
+  "confidence": 0.9,
+  "bo_parameters": [
+    "lr",
+    "batch_size",
+    "epochs",
+    "hidden_size",
+    "dropout"
+  ],
+  "bo_search_space": {
+    "lr": {
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.1,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32,
+        64,
+        128
+      ]
+    },
+    "epochs": {
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "hidden_size": {
+      "type": "Integer",
+      "low": 32,
+      "high": 512
+    },
+    "dropout": {
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.7
+    }
+  },
+  "data_profile": {
+    "data_type": "numpy_array",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1757986078,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}
