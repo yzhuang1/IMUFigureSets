@@ -102,7 +102,7 @@ Requirements:
 - X_train, y_train, X_val, y_val are PyTorch tensors
 - IMPORTANT: Only use pin_memory=True in DataLoader if tensors are on CPU. Check tensor.device.type == 'cpu' before enabling pin_memory
 - Keep code simple 
-- Bayesian Optimization will handle hyperparameter tuning
+- Bayesian Optimization will handle hyperparameter tuning (You can decide what parameters you want base on the model you choose)
 - Focus on core training loop, avoid complex scheduling/early stopping
 - Build model from scratch, include basic training loop, return model and metrics
 - Lightweight architecture (<256K parameters after compression)
@@ -114,7 +114,7 @@ Requirements:
   * "lr" (not "learning_rate", "alpha", or "eta")
   * "batch_size" (not "batch", "bs", or "bsize")
   * "epochs" (not "num_epochs", "n_epochs", or "training_steps")
-
+ - You can decide what parameters is used base on the model you choose
 Response JSON format example:
 {{
     "model_name": "ModelName",

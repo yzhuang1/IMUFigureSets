@@ -18,6 +18,7 @@ from evaluation.evaluate import evaluate_model
 from visualization import generate_bo_charts, create_charts_folder
 from config import config
 from data_splitting import create_consistent_splits, get_current_splits, compute_standardization_stats
+from error_monitor import enable_error_termination, disable_error_termination
 from adapters.universal_converter import convert_to_torch_dataset
 
 logger = logging.getLogger(__name__)
@@ -80,14 +81,24 @@ class CodeGenerationPipelineOrchestrator:
         
         # STEP 3: Bayesian Optimization
         logger.info("🔍 STEP 3: Bayesian Optimization")
+
+        # Enable error monitoring for BO process
+        enable_error_termination(
+        error_keywords=["ERROR"],
+        ignore_patterns=[]
+        )
+
         bo_results = self._run_bayesian_optimization(X, y, device, code_rec)
-        
+
         # STEP 4: Final Training with Optimized Parameters
         logger.info("🚀 STEP 4: Final Training Execution")
         final_model, training_results = self._execute_final_training(
             X, y, device, json_filepath, bo_results
         )
-        
+
+        # Disable error monitoring before evaluation
+        disable_error_termination()
+
         # STEP 5: Performance Analysis
         logger.info("📊 STEP 5: Performance Analysis")
         performance_score = training_results['final_metrics']['macro_f1']

@@ -174,7 +174,7 @@ class LiteratureReviewGenerator:
             "confidence": 0.0-1.0
         }}
         
-        FOCUS: Only output a json format.
+        FOCUS: You can only output a json format.
         """
 
         # Get literature review from GPT-5 with web search
@@ -214,29 +214,14 @@ class LiteratureReviewGenerator:
                     timestamp=int(time.time())
                 )
             else:
-                # Fallback: parse as plain text
-                return LiteratureReview(
-                    query=query,
-                    review_text=response,
-                    key_findings=self._extract_key_points(response),
-                    recommended_approaches=self._extract_recommendations(response),
-                    recent_papers=[],
-                    confidence=0.7,
-                    timestamp=int(time.time())
-                )
+                print(f"Literature review response missing required JSON structure")
+                print(f"Response content: {response}")
+                raise ValueError(f"Literature review must return valid JSON with required fields. Got: {data}")
 
         except (json.JSONDecodeError, ValueError) as e:
-            pass
-            # Return plain text review
-            return LiteratureReview(
-                query=query,
-                review_text=response,
-                key_findings=self._extract_key_points(response),
-                recommended_approaches=self._extract_recommendations(response),
-                recent_papers=[],
-                confidence=0.6,
-                timestamp=int(time.time())
-            )
+            print(f"Literature review response is not valid JSON format: {e}")
+            print(f"Response content: {response}")
+            raise ValueError(f"Literature review must return valid JSON format. Got invalid response: {e}")
 
     def _extract_key_points(self, text: str) -> List[str]:
         """Extract key points from plain text review"""
