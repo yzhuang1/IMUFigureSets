@@ -30,6 +30,7 @@ class Config:
         # These values should be set in .env file, fallback values provided as backup
         self.max_bo_trials = int(os.getenv("MAX_BO_TRIALS") or "40")
         self.debug_chances = int(os.getenv("DEBUG_CHANCES") or "4")
+        self.bo_sample_num = int(os.getenv("BO_SAMPLE_NUM") or "5000")
     
     def _get_openai_api_key(self) -> Optional[str]:
         """Get OpenAI API key from environment variables or .env file"""

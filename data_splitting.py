@@ -126,20 +126,24 @@ class CentralizedDataSplitter:
         
         return self.splits
     
-    def get_bo_subset(self, max_samples: int = 5000) -> Tuple[np.ndarray, np.ndarray]:
+    def get_bo_subset(self, max_samples: int = None) -> Tuple[np.ndarray, np.ndarray]:
         """
         Get a subset of training data for Bayesian Optimization
         Maintains class distribution and uses consistent random state
         
         Args:
-            max_samples: Maximum number of samples for BO
+            max_samples: Maximum number of samples for BO (if None, uses config.bo_sample_num)
             
         Returns:
             Tuple of (X_bo, y_bo) subset
         """
         if self.splits is None:
             raise ValueError("Must call create_splits() first")
-        
+
+        if max_samples is None:
+            from config import config
+            max_samples = config.bo_sample_num
+
         X_train, y_train = self.splits.X_train, self.splits.y_train
         
         if len(X_train) <= max_samples:
@@ -249,8 +253,11 @@ def create_consistent_splits(
         val_size=val_size
     )
 
-def get_bo_subset(max_samples: int = 5000) -> Tuple[np.ndarray, np.ndarray]:
+def get_bo_subset(max_samples: int = None) -> Tuple[np.ndarray, np.ndarray]:
     """Get BO subset using global splitter"""
+    if max_samples is None:
+        from config import config
+        max_samples = config.bo_sample_num
     return global_splitter.get_bo_subset(max_samples)
 
 def get_current_splits() -> DataSplits:

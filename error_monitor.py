@@ -34,7 +34,7 @@ class ErrorTerminator:
         default_ignore_patterns = [
             "error handling", "error detection", "no error", "error rate", 
             "error analysis", "[notice]", "❌ error:", "error:", 
-            "pipeline error", "compression failed", "❌ compression failed",
+            "pipeline error",
             "failed to load", "could not load", "not found", "❌ pipeline error",
             "critical error detected", "terminating program", "🚨",
             "error monitoring", "monitoring activated", "terminate on",

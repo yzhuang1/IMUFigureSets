@@ -428,7 +428,7 @@ class BO_TrainingObjective:
             except ValueError:
                 # Fallback: use BO subset if centralized splits not available
                 logger.warning("Centralized splits not available, using BO subset")
-                X_bo, y_bo = get_bo_subset(max_samples=5000)
+                X_bo, y_bo = get_bo_subset()
                 from sklearn.model_selection import train_test_split
                 X_train, X_val, y_train, y_val = train_test_split(
                     X_bo, y_bo, test_size=0.2, random_state=42, stratify=y_bo

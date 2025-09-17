@@ -64,7 +64,6 @@ Generate PyTorch training function for {num_classes}-class classification.
 Data: {data_profile['data_type']}, shape {input_shape}, {num_samples} samples{dataset_context}"""
 
         # Add literature review insights if available
-        print("!!!!!!!!!!!!!!!!!",data_profile['data_type'])
         if literature_review:
             base_prompt += f"""
 
