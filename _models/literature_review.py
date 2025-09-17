@@ -174,7 +174,7 @@ class LiteratureReviewGenerator:
             "confidence": 0.0-1.0
         }}
         
-        FOCUS: Provide specific, actionable recommendations with quantitative evidence from recent literature.
+        FOCUS: Only output a json format.
         """
 
         # Get literature review from GPT-5 with web search

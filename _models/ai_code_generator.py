@@ -42,7 +42,7 @@ class AICodeGenerator:
         self.code_storage_dir = Path("generated_training_functions")
         self.code_storage_dir.mkdir(exist_ok=True)
     
-    def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None, error_message: Optional[str] = None) -> str:
+    def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None, error_message: Optional[str] = None, previous_code: Optional[str] = None) -> str:
         """Create enhanced prompt for GPT-5 code generation with literature review insights and error debugging"""
 
         # Dataset context for better model selection
@@ -57,39 +57,42 @@ Source: {config.dataset_source}"""
         # Get sample count from data profile (correct field name is 'sample_count')
         num_samples = data_profile.get('sample_count', data_profile.get('num_samples', 'unknown'))
         
-        base_prompt = f"""Generate PyTorch training function for {num_classes}-class classification.
+        base_prompt = f"""
 
-Data: {data_profile['data_type']}, shape {input_shape}, {num_samples} samples{dataset_context}
+Generate PyTorch training function for {num_classes}-class classification.
 
-IMPORTANT: The training function will receive PyTorch tensors as inputs, NOT numpy arrays.
-- X_train, y_train, X_val, y_val are all PyTorch tensors
-- Data has been converted from {data_profile['data_type']} to PyTorch tensors before training"""
+Data: {data_profile['data_type']}, shape {input_shape}, {num_samples} samples{dataset_context}"""
 
         # Add literature review insights if available
+        print("!!!!!!!!!!!!!!!!!",data_profile['data_type'])
         if literature_review:
             base_prompt += f"""
 
 LITERATURE REVIEW INSIGHTS:
-Research Summary: {literature_review.review_text}
-Confidence: {literature_review.confidence:.2f}
-
 Recommended Model: {literature_review.recommended_approaches[0] if literature_review.recommended_approaches else 'No specific recommendation'}
-
-Key Insights:
-{chr(10).join('- ' + str(finding) for finding in literature_review.key_findings if finding)}
-
 Please implement the recommended model architecture from the literature review."""
 
         # Add error debugging context if available
         error_context = ""
         if error_message:
+            previous_code_section = ""
+            if previous_code:
+                previous_code_section = f"""
+
+PREVIOUS BUGGY CODE:
+```python
+{previous_code}
+```
+"""
+
             error_context = f"""
 
 ERROR DEBUGGING CONTEXT:
 The previous training function failed with the following error:
 {error_message}
+{previous_code_section}
 
-Please analyze this error and generate a corrected training function that fixes the issue.
+Please analyze this error and the buggy code above, then generate a corrected training function that fixes the issue.
 Focus on the specific error mentioned above and ensure the new code avoids this problem."""
 
         prompt = base_prompt + error_context + f"""
@@ -98,11 +101,11 @@ Requirements:
 - Function: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
 - X_train, y_train, X_val, y_val are PyTorch tensors
 - IMPORTANT: Only use pin_memory=True in DataLoader if tensors are on CPU. Check tensor.device.type == 'cpu' before enabling pin_memory
-- Keep code simple - Bayesian Optimization will handle hyperparameter tuning
+- Keep code simple 
+- Bayesian Optimization will handle hyperparameter tuning
 - Focus on core training loop, avoid complex scheduling/early stopping
 - Build model from scratch, include basic training loop, return model and metrics
-- Lightweight architecture (<256K parameters)
-- Incorporate relevant insights from literature review if provided
+- Lightweight architecture (<256K parameters after compression)
 - Use STANDARDIZED hyperparameter names for BO compatibility:
   * "num_heads" (not "nheads", "n_heads", or "attention_heads")
   * "hidden_size" (not "hidden_dim", "d_model", or "model_dim") 
@@ -112,7 +115,7 @@ Requirements:
   * "batch_size" (not "batch", "bs", or "bsize")
   * "epochs" (not "num_epochs", "n_epochs", or "training_steps")
 
-Response JSON format:
+Response JSON format example:
 {{
     "model_name": "ModelName",
     "training_code": "def train_model(...):\\n    # Complete PyTorch training code here",
@@ -127,8 +130,10 @@ Response JSON format:
         "hidden_size": {{"type": "Integer", "low": 32, "high": 512}},
         "dropout": {{"type": "Real", "low": 0.0, "high": 0.7}}
     }}
-}}"""
+}}
 
+FOCUS: You only need to output a json format. You must fill in bo_parameters and bo_search_space.
+"""
         return prompt
     
     def _call_openai_api(self, prompt: str) -> str:
@@ -310,7 +315,7 @@ Response JSON format:
             logger.error(f"Original response: {response}")
             raise ValueError(f"Failed to parse AI code recommendation: {e}")
     
-    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None, error_message: Optional[str] = None) -> CodeRecommendation:
+    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None, error_message: Optional[str] = None, previous_code: Optional[str] = None) -> CodeRecommendation:
         """Generate training function code based on data characteristics with optional literature review"""
 
         literature_review = None
@@ -333,7 +338,7 @@ Response JSON format:
                 literature_review = None
 
         # Generate training function with literature review insights and error debugging
-        prompt = self._create_prompt(data_profile, input_shape, num_classes, literature_review, error_message)
+        prompt = self._create_prompt(data_profile, input_shape, num_classes, literature_review, error_message, previous_code)
         response = self._call_openai_api(prompt)
         recommendation = self._parse_recommendation(response)
 
