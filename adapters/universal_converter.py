@@ -5,7 +5,10 @@ Supports automatic data type detection and feature extraction
 """
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
+from typing import Any, Dict, List, Optional, Tuple, Union, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
 import numpy as np
 import torch
 from torch.utils.data import Dataset, TensorDataset

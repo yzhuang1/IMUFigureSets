@@ -18,7 +18,7 @@ try:
     SKOPT_AVAILABLE = True
 except ImportError:
     SKOPT_AVAILABLE = False
-    logging.warning("scikit-optimize not available, falling back to random search")
+    print("scikit-optimize not available, falling back to random search")
 
 logger = get_pipeline_logger(__name__)
 
