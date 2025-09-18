@@ -3,9 +3,6 @@ AI-Enhanced Main Process with New Pipeline Flow
 Model Generation → BO → Evaluation → Feedback Loop
 """
 
-# Enable error monitoring FIRST, before any other imports
-from error_monitor import enable_strict_error_monitoring
-enable_strict_error_monitoring()
 
 import numpy as np
 import torch

@@ -257,20 +257,15 @@ def is_in_bo_process() -> bool:
     global _in_bo_process
     return _in_bo_process
 
-# Convenience function for enabling with common patterns
-def enable_strict_error_monitoring():
-    """Enable error monitoring with strict settings for critical errors only"""
+if __name__ == "__main__":
+    # Test the error monitoring system
+    print("Testing Error Monitoring System")
+
+    # Enable monitoring
     enable_error_termination(
         error_keywords=["ERROR"],
         ignore_patterns=[]
     )
-
-if __name__ == "__main__":
-    # Test the error monitoring system
-    print("Testing Error Monitoring System")
-    
-    # Enable monitoring
-    enable_strict_error_monitoring()
     
     print("This is a normal message")
     print("This is a warning message")

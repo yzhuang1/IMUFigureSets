@@ -137,19 +137,8 @@ class BayesianOptimizer:
             hparams = dict(zip(self.param_names, suggested))
             
         else:
-            # Fallback to random search using GPT-specified search space
-            import random
-            hparams = {}
-            for dimension in self.search_space:
-                if hasattr(dimension, 'categories'):
-                    hparams[dimension.name] = random.choice(dimension.categories)
-                elif hasattr(dimension, 'prior') and dimension.prior == 'log-uniform':
-                    hparams[dimension.name] = 10 ** random.uniform(np.log10(dimension.low), np.log10(dimension.high))
-                elif dimension.__class__.__name__ == 'Integer':
-                    hparams[dimension.name] = random.randint(int(dimension.low), int(dimension.high))
-                else:
-                    hparams[dimension.name] = random.uniform(dimension.low, dimension.high)
-            logger.info(f"🔍BO Trial {self.n_calls}: Random search fallback using GPT-specified parameters: {list(hparams.keys())}")
+            # Require scikit-optimize for proper Bayesian Optimization
+            raise ImportError("scikit-optimize is required for Bayesian Optimization. Install with: pip install scikit-optimize")
         
         # No parameter constraints - GPT handles parameter compatibility
         
