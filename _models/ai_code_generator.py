@@ -19,11 +19,8 @@ class CodeRecommendation:
     """Code generation result"""
     model_name: str
     training_code: str
-    hyperparameters: Dict[str, Any]
-    reasoning: str
+    bo_config: Dict[str, Dict[str, Any]]
     confidence: float
-    bo_parameters: List[str]
-    bo_search_space: Dict[str, Dict[str, Any]]
 
 class AICodeGenerator:
     """AI code generator using GPT"""
@@ -76,11 +73,12 @@ Please implement the recommended model architecture from the literature review."
 Requirements:
 - Function: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
 - X_train, y_train, X_val, y_val are PyTorch tensors
-- Lightweight architecture (model <256K after compression)
+- Lightweight architecture (model shoule be smaller than 500K)
 - Bayesian Optimization will handle hyperparameter tuning (You can decide what parameters you want base on the model you choose)
 - Focus on core training loop, avoid complex scheduling/early stopping
 - Build model from scratch, include basic training loop, return model and metrics
 - Use clear, descriptive parameter names that match your model implementation
+
 Response JSON format example:
 {{
     "model_name": "ModelName",
@@ -92,7 +90,6 @@ Response JSON format example:
         "hidden_size": {{"default": 128, "type": "Integer", "low": 32, "high": 512}},
         "dropout": {{"default": 0.1, "type": "Real", "low": 0.0, "high": 0.7}}
     }},
-    "reasoning": "Brief explanation incorporating literature insights",
     "confidence": 0.9
 }}
 
@@ -103,8 +100,9 @@ CRITICAL bo_config REQUIREMENTS:
 - For "Real": specify "low", "high", and optionally "prior" ("uniform" or "log-uniform")
 - For "Integer": specify "low", "high" (inclusive bounds)
 - For "Categorical": specify "categories" list with valid options
-- IMPORTANT: For log-uniform prior, "low" MUST be > 0 (use 1e-6 minimum for learning rates)
 - Only include parameters that are actually used in your training_code
+
+- IMPORTANT: For log-uniform prior, "low" MUST be > 0 (use 1e-6 minimum for learning rates)
 - Validate ranges make sense (e.g., dropout 0.0-0.7, lr 1e-6 to 1e-1)
 
 FOCUS: You MUST output valid JSON format only. No other text.
@@ -233,32 +231,42 @@ Only return the corrected key-value pair(s) that need to be fixed, nothing else.
                 response = response[7:]
             if response.endswith('```'):
                 response = response[:-3]
-            
+
             start_idx = response.find('{')
             end_idx = response.rfind('}') + 1
-            
+
             if start_idx == -1 or end_idx == 0:
                 raise ValueError("No JSON found in response")
-            
+
             json_str = response[start_idx:end_idx]
-            
+
             # Try to fix common JSON formatting issues
             try:
                 data = json.loads(json_str)
             except json.JSONDecodeError as e:
                 logger.warning(f"Initial JSON parse failed: {e}, attempting to fix common issues")
-                
-                # Common fixes for malformed JSON
-                fixed_json = json_str
-                
-                # Fix missing commas before closing braces/brackets
+
+                # Enhanced fixes for malformed JSON
                 import re
+                fixed_json = json_str
+
+                # Fix missing closing quotes before commas/braces
+                fixed_json = re.sub(r'(\d+)"\s*([,}])', r'\1\2', fixed_json)
+                fixed_json = re.sub(r'([^"])"\s*([,}])', r'\1"\2', fixed_json)
+
+                # Fix missing commas after closing braces in nested objects
+                fixed_json = re.sub(r'}\s*\n\s*"', r'},\n    "', fixed_json)
+
+                # Fix missing commas before closing braces/brackets
                 fixed_json = re.sub(r'"\s*\n\s*}', '"\n}', fixed_json)
                 fixed_json = re.sub(r'"\s*\n\s*]', '"\n]', fixed_json)
-                
+
                 # Fix trailing commas
                 fixed_json = re.sub(r',(\s*[}\]])', r'\1', fixed_json)
-                
+
+                # Fix malformed numbers with quotes
+                fixed_json = re.sub(r'"(\d+\.?\d*)"([,}])', r'\1\2', fixed_json)
+
                 # Try parsing again
                 try:
                     data = json.loads(fixed_json)
@@ -286,61 +294,36 @@ Only return the corrected key-value pair(s) that need to be fixed, nothing else.
                     else:
                         logger.error("GPT could not provide valid corrections")
                         raise
-            
-            # Check if using new combined format or old separate format
-            if "bo_config" in data:
-                # New combined format
-                required_fields = ["model_name", "training_code", "bo_config", "reasoning", "confidence"]
-                for field in required_fields:
-                    if field not in data:
-                        raise ValueError(f"Missing required field: {field}")
 
-                # Extract hyperparameters, bo_parameters, and bo_search_space from combined config
-                combined_config = data["bo_config"]
-                hyperparams = {}
-                bo_params = []
-                search_space = {}
+            # Validate required fields for the new format (aligned with prompt)
+            required_fields = ["model_name", "training_code", "bo_config", "confidence"]
+            for field in required_fields:
+                if field not in data:
+                    raise ValueError(f"Missing required field: {field}")
 
-                for param_name, config in combined_config.items():
-                    # Extract default value for hyperparameters
-                    if "default" in config:
-                        hyperparams[param_name] = config["default"]
+            # Validate bo_config structure
+            bo_config = data["bo_config"]
+            if not isinstance(bo_config, dict):
+                raise ValueError("bo_config must be a dictionary")
 
-                    # Add to bo_parameters list
-                    bo_params.append(param_name)
+            for param_name, config in bo_config.items():
+                # Validate bo_config parameter structure
+                if not isinstance(config, dict):
+                    raise ValueError(f"Invalid bo_config parameter '{param_name}': must be a dictionary")
 
-                    # Extract search space (remove 'default' key)
-                    space_config = {k: v for k, v in config.items() if k != "default"}
-                    if space_config:  # Only add if there's actual search space config
-                        search_space[param_name] = space_config
+                # Check required fields for each parameter
+                if "default" not in config:
+                    raise ValueError(f"Missing 'default' value for parameter '{param_name}'")
+                if "type" not in config:
+                    raise ValueError(f"Missing 'type' for parameter '{param_name}'")
 
-                # Use GPT names directly - no standardization
-                standardized_hyperparams = hyperparams
-                standardized_bo_params = bo_params
-                standardized_search_space = search_space
-
-            else:
-                # Old separate format (fallback)
-                required_fields = ["model_name", "training_code", "hyperparameters", "reasoning", "confidence", "bo_parameters", "bo_search_space"]
-                for field in required_fields:
-                    if field not in data:
-                        raise ValueError(f"Missing required field: {field}")
-
-                # Use GPT names directly - no standardization
-                standardized_hyperparams = data["hyperparameters"]
-                standardized_bo_params = data["bo_parameters"]
-                standardized_search_space = data["bo_search_space"]
-            
             return CodeRecommendation(
                 model_name=data["model_name"],
                 training_code=data["training_code"],
-                hyperparameters=standardized_hyperparams,
-                reasoning=data["reasoning"],
-                confidence=float(data["confidence"]),
-                bo_parameters=standardized_bo_params,
-                bo_search_space=standardized_search_space
+                bo_config=bo_config,
+                confidence=float(data["confidence"])
             )
-        
+
         except (json.JSONDecodeError, ValueError, KeyError) as e:
             logger.error(f"Failed to parse code recommendation: {e}")
             logger.error(f"Original response: {response}")
@@ -375,7 +358,6 @@ Only return the corrected key-value pair(s) that need to be fixed, nothing else.
 
         logger.info(f"AI generated training function: {recommendation.model_name}")
         logger.info(f"Confidence: {recommendation.confidence:.2f}")
-        logger.info(f"Reasoning: {recommendation.reasoning}")
 
         if literature_review:
             logger.info(f"Literature review informed code generation (confidence: {literature_review.confidence:.2f})")
@@ -396,11 +378,8 @@ Only return the corrected key-value pair(s) that need to be fixed, nothing else.
         training_data = {
             "model_name": recommendation.model_name,
             "training_code": recommendation.training_code,
-            "hyperparameters": recommendation.hyperparameters,
-            "reasoning": recommendation.reasoning,
+            "bo_config": recommendation.bo_config,
             "confidence": recommendation.confidence,
-            "bo_parameters": recommendation.bo_parameters,
-            "bo_search_space": recommendation.bo_search_space,
             "data_profile": data_profile,
             "timestamp": timestamp,
             "metadata": {
@@ -413,7 +392,11 @@ Only return the corrected key-value pair(s) that need to be fixed, nothing else.
         # Save to JSON file
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(training_data, f, indent=2, ensure_ascii=False)
-        
+
+        # Print filename prominently for visibility
+        print(f"💾 SAVED TRAINING FUNCTION: {filename}")
+        print(f"📁 Full path: {filepath}")
+
         logger.info(f"Training function saved to: {filepath}")
         return str(filepath)
     

@@ -1,0 +1,64 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-18 14:23:55
+Confidence: 0.74
+
+DATA PROFILE:
+{
+  "data_type": "torch_tensor",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+Step 1 – Problem analysis. You are classifying ECG sequences with torch_tensor input shaped (1000, 2) — i.e., 1000 samples per window from two simultaneous leads — into 5 classes. The MIT‑BIH Arrhythmia Database contains 48 half‑hour, two‑lead ambulatory ECG records digitized at 360 Hz (≈110k annotated beats), commonly re‑mapped into the AAMI 5 classes N, S, V, F, Q; this matches your setting. ([physionet.org](https://physionet.org/content/mitdb/1.0.0/))
+
+Step 2 – Methodology. We searched 2024–2025 peer‑reviewed and preprint sources emphasizing: (a) MIT‑BIH 5‑class (AAMI) benchmarks, (b) sequence models in PyTorch‑implementable architectures, (c) reported empirical metrics (accuracy, macro‑F1), and (d) recent surveys. Key hits include CNN+Transformer hybrids and lightweight transformers; we also note time–frequency approaches that convert 1D ECG into 2D representations.
+
+Step 3 – Information extraction from recent, relevant papers.
+- CAT‑Net (Biomedical Signal Processing and Control, Jul 2024): 1D CNN + channel attention + Transformer encoder for single‑lead heartbeat segments with imbalance handling (SMOTE‑Tomek). On MIT‑BIH 5‑class it reports 99.14% accuracy and 94.69% macro‑F1; on INCART 3‑class 99.58% accuracy and 96.15% macro‑F1. This directly targets the AAMI 5‑class split and foregrounds minority‑class performance. Implementation uses standard 1D layers and attention blocks, readily re‑implementable in PyTorch; input can be extended from 1 to 2 leads by setting in_channels=2 and retaining channel attention. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+- Tiny Transformer for Low‑Power Arrhythmia Classification (arXiv, Feb 16, 2024): a compact transformer (~6k parameters) reaches 98.97% accuracy on MIT‑BIH 5‑class with 8‑bit inference; worst‑case deployment 98.36%. Demonstrates that transformers can be extremely efficient; useful computational references include 4.28 ms/inference and 0.09 mJ on GAP9. Easy to port to PyTorch (single encoder block, small d_model). ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+- Hybrid CNN–Transformer with Stockwell transform (Scientific Reports, Mar 6, 2025): avoids R‑peak detection by converting windows to S‑transform time–frequency maps, then using residual CNN blocks plus transformer. Achieves 99.58% accuracy on MIT‑BIH 5‑class (and 97.8% on Icentia11k, 4 classes). Strong accuracy; added preprocessing cost for 2D spectrograms and a heavier hybrid inference pipeline. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC11885558/))
+- Hierarchical Attention Network (arXiv, Mar 25, 2025): adapts HAN (from NLP) to ECG. On MIT‑BIH, 98.55% accuracy vs 99.14% for CAT‑Net, with 15.6× fewer parameters, highlighting an accuracy–efficiency trade‑off and better interpretability via attention visualization. ([arxiv.org](https://arxiv.org/abs/2504.03703?utm_source=openai))
+- Survey context: a 2024 MIT‑BIH‑focused review synthesizes modeling choices and notes persistent gaps between accuracy and macro‑F1 in inter‑patient evaluation, reinforcing the importance of reporting class‑balanced metrics. ([mdpi.com](https://www.mdpi.com/2079-3197/12/2/21?utm_source=openai))
+
+Computational notes and implementation fit. For your (1000, 2) windows, 1D models (CNN/Transformer hybrids) natively consume multi‑lead sequences without 2D transforms, minimizing preprocessing. CAT‑Net’s components (Conv1D stacks + channel attention + Transformer encoder) map cleanly to PyTorch and scale to two leads; class imbalance remedies (SMOTE‑Tomek) materially improved minority classes in their study. Conversely, time–frequency pipelines (e.g., S‑transform) can yield top accuracy but add compute and memory overhead for 2D tensors, which may be unnecessary if you aim for efficient training/inference on large datasets. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+
+Step 4 – Synthesis. Across 2024–2025 evidence, the strongest balance of accuracy, class balance, and practicality on MIT‑BIH 5‑class comes from 1D CNN+Transformer hybrids with channel attention (CAT‑Net class). CAT‑Net reports state‑of‑the‑art accuracy and macro‑F1 on MIT‑BIH 5‑class, explicitly addresses class imbalance, and is straightforward to implement and adapt to two‑lead input. Tiny‑Transformer variants demonstrate that you can shrink parameters by orders of magnitude with only modest accuracy loss, useful if you must deploy on edge devices. If you can tolerate the preprocessing and somewhat heavier model, S‑transform + CNN‑Transformer can push headline accuracy slightly higher, at the cost of extra computation. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+
+KEY FINDINGS:
+1. A CNN + channel-attention + Transformer encoder (CAT‑Net) achieves 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class; explicit SMOTE‑Tomek balancing improves minority‑class metrics. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+2. A compact transformer (~6k params) attains 98.97% 5‑class accuracy with 8‑bit inference (98.36% worst‑case), demonstrating strong efficiency (≈4.28 ms, 0.09 mJ per inference on GAP9). ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+3. Time–frequency conversion with the Stockwell transform plus CNN+Transformer avoids R‑peak detection and reports 99.58% 5‑class accuracy on MIT‑BIH but at added preprocessing and model complexity. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC11885558/))
+4. A hierarchical attention network (HAN) yields 98.55% accuracy on MIT‑BIH with ~15.6× fewer parameters than CAT‑Net, indicating viable pathways to interpretability and parameter reduction with small accuracy trade‑offs. ([arxiv.org](https://arxiv.org/abs/2504.03703?utm_source=openai))
+5. Recent reviews emphasize that inter‑patient evaluations often show macro‑F1 lagging behind overall accuracy, so macro‑F1 should guide model selection for MIT‑BIH 5‑class benchmarks. ([mdpi.com](https://www.mdpi.com/2079-3197/12/2/21?utm_source=openai))
+
+RECOMMENDED APPROACHES:
+1. Adopt a CAT‑Net–style 1D hybrid in PyTorch: Conv1D backbone with squeeze/channel attention → 1–2 Transformer encoder blocks (multi‑head self‑attention on temporal tokens) → MLP head; train on beat‑centered 1000‑sample, 2‑lead windows with SMOTE‑Tomek for class balance. Rationale: best published balance of accuracy and macro‑F1 on MIT‑BIH 5‑class (99.14% acc, 94.69% macro‑F1), native fit to (1000,2) tensors, and lower preprocessing burden than 2D time–frequency pipelines; optionally prune depth/heads to approach Tiny‑Transformer efficiency if needed. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+
+RECENT PAPERS:
+- CAT‑Net: Convolution, attention, and transformer based network for single‑lead ECG arrhythmia classification (Biomedical Signal Processing and Control, 2024): 1D CNN + channel attention + Transformer with SMOTE‑Tomek; 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class; architecture readily adapted to multi‑lead inputs. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+- A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (arXiv, 2024): ~6k‑parameter transformer reaching 98.97% accuracy (8‑bit) on MIT‑BIH 5‑class; 4.28 ms/0.09 mJ inference on GAP9, illustrating an accuracy–efficiency sweet spot for edge deployment. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+- A hybrid CNN‑Transformer model using Stockwell transform (Scientific Reports, 2025): 2D S‑transform features + residual CNN + Transformer, avoiding R‑peak detection; reports 99.58% accuracy on MIT‑BIH 5‑class; higher preprocessing/model complexity than 1D pipelines. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC11885558/))
+- Hierarchical Attention Network for Interpretable ECG Classification (arXiv, 2025): HAN adapted from NLP; 98.55% MIT‑BIH accuracy with ~15.6× fewer parameters than CAT‑Net; improved interpretability via attention visualization. ([arxiv.org](https://arxiv.org/abs/2504.03703?utm_source=openai))
+- Unraveling Arrhythmias with Graph‑Based Analysis: A Survey of the MIT‑BIH Database (Computation, 2024): Survey highlighting modeling choices for MIT‑BIH and the importance of balanced metrics (macro‑F1) in inter‑patient evaluation. ([mdpi.com](https://www.mdpi.com/2079-3197/12/2/21?utm_source=openai))
+
+==================================================

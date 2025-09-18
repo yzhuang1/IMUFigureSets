@@ -84,8 +84,7 @@ from models.ai_code_generator import generate_training_code_for_data
 # Generate complete training function
 code_rec = generate_training_code_for_data(data_profile, input_shape, num_classes)
 print(f"Generated model: {code_rec.model_name}")
-print(f"BO parameters: {code_rec.bo_parameters}")
-print(f"Reasoning: {code_rec.reasoning}")
+print(f"BO parameters: {list(code_rec.bo_config.keys())}")
 ```
 
 ### Training Function Execution

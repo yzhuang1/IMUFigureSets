@@ -48,7 +48,21 @@ class TrainingFunctionExecutor:
         
         logger.debug(f"Converted hyperparameters: {converted}")
         return converted
-    
+
+    def _process_training_code(self, training_code: str) -> str:
+        """Process training code to handle JSON escape sequences"""
+        if isinstance(training_code, str):
+            try:
+                # Replace common JSON escape sequences that might cause issues
+                training_code = training_code.replace('\\n', '\n')
+                training_code = training_code.replace('\\t', '\t')
+                training_code = training_code.replace('\\r', '\r')
+                training_code = training_code.replace('\\"', '"')
+                training_code = training_code.replace('\\\\', '\\')
+            except Exception as e:
+                logger.warning(f"Failed to process escape sequences: {e}")
+        return training_code
+
     def _validate_hyperparameters(self, hyperparams: Dict[str, Any], model_name: str = None) -> Dict[str, Any]:
         """Validate hyperparameters (lightweight validation since BO handles constraints)"""
         validated = hyperparams.copy()
@@ -85,15 +99,19 @@ class TrainingFunctionExecutor:
         """Validate training function data and model architecture"""
         try:
             # Check required fields
-            required_fields = ['model_name', 'training_code', 'hyperparameters']
+            required_fields = ['model_name', 'training_code', 'bo_config']
             for field in required_fields:
                 if field not in training_data:
                     logger.error(f"Missing required field: {field}")
                     return False
-            
+
+            # Extract hyperparameters from bo_config
+            bo_config = training_data['bo_config']
+            hyperparams = {param: config["default"] for param, config in bo_config.items()}
+
             # Validate hyperparameters
             validated_hyperparams = self._validate_hyperparameters(
-                training_data['hyperparameters'], 
+                hyperparams,
                 training_data.get('model_name', 'Unknown')
             )
             
@@ -203,9 +221,12 @@ class TrainingFunctionExecutor:
             logger.info(f"Executing training function: {model_name}")
             logger.info(f"Hyperparameters: {dict(hyperparams) if hyperparams else 'None'}")
             
+            # Handle JSON escape sequences in training code
+            training_code = self._process_training_code(training_code)
+
             # Create namespace for code execution
             namespace = {}
-            
+
             # Execute the function definition
             exec(training_code, namespace)
             
@@ -215,8 +236,9 @@ class TrainingFunctionExecutor:
             
             train_model = namespace['train_model']
             
-            # Merge default hyperparameters with provided ones
-            default_hyperparams = training_data.get('hyperparameters', {})
+            # Extract default hyperparameters from bo_config and merge with provided ones
+            bo_config = training_data.get('bo_config', {})
+            default_hyperparams = {param: config["default"] for param, config in bo_config.items()}
             final_hyperparams = {**default_hyperparams, **hyperparams}
             
             # Convert NumPy types to native Python types (required for PyTorch)
@@ -250,32 +272,41 @@ class TrainingFunctionExecutor:
     def validate_training_function(self, training_data: Dict[str, Any]) -> bool:
         """Validate that training function data is complete and correct"""
         try:
-            required_fields = ['model_name', 'training_code', 'hyperparameters', 'bo_parameters']
-            
+            required_fields = ['model_name', 'training_code', 'bo_config']
+
             for field in required_fields:
                 if field not in training_data:
                     logger.error(f"Missing required field: {field}")
                     return False
-            
+
             # Check that training code compiles
             training_code = training_data['training_code']
+
+            # Handle JSON escape sequences properly
+            training_code = self._process_training_code(training_code)
+
             try:
                 compile(training_code, '<string>', 'exec')
             except SyntaxError as e:
                 logger.error(f"Syntax error in training code: {e}")
+                logger.error(f"First 200 chars of training code: {training_code[:200]}")
                 return False
-            
-            # Check that hyperparameters and bo_parameters are valid
-            hyperparams = training_data['hyperparameters']
-            bo_params = training_data['bo_parameters']
-            
-            if not isinstance(hyperparams, dict):
-                logger.error("hyperparameters must be a dictionary")
+
+            # Check that bo_config is valid
+            bo_config = training_data['bo_config']
+
+            if not isinstance(bo_config, dict):
+                logger.error("bo_config must be a dictionary")
                 return False
-            
-            if not isinstance(bo_params, list):
-                logger.error("bo_parameters must be a list")
-                return False
+
+            # Validate bo_config structure
+            for param_name, config in bo_config.items():
+                if not isinstance(config, dict):
+                    logger.error(f"bo_config parameter '{param_name}' must be a dictionary")
+                    return False
+                if "default" not in config:
+                    logger.error(f"bo_config parameter '{param_name}' missing 'default' value")
+                    return False
             
             logger.info("Training function validation passed")
             return True
@@ -310,8 +341,9 @@ class TrainingFunctionExecutor:
                 'batch_size': min(4, len(X_train_test))
             }
             
-            # Add other required hyperparameters with minimal values
-            default_hyperparams = training_data.get('hyperparameters', {})
+            # Add other required hyperparameters with minimal values from bo_config
+            bo_config = training_data.get('bo_config', {})
+            default_hyperparams = {param: config["default"] for param, config in bo_config.items()}
             for key, value in default_hyperparams.items():
                 if key not in test_hyperparams:
                     if isinstance(value, (int, float)) and key != 'lr':
@@ -370,14 +402,14 @@ class TrainingFunctionExecutor:
                 with open(json_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 
+                bo_config = data.get('bo_config', {})
                 functions.append({
                     'filepath': str(json_file),
                     'model_name': data.get('model_name', 'Unknown'),
-                    'reasoning': data.get('reasoning', 'No reasoning'),
                     'confidence': data.get('confidence', 0.0),
                     'timestamp': data.get('timestamp', 0),
-                    'hyperparameters': data.get('hyperparameters', {}),
-                    'bo_parameters': data.get('bo_parameters', [])
+                    'bo_config': bo_config,
+                    'bo_parameters': list(bo_config.keys())
                 })
                 
             except Exception as e:

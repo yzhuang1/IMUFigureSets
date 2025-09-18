@@ -1,0 +1,123 @@
+{
+  "model_name": "CATNet1D-Hybrid-Tiny",
+  "training_code": "import math\nimport copy\nfrom typing import Dict, Any\nimport torch\nimport torch.nn as nn\nfrom torch.utils.data import DataLoader, TensorDataset\n\n\nclass SqueezeExcite1D(nn.Module):\n    def __init__(self, channels: int, reduction: int = 8):\n        super().__init__()\n        mid = max(1, channels // reduction)\n        self.avg_pool = nn.AdaptiveAvgPool1d(1)\n        self.fc = nn.Sequential(\n            nn.Conv1d(channels, mid, kernel_size=1, bias=True),\n            nn.ReLU(inplace=True),\n            nn.Conv1d(mid, channels, kernel_size=1, bias=True),\n            nn.Sigmoid(),\n        )\n\n    def forward(self, x):\n        # x: (B, C, L)\n        scale = self.fc(self.avg_pool(x))  # (B, C, 1)\n        return x * scale\n\n\nclass ConvSEBlock(nn.Module):\n    def __init__(self, in_ch: int, out_ch: int, kernel_size: int = 7, dropout: float = 0.1, se_reduction: int = 8, do_pool: bool = False):\n        super().__init__()\n        padding = kernel_size // 2\n        self.conv = nn.Conv1d(in_ch, out_ch, kernel_size=kernel_size, padding=padding, bias=False)\n        self.bn = nn.BatchNorm1d(out_ch)\n        self.act = nn.GELU()\n        self.se = SqueezeExcite1D(out_ch, reduction=se_reduction)\n        self.dropout = nn.Dropout(dropout)\n        self.do_pool = do_pool\n        self.pool = nn.MaxPool1d(kernel_size=2, stride=2) if do_pool else nn.Identity()\n        self.res_proj = None\n        if in_ch != out_ch:\n            self.res_proj = nn.Conv1d(in_ch, out_ch, kernel_size=1, bias=False)\n\n    def forward(self, x):\n        residual = x\n        out = self.conv(x)\n        out = self.bn(out)\n        out = self.act(out)\n        out = self.se(out)\n        if self.res_proj is not None:\n            residual = self.res_proj(residual)\n        out = out + residual\n        out = self.dropout(out)\n        out = self.pool(out)\n        return out\n\n\nclass SinusoidalPositionalEncoding(nn.Module):\n    def __init__(self, d_model: int, max_len: int = 2048):\n        super().__init__()\n        pe = torch.zeros(max_len, d_model)\n        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)\n        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))\n        pe[:, 0::2] = torch.sin(position * div_term)\n        pe[:, 1::2] = torch.cos(position * div_term)\n        pe = pe.unsqueeze(0)  # (1, L, D)\n        self.register_buffer('pe', pe)\n\n    def forward(self, x):\n        # x: (B, L, D)\n        L = x.size(1)\n        return x + self.pe[:, :L]\n\n\nclass TransformerBlock(nn.Module):\n    def __init__(self, d_model: int, num_heads: int, dim_feedforward: int = 256, dropout: float = 0.1):\n        super().__init__()\n        self.attn = nn.MultiheadAttention(embed_dim=d_model, num_heads=num_heads, dropout=dropout, batch_first=True)\n        self.norm1 = nn.LayerNorm(d_model)\n        self.dropout1 = nn.Dropout(dropout)\n        self.ff = nn.Sequential(\n            nn.Linear(d_model, dim_feedforward),\n            nn.GELU(),\n            nn.Dropout(dropout),\n            nn.Linear(dim_feedforward, d_model),\n        )\n        self.norm2 = nn.LayerNorm(d_model)\n        self.dropout2 = nn.Dropout(dropout)\n\n    def forward(self, x):\n        # x: (B, L, D)\n        attn_out, _ = self.attn(x, x, x, need_weights=False)\n        x = self.norm1(x + self.dropout1(attn_out))\n        ff_out = self.ff(x)\n        x = self.norm2(x + self.dropout2(ff_out))\n        return x\n\n\nclass ECGCatNet1D(nn.Module):\n    def __init__(self, input_channels: int, num_classes: int, hidden_size: int = 128, num_conv_blocks: int = 2, kernel_size: int = 7,\n                 se_reduction: int = 8, num_transformer_layers: int = 1, num_heads: int = 4, ff_multiplier: int = 4,\n                 dropout: float = 0.1, downsample_poolings: int = 1):\n        super().__init__()\n        self.stem = nn.Sequential(\n            nn.Conv1d(input_channels, hidden_size, kernel_size=kernel_size, padding=kernel_size // 2, bias=False),\n            nn.BatchNorm1d(hidden_size),\n            nn.GELU(),\n        )\n        blocks = []\n        for i in range(num_conv_blocks):\n            do_pool = i < downsample_poolings\n            blocks.append(ConvSEBlock(hidden_size, hidden_size, kernel_size=kernel_size, dropout=dropout, se_reduction=se_reduction, do_pool=do_pool))\n        self.backbone = nn.Sequential(*blocks)\n        self.pe = SinusoidalPositionalEncoding(hidden_size)\n        tf_layers = []\n        for _ in range(num_transformer_layers):\n            tf_layers.append(TransformerBlock(d_model=hidden_size, num_heads=num_heads, dim_feedforward=hidden_size * ff_multiplier, dropout=dropout))\n        self.transformer = nn.Sequential(*tf_layers)\n        self.head = nn.Sequential(\n            nn.LayerNorm(hidden_size),\n            nn.Dropout(dropout),\n            nn.Linear(hidden_size, hidden_size // 2),\n            nn.GELU(),\n            nn.Dropout(dropout),\n            nn.Linear(hidden_size // 2, num_classes),\n        )\n\n    def forward(self, x):\n        # x expected: (B, C=2, L=1000)\n        x = self.stem(x)\n        x = self.backbone(x)  # (B, H, L')\n        x = x.transpose(1, 2)  # (B, L', H)\n        x = self.pe(x)\n        x = self.transformer(x)\n        x = x.mean(dim=1)  # global average pooling over time\n        logits = self.head(x)\n        return logits\n\n\ndef _prepare_inputs(x: torch.Tensor) -> torch.Tensor:\n    # Accept (B, 1000, 2) or (B, 2, 1000); return (B, 2, 1000)\n    if x.dim() == 3:\n        if x.size(-1) == 2:  # (B, 1000, 2)\n            x = x.permute(0, 2, 1).contiguous()\n        elif x.size(1) == 2:  # already (B, 2, L)\n            pass\n        else:\n            raise ValueError(f\"Expected input with 2 channels, got shape {tuple(x.shape)}\")\n    else:\n        raise ValueError(f\"Expected 3D tensor (B, L, C) or (B, C, L), got {x.dim()}D\")\n    return x\n\n\ndef _compute_class_weights(y: torch.Tensor, num_classes: int) -> torch.Tensor:\n    counts = torch.bincount(y.view(-1).to(torch.long), minlength=num_classes).float()\n    counts = torch.clamp(counts, min=1.0)\n    weights = counts.sum() / (counts * num_classes)\n    return weights\n\n\ndef _metrics_from_preds(y_true: torch.Tensor, y_pred: torch.Tensor, num_classes: int) -> Dict[str, float]:\n    # y_true, y_pred on CPU int64\n    N = y_true.numel()\n    correct = (y_true == y_pred).sum().item()\n    acc = correct / max(1, N)\n    # Confusion matrix via bincount\n    idx = y_true * num_classes + y_pred\n    conf = torch.bincount(idx, minlength=num_classes * num_classes).reshape(num_classes, num_classes).to(torch.float32)\n    TP = conf.diag()\n    FP = conf.sum(dim=0) - TP\n    FN = conf.sum(dim=1) - TP\n    eps = 1e-9\n    precision = TP / (TP + FP + eps)\n    recall = TP / (TP + FN + eps)\n    f1 = 2 * precision * recall / (precision + recall + eps)\n    macro_f1 = f1.mean().item()\n    return {\"accuracy\": acc, \"macro_f1\": macro_f1}\n\n\ndef train_model(X_train: torch.Tensor, y_train: torch.Tensor, X_val: torch.Tensor, y_val: torch.Tensor, device: torch.device, **hyperparams) -> (nn.Module, Dict[str, Any]):\n    \"\"\"\n    Train a lightweight CAT-Net–style 1D hybrid model (Conv1D + SE + Transformer) for 5-class ECG classification.\n\n    Args:\n        X_train, y_train, X_val, y_val: PyTorch tensors.\n            X tensors may be shaped (N, 1000, 2) or (N, 2, 1000). Labels are integer class indices.\n        device: torch.device\n        **hyperparams: hyperparameters for model and training loop (see bo_config).\n\n    Returns:\n        model (nn.Module): trained model loaded with best validation checkpoint.\n        metrics (dict): contains training/validation history and best scores.\n    \"\"\"\n    # Defaults\n    lr = float(hyperparams.get('lr', 1e-3))\n    batch_size = int(hyperparams.get('batch_size', 64))\n    epochs = int(hyperparams.get('epochs', 20))\n    hidden_size = int(hyperparams.get('hidden_size', 128))\n    num_conv_blocks = int(hyperparams.get('num_conv_blocks', 2))\n    kernel_size = int(hyperparams.get('kernel_size', 7))\n    se_reduction = int(hyperparams.get('se_reduction', 8))\n    num_transformer_layers = int(hyperparams.get('num_transformer_layers', 1))\n    num_heads = int(hyperparams.get('num_heads', 4))\n    ff_multiplier = int(hyperparams.get('ff_multiplier', 4))\n    dropout = float(hyperparams.get('dropout', 0.1))\n    weight_decay = float(hyperparams.get('weight_decay', 5e-4))\n    label_smoothing = float(hyperparams.get('label_smoothing', 0.05))\n    downsample_poolings = int(hyperparams.get('downsample_poolings', 1))\n\n    # Prepare data shapes\n    X_train = _prepare_inputs(X_train)\n    X_val = _prepare_inputs(X_val)\n\n    # Infer dimensions\n    input_channels = X_train.size(1)\n    num_classes = int(max(int(y_train.max().item()), int(y_val.max().item())) + 1)\n\n    # Ensure num_heads divides hidden_size (adjust down to nearest divisor)\n    def _nearest_divisor_leq(n, k):\n        for h in range(k, 0, -1):\n            if n % h == 0:\n                return h\n        return 1\n    num_heads = _nearest_divisor_leq(hidden_size, num_heads)\n\n    # Build model\n    model = ECGCatNet1D(\n        input_channels=input_channels,\n        num_classes=num_classes,\n        hidden_size=hidden_size,\n        num_conv_blocks=num_conv_blocks,\n        kernel_size=kernel_size,\n        se_reduction=se_reduction,\n        num_transformer_layers=num_transformer_layers,\n        num_heads=num_heads,\n        ff_multiplier=ff_multiplier,\n        dropout=dropout,\n        downsample_poolings=downsample_poolings,\n    ).to(device)\n\n    # Dataloaders\n    train_ds = TensorDataset(X_train, y_train.long())\n    val_ds = TensorDataset(X_val, y_val.long())\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=False, pin_memory=True)\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, drop_last=False, pin_memory=True)\n\n    # Loss with class weights and label smoothing\n    class_weights = _compute_class_weights(y_train.cpu(), num_classes).to(device)\n    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing)\n\n    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\n\n    history = {\n        'train_loss': [],\n        'val_loss': [],\n        'val_accuracy': [],\n        'val_macro_f1': [],\n    }\n    best_state = None\n    best_acc = -1.0\n    best_metrics = {}\n\n    for epoch in range(epochs):\n        model.train()\n        running_loss = 0.0\n        total_batches = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            optimizer.step()\n            running_loss += loss.item()\n            total_batches += 1\n        train_loss = running_loss / max(1, total_batches)\n\n        # Validation\n        model.eval()\n        val_loss = 0.0\n        val_batches = 0\n        all_preds = []\n        all_targets = []\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                val_loss += loss.item()\n                val_batches += 1\n                preds = torch.argmax(logits, dim=1)\n                all_preds.append(preds.detach().cpu())\n                all_targets.append(yb.detach().cpu())\n        val_loss = val_loss / max(1, val_batches)\n        y_true = torch.cat(all_targets, dim=0)\n        y_pred = torch.cat(all_preds, dim=0)\n        m = _metrics_from_preds(y_true, y_pred, num_classes=num_classes)\n\n        history['train_loss'].append(train_loss)\n        history['val_loss'].append(val_loss)\n        history['val_accuracy'].append(m['accuracy'])\n        history['val_macro_f1'].append(m['macro_f1'])\n\n        # Track best by validation accuracy\n        if m['accuracy'] > best_acc:\n            best_acc = m['accuracy']\n            best_state = copy.deepcopy(model.state_dict())\n            best_metrics = {\n                'epoch': epoch + 1,\n                'val_loss': val_loss,\n                'val_accuracy': m['accuracy'],\n                'val_macro_f1': m['macro_f1'],\n            }\n\n    if best_state is not None:\n        model.load_state_dict(best_state)\n\n    metrics = {\n        'history': history,\n        'best': best_metrics,\n        'model_params': sum(p.numel() for p in model.parameters()),\n    }\n    return model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 64,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "hidden_size": {
+      "default": 128,
+      "type": "Integer",
+      "low": 64,
+      "high": 192
+    },
+    "num_conv_blocks": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 3
+    },
+    "kernel_size": {
+      "default": 7,
+      "type": "Integer",
+      "low": 5,
+      "high": 15
+    },
+    "se_reduction": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "num_transformer_layers": {
+      "default": 1,
+      "type": "Integer",
+      "low": 1,
+      "high": 2
+    },
+    "num_heads": {
+      "default": 4,
+      "type": "Integer",
+      "low": 2,
+      "high": 8
+    },
+    "ff_multiplier": {
+      "default": 4,
+      "type": "Integer",
+      "low": 2,
+      "high": 6
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "weight_decay": {
+      "default": 0.0005,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.01
+    },
+    "label_smoothing": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "downsample_poolings": {
+      "default": 1,
+      "type": "Integer",
+      "low": 0,
+      "high": 2
+    }
+  },
+  "confidence": 0.86,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758223593,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

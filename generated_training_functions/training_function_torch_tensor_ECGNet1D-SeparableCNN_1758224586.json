@@ -1,0 +1,132 @@
+{
+  "model_name": "ECGNet1D-SeparableCNN",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    import torch\n    import torch.nn as nn\n    from torch.utils.data import TensorDataset, DataLoader\n\n    def get_act(name: str):\n        name = str(name).lower()\n        if name == 'gelu':\n            return nn.GELU()\n        if name == 'elu':\n            return nn.ELU(inplace=True)\n        return nn.ReLU(inplace=True)\n\n    class SeparableConvBlock(nn.Module):\n        def __init__(self, channels, kernel_size, dropout, act_name, use_bn, bn_momentum):\n            super().__init__()\n            padding = kernel_size // 2\n            bias = not use_bn\n            layers = [\n                nn.Conv1d(channels, channels, kernel_size=kernel_size, padding=padding, groups=channels, bias=bias),\n                nn.BatchNorm1d(channels, momentum=bn_momentum) if use_bn else nn.Identity(),\n                get_act(act_name),\n                nn.Conv1d(channels, channels, kernel_size=1, bias=bias),\n                nn.BatchNorm1d(channels, momentum=bn_momentum) if use_bn else nn.Identity(),\n                get_act(act_name),\n            ]\n            if dropout > 0.0:\n                layers.append(nn.Dropout(p=dropout))\n            self.net = nn.Sequential(*layers)\n        def forward(self, x):\n            return self.net(x)\n\n    class ECGNet(nn.Module):\n        def __init__(self, in_channels, num_classes, base_channels, num_blocks, kernel_size, dropout, act_name, use_bn, bn_momentum):\n            super().__init__()\n            padding = kernel_size // 2\n            bias = not use_bn\n            self.stem = nn.Sequential(\n                nn.Conv1d(in_channels, base_channels, kernel_size=kernel_size, padding=padding, bias=bias),\n                nn.BatchNorm1d(base_channels, momentum=bn_momentum) if use_bn else nn.Identity(),\n                get_act(act_name),\n                nn.Dropout(p=dropout) if dropout > 0.0 else nn.Identity(),\n            )\n            blocks = []\n            for _ in range(int(num_blocks)):\n                blocks.append(SeparableConvBlock(base_channels, kernel_size, dropout, act_name, use_bn, bn_momentum))\n            self.blocks = nn.Sequential(*blocks)\n            self.pool = nn.AdaptiveAvgPool1d(1)\n            self.head = nn.Linear(base_channels, num_classes)\n        def forward(self, x):\n            x = self.stem(x)\n            x = self.blocks(x)\n            x = self.pool(x).squeeze(-1)\n            return self.head(x)\n\n    # Hyperparameters with defaults\n    lr = float(hyperparams.get('lr', 1e-3))\n    batch_size = int(hyperparams.get('batch_size', 64))\n    epochs = int(hyperparams.get('epochs', 12))\n    base_channels = int(hyperparams.get('base_channels', 128))\n    num_blocks = int(hyperparams.get('num_blocks', 3))\n    kernel_size = int(hyperparams.get('kernel_size', 7))\n    dropout = float(hyperparams.get('dropout', 0.1))\n    weight_decay = float(hyperparams.get('weight_decay', 1e-4))\n    optimizer_name = str(hyperparams.get('optimizer', 'adamw')).lower()\n    act_fn = str(hyperparams.get('act_fn', 'relu')).lower()\n    use_bn = bool(hyperparams.get('batch_norm', True))\n    bn_momentum = float(hyperparams.get('bn_momentum', 0.1))\n    label_smoothing = float(hyperparams.get('label_smoothing', 0.05))\n    max_grad_norm = float(hyperparams.get('max_grad_norm', 1.0))\n\n    def to_channels_first(X):\n        if X.dim() == 3:\n            # If last dim looks like channels (small), assume (N, T, C) -> (N, C, T)\n            if X.shape[-1] <= 16:\n                return X.permute(0, 2, 1).contiguous()\n            return X\n        elif X.dim() == 2:\n            # (N, T) -> (N, 1, T)\n            return X.unsqueeze(1)\n        else:\n            raise ValueError('Expected X to have 2 or 3 dimensions')\n\n    X_train_cf = to_channels_first(X_train)\n    X_val_cf = to_channels_first(X_val)\n\n    num_classes = int(max(int(y_train.max().item()), int(y_val.max().item())) + 1)\n    in_channels = int(X_train_cf.shape[1])\n\n    model = ECGNet(\n        in_channels=in_channels,\n        num_classes=num_classes,\n        base_channels=base_channels,\n        num_blocks=num_blocks,\n        kernel_size=kernel_size,\n        dropout=dropout,\n        act_name=act_fn,\n        use_bn=use_bn,\n        bn_momentum=bn_momentum,\n    ).to(device)\n\n    n_params = int(sum(p.numel() for p in model.parameters()))\n\n    train_ds = TensorDataset(X_train_cf, y_train.long())\n    val_ds = TensorDataset(X_val_cf, y_val.long())\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=False)\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, drop_last=False)\n\n    if optimizer_name == 'adam':\n        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)\n    elif optimizer_name == 'sgd':\n        optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=weight_decay)\n    else:\n        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\n\n    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)\n\n    history = {\n        'train_loss': [],\n        'val_loss': [],\n        'train_acc': [],\n        'val_acc': [],\n        'n_params': n_params,\n    }\n\n    best_val_acc = 0.0\n    best_state = None\n    best_epoch = 0\n\n    for epoch in range(epochs):\n        model.train()\n        running_loss = 0.0\n        correct = 0\n        total = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=False)\n            yb = yb.to(device, non_blocking=False)\n\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if max_grad_norm and max_grad_norm > 0.0:\n                nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)\n            optimizer.step()\n\n            running_loss += loss.item() * yb.size(0)\n            preds = logits.argmax(dim=1)\n            correct += (preds == yb).sum().item()\n            total += yb.size(0)\n\n        train_loss = running_loss / max(1, total)\n        train_acc = correct / max(1, total)\n\n        model.eval()\n        val_loss_sum = 0.0\n        val_correct = 0\n        val_total = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=False)\n                yb = yb.to(device, non_blocking=False)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                val_loss_sum += loss.item() * yb.size(0)\n                preds = logits.argmax(dim=1)\n                val_correct += (preds == yb).sum().item()\n                val_total += yb.size(0)\n        val_loss = val_loss_sum / max(1, val_total)\n        val_acc = val_correct / max(1, val_total)\n\n        history['train_loss'].append(train_loss)\n        history['val_loss'].append(val_loss)\n        history['train_acc'].append(train_acc)\n        history['val_acc'].append(val_acc)\n\n        if val_acc > best_val_acc:\n            best_val_acc = val_acc\n            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}\n            best_epoch = epoch + 1\n\n    if best_state is not None:\n        model.load_state_dict(best_state)\n\n    history['best_val_acc'] = best_val_acc\n    history['best_epoch'] = best_epoch\n\n    return model, history\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.1,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 64,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 12,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "base_channels": {
+      "default": 128,
+      "type": "Integer",
+      "low": 32,
+      "high": 256
+    },
+    "num_blocks": {
+      "default": 3,
+      "type": "Integer",
+      "low": 1,
+      "high": 5
+    },
+    "kernel_size": {
+      "default": 7,
+      "type": "Integer",
+      "low": 3,
+      "high": 15
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-08,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "optimizer": {
+      "default": "adamw",
+      "type": "Categorical",
+      "categories": [
+        "adam",
+        "adamw",
+        "sgd"
+      ]
+    },
+    "act_fn": {
+      "default": "relu",
+      "type": "Categorical",
+      "categories": [
+        "relu",
+        "gelu",
+        "elu"
+      ]
+    },
+    "batch_norm": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "bn_momentum": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.05,
+      "high": 0.2
+    },
+    "label_smoothing": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "max_grad_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    }
+  },
+  "confidence": 0.9,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758224586,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

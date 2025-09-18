@@ -1,0 +1,69 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-18 14:33:20
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "torch_tensor",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+Scope: We searched 2024–2025 peer‑reviewed and preprint sources for ECG arrhythmia sequence classifiers evaluated on MIT‑BIH (AAMI 5‑class: N, S, V, F, Q), prioritizing inter‑patient splits, recent surveys, empirical benchmarks, and implementations practical for PyTorch. Key, recent and relevant works include a tiny 1D Transformer optimized for embedded inference, a CNN+Attention+Transformer hybrid (CAT‑Net), a Swin‑Transformer using time‑frequency maps, and an inter‑patient tiny matched‑filter CNN; we also incorporate a 2025 systematic review emphasizing standards (AAMI, inter‑patient) and embedded feasibility.
+
+Datasets and evaluation caveats: Many high headline accuracies use intra‑patient or random splits; inter‑patient evaluation reduces data leakage and better reflects generalization. The 2025 systematic review found only 5/122 studies satisfied E3C (Embedded, Clinical/AAMI, Comparative) criteria, and highlights Farag et al. as a strong SOTA among studies meeting these constraints. When available, we report whether results are inter‑patient. Two‑lead MIT‑BIH signals (commonly modified lead II plus a precordial lead) can aid discrimination of SVEB/VEB; models accepting 2‑channel inputs align with your (1000,2) tensor. ([arxiv.org](https://arxiv.org/html/2503.07276v1))
+
+Model evidence summary:
+- Tiny 1D Transformer (Busia et al., 2024, later published in IEEE TBioCAS): 6k parameters; 5‑class MIT‑BIH accuracy 98.97% using 8‑bit post‑training quantization; worst‑case post‑deployment 98.36% on a GAP9 MCU; 4.28 ms, ~0.09 mJ inference—demonstrating excellent accuracy/efficiency trade‑off. Architecture: lightweight patch/embedding + self‑attention over 1D beats; training includes augmentation for motion artifacts. Well‑suited to direct 1D dual‑lead input by setting input channels=2. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+- CAT‑Net (Biomedical Signal Processing and Control, 2024): Hybrid 1D CNN + multi‑head attention (Transformer encoder) for single‑lead ECG; addresses class imbalance with SMOTE‑Tomek. On MIT‑BIH AAMI 5‑class, reports 99.14% overall accuracy and 94.69% macro‑F1; on INCART 3‑class: 99.58% accuracy, 96.15% macro‑F1. Paper focuses on performance; compute footprint not prominently reported. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+- Swin‑Transformer with wavelet time‑frequency maps (Frontiers in Cardiovascular Medicine, 2024): Converts ECG to time‑frequency images; achieves 99.34% intra‑patient and 98.37% inter‑patient accuracy on MIT‑BIH; heavier 2D vision Transformer pipeline and explicit TF preprocessing. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full))
+- Tiny matched‑filter CNN for inter‑patient classification at the edge (Sensors, 2023; highlighted by 2025 survey): Inter‑patient AAMI evaluation with average accuracy 98.18% and macro‑F1 92.17%; SVEB sensitivity 85.3%, VEB sensitivity 96.34%; ~15 KB model; <1 ms inference; uses quantization/pruning and RR‑interval features. Useful blueprint for efficient pipelines and improving minority‑class sensitivity under patient‑independent testing. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC9919183/?utm_source=openai))
+
+Synthesis for your setting (torch_tensor, shape=(1000,2), 5 classes, sequence): For raw 1D, dual‑lead inputs, the Tiny 1D Transformer offers strong accuracy near top reported figures while being orders of magnitude lighter than typical CNN/ViT models, and can be implemented cleanly in PyTorch with a 2‑channel patch embedding. CAT‑Net achieves slightly higher reported accuracy/macro‑F1 but was developed for single‑lead and may rely on synthetic rebalancing; compute requirements are less clearly bounded. Swin‑Transformer results are strong, including inter‑patient, but require TF imaging and a heavier 2D backbone. The matched‑filter CNN demonstrates excellent inter‑patient robustness and tiny footprint, and its use of RR features can be combined with a lightweight Transformer to bolster minority classes (S, F) without large compute costs. Considering accuracy, compute, 1D dual‑lead compatibility, and ease of PyTorch implementation, a dual‑lead Tiny 1D Transformer (with optional auxiliary RR‑interval branch and class‑balanced/focal loss) is the best single choice.
+
+Computational considerations:
+- Tiny 1D Transformer (recommended): ~6k params; int8 inference validated; ~4.28 ms on GAP9 MCU; near‑SOTA accuracy (98.97%). ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+- CAT‑Net: highest reported overall accuracy among reviewed 1D methods (99.14%) and strong macro‑F1 (94.69%), but compute/params not specified; uses SMOTE‑Tomek; originally single‑lead. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+- Swin‑Transformer TF approach: 98.37% inter‑patient; heavier 2D model + wavelet mapping; increased preprocessing/compute. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full))
+- Tiny matched‑filter CNN: ~15 KB model; <1 ms inference; inter‑patient macro‑F1 ~92%; strong minority‑class sensitivity for VEB; design ideas transferrable to 1D Transformers. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC9919183/?utm_source=openai))
+
+Methodological guidance: Follow AAMI 5‑class mapping and inter‑patient splits for fair benchmarking; consider two‑lead inputs to help SVEB/VEB detection; report macro‑F1 and per‑class sensitivity/specificity, not just accuracy; and include embedded feasibility if targeting deployment. ([arxiv.org](https://arxiv.org/html/2503.07276v1))
+
+KEY FINDINGS:
+1. A tiny 1D Transformer achieved 98.97% 5‑class accuracy on MIT‑BIH with only ~6k parameters, retained 98.36% after 8‑bit quantization, and ran in ~4.28 ms (~0.09 mJ) on GAP9, demonstrating an exceptional accuracy–efficiency trade‑off. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+2. CAT‑Net (CNN+Attention+Transformer) reported 99.14% overall accuracy and 94.69% macro‑F1 on AAMI 5‑class MIT‑BIH (single‑lead) using SMOTE‑Tomek to address class imbalance, indicating very strong performance but with less clarity on compute cost. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+3. Swin‑Transformer with wavelet time‑frequency maps achieved 98.37% inter‑patient and 99.34% intra‑patient accuracy on MIT‑BIH, showing that 2D TF representations plus hierarchical attention can be highly competitive but computationally heavier. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full))
+4. Under stringent E3C criteria (AAMI compliance, inter‑patient, embedded feasibility), only 5/122 papers qualified; among them, a tiny matched‑filter 1D CNN reached 98.18% accuracy and ~92.17% macro‑F1 with a ~15 KB model and <1 ms inference, emphasizing the value of lightweight designs for real‑world deployment. ([arxiv.org](https://arxiv.org/html/2503.07276v1))
+5. MIT‑BIH commonly provides two leads (modified lead II plus a precordial lead); leveraging both channels can aid minority classes (e.g., SVEB/VEB), aligning with your (1000,2) input. ([arxiv.org](https://arxiv.org/html/2503.07276v1))
+
+RECOMMENDED APPROACHES:
+1. Dual‑Lead Tiny 1D Transformer (PyTorch): Implement Busia et al.’s tiny Transformer in 1D with input_channels=2 to accept (1000,2) tensors; use lightweight patch/embedding (e.g., Conv1d kernel 16–32, stride 8–16), 2–3 Transformer blocks with small d_model (e.g., 64–96) and 4 heads, class‑balanced or focal loss for AAMI imbalance, and optional auxiliary RR‑interval branch (inspired by Farag) concatenated before the classifier. Rationale: near‑SOTA accuracy (98.97%) with extreme efficiency and validated int8 deployment; readily implemented in PyTorch; naturally matches raw 1D sequence data without heavy TF preprocessing. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+
+RECENT PAPERS:
+- A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (2024, IEEE TBioCAS): 6k‑param 1D Transformer; 98.97% MIT‑BIH 5‑class (int8), 98.36% worst‑case post‑deployment; 4.28 ms/~0.09 mJ inference on GAP9; strong blueprint for accurate, efficient 1D models. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))
+- CAT‑Net: Convolution, attention, and transformer based network for single‑lead ECG arrhythmia classification (2024, Biomedical Signal Processing and Control): Hybrid CNN+Transformer with SMOTE‑Tomek balancing; 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH (AAMI 5‑class); strong benchmark but compute footprint not emphasized. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+- A novel method of Swin Transformer with time‑frequency characteristics for ECG‑based arrhythmia detection (2024, Frontiers in Cardiovascular Medicine): Wavelet TF maps + Swin‑Transformer; 98.37% inter‑patient, 99.34% intra‑patient on MIT‑BIH; demonstrates high performance with 2D attention at higher preprocessing/compute cost. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full))
+- A Tiny Matched Filter‑Based CNN for Inter‑Patient ECG Classification and Arrhythmia Detection at the Edge (2023, Sensors); highlighted by a 2025 systematic review: Inter‑patient AAMI with ~15 KB model: 98.18% accuracy, ~92.17% macro‑F1; SVEB Se 85.3%, VEB Se 96.34%; <1 ms inference; a practical baseline for embedded deployment and minority‑class handling. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC9919183/?utm_source=openai))
+- A Systematic Review of ECG Arrhythmia Classification: Adherence to Standards, Fair Evaluation, and Embedded Feasibility (2025, arXiv): Analyzes 2017–2024 literature; only 4.1% meet E3C (AAMI, inter‑patient, embedded feasibility); identifies lightweight inter‑patient methods as most deployment‑ready and cautions against inflated intra‑patient metrics. ([arxiv.org](https://arxiv.org/html/2503.07276v1))
+
+==================================================

@@ -76,15 +76,15 @@ class CodeGenerationPipelineOrchestrator:
         logger.info("🤖 STEP 1: AI Training Code Generation")
         code_rec = self._generate_training_code(input_shape, num_classes)
         
+        # Enable BO process mode for error handling
+        set_bo_process_mode(True)
+
         # STEP 2: Save to JSON
         logger.info("💾 STEP 2: Save Training Function to JSON")
         json_filepath = self._save_training_function(code_rec)
         
         # STEP 3: Bayesian Optimization
         logger.info("🔍 STEP 3: Bayesian Optimization")
-
-        # Enable BO process mode for error handling
-        set_bo_process_mode(True)
 
         bo_results = self._run_bayesian_optimization(X, y, device, code_rec)
 
@@ -110,7 +110,6 @@ class CodeGenerationPipelineOrchestrator:
             'bo_best_score': bo_results['best_value'],
             'final_metrics': training_results['final_metrics'],
             'performance_score': performance_score,
-            'reasoning': code_rec.reasoning,
             'confidence': code_rec.confidence
         }
         self.pipeline_history.append(attempt_record)
@@ -139,8 +138,7 @@ class CodeGenerationPipelineOrchestrator:
         )
         
         logger.info(f"Generated training function: {code_rec.model_name}")
-        logger.info(f"Reasoning: {code_rec.reasoning}")
-        logger.info(f"BO parameters: {list(code_rec.bo_parameters) if code_rec.bo_parameters else 'None'}")
+        logger.info(f"BO parameters: {list(code_rec.bo_config.keys()) if code_rec.bo_config else 'None'}")
         logger.info(f"Confidence: {code_rec.confidence:.2f}")
         
         return code_rec
@@ -152,10 +150,8 @@ class CodeGenerationPipelineOrchestrator:
         training_data = {
             "model_name": code_rec.model_name,
             "training_code": code_rec.training_code,
-            "hyperparameters": code_rec.hyperparameters,
-            "reasoning": code_rec.reasoning,
+            "bo_config": code_rec.bo_config,
             "confidence": code_rec.confidence,
-            "bo_parameters": code_rec.bo_parameters,
             "data_profile": self.data_profile,
             "timestamp": int(torch.random.initial_seed()),  # Use torch seed as timestamp
             "metadata": {
@@ -193,14 +189,13 @@ class CodeGenerationPipelineOrchestrator:
 
         # Use full centralized dataset for BO
         logger.info(f"BO dataset size: {len(X)} samples (using full dataset)")
-        logger.info(f"BO will optimize: {code_rec.bo_parameters}")
-        
+        logger.info(f"BO will optimize: {list(code_rec.bo_config.keys())}")
+
         # Create training data for objective function
         training_data = {
             "model_name": code_rec.model_name,
             "training_code": code_rec.training_code,
-            "hyperparameters": code_rec.hyperparameters,
-            "bo_parameters": code_rec.bo_parameters
+            "bo_config": code_rec.bo_config
         }
         
         # Create BO objective function with centralized splits (no subset)
@@ -210,7 +205,12 @@ class CodeGenerationPipelineOrchestrator:
         from bo.run_bo import BayesianOptimizer
 
         # Use GPT's search space directly
-        bo_optimizer = BayesianOptimizer(gpt_search_space=code_rec.bo_search_space, n_initial_points=3)
+        # Extract search space from bo_config (remove 'default' values)
+        search_space = {}
+        for param_name, param_config in code_rec.bo_config.items():
+            search_space[param_name] = {k: v for k, v in param_config.items() if k != "default"}
+
+        bo_optimizer = BayesianOptimizer(gpt_search_space=search_space, n_initial_points=3)
         
         # Run BO optimization
         results = []
@@ -273,7 +273,7 @@ class CodeGenerationPipelineOrchestrator:
             # Fallback if all trials failed
             bo_results = {
                 'best_value': 0.0,
-                'best_params': code_rec.hyperparameters,
+                'best_params': {param: param_config["default"] for param, param_config in code_rec.bo_config.items()},
                 'total_trials': 0,
                 'all_results': []
             }

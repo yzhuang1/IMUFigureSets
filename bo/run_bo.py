@@ -340,7 +340,12 @@ def create_optimizer_from_code_recommendation(code_recommendation) -> BayesianOp
     Returns:
         BayesianOptimizer: New optimizer instance
     """
-    return BayesianOptimizer(gpt_search_space=code_recommendation.bo_search_space)
+    # Extract search space from bo_config (remove 'default' values)
+    search_space = {}
+    for param_name, config in code_recommendation.bo_config.items():
+        search_space[param_name] = {k: v for k, v in config.items() if k != "default"}
+
+    return BayesianOptimizer(gpt_search_space=search_space)
 
 def reset_optimizer_from_code_recommendation(code_recommendation):
     """

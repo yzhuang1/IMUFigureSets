@@ -251,58 +251,33 @@ class LiteratureReviewGenerator:
         return recommendations[:5]  # Limit to 5 recommendations
 
     def save_literature_review(self, review: LiteratureReview, data_profile: Dict[str, Any]) -> str:
-        """Save literature review to text file"""
+        """Save literature review as JSON file"""
 
-        # Create filename based on data characteristics and timestamp
         data_type = data_profile.get('data_type', 'unknown')
-        filename = f"literature_review_{data_type}_{review.timestamp}.txt"
+        filename = f"literature_review_{data_type}_{review.timestamp}.json"
         filepath = self.review_storage_dir / filename
 
-        # Format the review for text file
-        review_content = f"""LITERATURE REVIEW
-=================
+        review_data = {
+            "query": review.query,
+            "review_text": review.review_text,
+            "key_findings": review.key_findings,
+            "recommended_approaches": review.recommended_approaches,
+            "recent_papers": review.recent_papers,
+            "confidence": review.confidence,
+            "timestamp": review.timestamp,
+            "generated_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(review.timestamp)),
+            "data_profile": data_profile
+        }
 
-Query: {review.query}
-Generated: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(review.timestamp))}
-Confidence: {review.confidence:.2f}
-
-DATA PROFILE:
-{json.dumps(data_profile, indent=2)}
-
-COMPREHENSIVE REVIEW:
-{review.review_text}
-
-KEY FINDINGS:
-"""
-
-        for i, finding in enumerate(review.key_findings, 1):
-            finding_str = str(finding) if finding else 'No finding'
-            review_content += f"{i}. {finding_str}\n"
-
-        review_content += f"\nRECOMMENDED APPROACHES:\n"
-        for i, approach in enumerate(review.recommended_approaches, 1):
-            approach_str = str(approach) if approach else 'No approach'
-            review_content += f"{i}. {approach_str}\n"
-
-        if review.recent_papers:
-            review_content += f"\nRECENT PAPERS:\n"
-            for paper in review.recent_papers:
-                title = paper.get('title', 'Unknown title') if isinstance(paper, dict) else 'Unknown title'
-                contribution = paper.get('contribution', 'No description') if isinstance(paper, dict) else 'No description'
-                review_content += f"- {title}: {contribution}\n"
-
-        review_content += f"\n" + "="*50 + "\n"
-
-        # Save to text file
         with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(review_content)
+            json.dump(review_data, f, indent=2, ensure_ascii=False)
 
         return str(filepath)
 
-    def load_literature_review(self, filepath: str) -> str:
-        """Load literature review from text file"""
+    def load_literature_review(self, filepath: str) -> Dict[str, Any]:
+        """Load literature review from JSON file"""
         with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read()
+            return json.load(f)
 
 # Global instance
 literature_review_generator = LiteratureReviewGenerator()
