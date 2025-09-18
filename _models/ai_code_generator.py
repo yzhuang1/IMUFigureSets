@@ -42,8 +42,8 @@ class AICodeGenerator:
         self.code_storage_dir = Path("generated_training_functions")
         self.code_storage_dir.mkdir(exist_ok=True)
     
-    def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None, error_message: Optional[str] = None, previous_code: Optional[str] = None) -> str:
-        """Create enhanced prompt for GPT-5 code generation with literature review insights and error debugging"""
+    def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None) -> str:
+        """Create enhanced prompt for GPT-5 code generation with literature review insights"""
 
         # Dataset context for better model selection
         dataset_context = ""
@@ -56,7 +56,7 @@ Source: {config.dataset_source}"""
         # Base prompt
         # Get sample count from data profile (correct field name is 'sample_count')
         num_samples = data_profile.get('sample_count', data_profile.get('num_samples', 'unknown'))
-        
+
         base_prompt = f"""
 
 Generate PyTorch training function for {num_classes}-class classification.
@@ -71,67 +71,43 @@ LITERATURE REVIEW INSIGHTS:
 Recommended Model: {literature_review.recommended_approaches[0] if literature_review.recommended_approaches else 'No specific recommendation'}
 Please implement the recommended model architecture from the literature review."""
 
-        # Add error debugging context if available
-        error_context = ""
-        if error_message:
-            previous_code_section = ""
-            if previous_code:
-                previous_code_section = f"""
-
-PREVIOUS BUGGY CODE:
-```python
-{previous_code}
-```
-"""
-
-            error_context = f"""
-
-ERROR DEBUGGING CONTEXT:
-The previous training function failed with the following error:
-{error_message}
-{previous_code_section}
-
-Please analyze this error and the buggy code above, then generate a corrected training function that fixes the issue.
-Focus on the specific error mentioned above and ensure the new code avoids this problem."""
-
-        prompt = base_prompt + error_context + f"""
+        prompt = base_prompt + f"""
 
 Requirements:
 - Function: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
 - X_train, y_train, X_val, y_val are PyTorch tensors
-- IMPORTANT: Only use pin_memory=True in DataLoader if tensors are on CPU. Check tensor.device.type == 'cpu' before enabling pin_memory
-- Keep code simple 
+- Lightweight architecture (model <256K after compression)
 - Bayesian Optimization will handle hyperparameter tuning (You can decide what parameters you want base on the model you choose)
 - Focus on core training loop, avoid complex scheduling/early stopping
 - Build model from scratch, include basic training loop, return model and metrics
-- Lightweight architecture (<256K parameters after compression)
-- Use STANDARDIZED hyperparameter names for BO compatibility:
-  * "num_heads" (not "nheads", "n_heads", or "attention_heads")
-  * "hidden_size" (not "hidden_dim", "d_model", or "model_dim") 
-  * "embed_dim" (not "embedding_dim", "emb_size", or "embedding_size")
-  * "dropout" (not "dropout_rate", "drop_prob", or "p_dropout")
-  * "lr" (not "learning_rate", "alpha", or "eta")
-  * "batch_size" (not "batch", "bs", or "bsize")
-  * "epochs" (not "num_epochs", "n_epochs", or "training_steps")
- - You can decide what parameters is used base on the model you choose
+- Use clear, descriptive parameter names that match your model implementation
 Response JSON format example:
 {{
     "model_name": "ModelName",
     "training_code": "def train_model(...):\\n    # Complete PyTorch training code here",
-    "hyperparameters": {{"lr": 0.001, "epochs": 10, "batch_size": 64}},
+    "bo_config": {{
+        "lr": {{"default": 0.001, "type": "Real", "low": 1e-5, "high": 1e-1, "prior": "log-uniform"}},
+        "batch_size": {{"default": 64, "type": "Categorical", "categories": [8, 16, 32, 64, 128]}},
+        "epochs": {{"default": 10, "type": "Integer", "low": 5, "high": 50}},
+        "hidden_size": {{"default": 128, "type": "Integer", "low": 32, "high": 512}},
+        "dropout": {{"default": 0.1, "type": "Real", "low": 0.0, "high": 0.7}}
+    }},
     "reasoning": "Brief explanation incorporating literature insights",
-    "confidence": 0.9,
-    "bo_parameters": ["lr", "batch_size", "epochs", "hidden_size", "dropout"],
-    "bo_search_space": {{
-        "lr": {{"type": "Real", "low": 1e-5, "high": 1e-1, "prior": "log-uniform"}},
-        "batch_size": {{"type": "Categorical", "categories": [8, 16, 32, 64, 128]}},
-        "epochs": {{"type": "Integer", "low": 5, "high": 50}},
-        "hidden_size": {{"type": "Integer", "low": 32, "high": 512}},
-        "dropout": {{"type": "Real", "low": 0.0, "high": 0.7}}
-    }}
+    "confidence": 0.9
 }}
 
-FOCUS: You only need to output a json format. You must fill in bo_parameters and bo_search_space.
+CRITICAL bo_config REQUIREMENTS:
+- bo_config contains ALL hyperparameters for Bayesian Optimization
+- Each parameter MUST have: "default", "type", and valid ranges
+- Parameter types: "Real", "Integer", "Categorical"
+- For "Real": specify "low", "high", and optionally "prior" ("uniform" or "log-uniform")
+- For "Integer": specify "low", "high" (inclusive bounds)
+- For "Categorical": specify "categories" list with valid options
+- IMPORTANT: For log-uniform prior, "low" MUST be > 0 (use 1e-6 minimum for learning rates)
+- Only include parameters that are actually used in your training_code
+- Validate ranges make sense (e.g., dropout 0.0-0.7, lr 1e-6 to 1e-1)
+
+FOCUS: You MUST output valid JSON format only. No other text.
 """
         return prompt
     
@@ -176,61 +152,77 @@ FOCUS: You only need to output a json format. You must fill in bo_parameters and
             logger.error(f"Exception details: {str(e)}")
             raise
     
-    def _standardize_hyperparameter_names(self, hyperparams: Dict[str, Any]) -> Dict[str, Any]:
-        """Standardize hyperparameter names for BO compatibility"""
-        name_mapping = {
-            # num_heads variations
-            'nheads': 'num_heads',
-            'n_heads': 'num_heads', 
-            'attention_heads': 'num_heads',
-            'n_attention_heads': 'num_heads',
-            
-            # hidden_size variations
-            'hidden_dim': 'hidden_size',
-            'd_model': 'hidden_size',
-            'model_dim': 'hidden_size',
-            'hidden_units': 'hidden_size',
-            
-            # embed_dim variations  
-            'embedding_dim': 'embed_dim',
-            'emb_size': 'embed_dim',
-            'embedding_size': 'embed_dim',
-            'embed_size': 'embed_dim',
-            
-            # dropout variations
-            'dropout_rate': 'dropout',
-            'drop_prob': 'dropout', 
-            'p_dropout': 'dropout',
-            'dropout_p': 'dropout',
-            
-            # learning rate variations
-            'learning_rate': 'lr',
-            'alpha': 'lr',
-            'eta': 'lr',
-            
-            # batch_size variations
-            'batch': 'batch_size',
-            'bs': 'batch_size',
-            'bsize': 'batch_size',
-            
-            # epochs variations
-            'num_epochs': 'epochs',
-            'n_epochs': 'epochs',
-            'training_steps': 'epochs',
-            'max_epochs': 'epochs'
-        }
-        
-        standardized = {}
-        for key, value in hyperparams.items():
-            # Use mapping if available, otherwise keep original name
-            standard_key = name_mapping.get(key, key)
-            standardized[standard_key] = value
-            
-            # Log any mappings that were applied
-            if standard_key != key:
-                logger.info(f"Standardized hyperparameter: {key} -> {standard_key}")
-        
-        return standardized
+
+    def _debug_json_with_gpt(self, malformed_json: str, error_message: str) -> str:
+        """Use GPT to debug and fix JSON formatting issues"""
+        debug_prompt = f"""Examine what's the possible error in this JSON format and respond to me a correct version. ONLY output the error variable pair in JSON format.
+
+Error: {error_message}
+
+Malformed JSON:
+{malformed_json}
+
+Only return the corrected key-value pair(s) that need to be fixed, nothing else."""
+
+        try:
+            logger.info("Calling GPT to debug JSON formatting issues")
+            debug_response = self._call_openai_api(debug_prompt)
+
+            # Clean the debug response
+            debug_response = debug_response.strip()
+            if debug_response.startswith('```json'):
+                debug_response = debug_response[7:]
+            if debug_response.endswith('```'):
+                debug_response = debug_response[:-3]
+
+            # Extract JSON from debug response
+            start_idx = debug_response.find('{')
+            end_idx = debug_response.rfind('}') + 1
+
+            if start_idx != -1 and end_idx > 0:
+                correction_json = debug_response[start_idx:end_idx]
+                logger.info(f"GPT suggested correction: {correction_json}")
+                return correction_json
+            else:
+                logger.warning("No valid JSON found in debug response")
+                return "{}"
+
+        except Exception as e:
+            logger.error(f"Failed to debug JSON with GPT: {e}")
+            return "{}"
+
+    def _apply_json_corrections(self, original_json: str, corrections: str) -> str:
+        """Apply JSON corrections to the original JSON"""
+        try:
+            # Parse the corrections
+            correction_data = json.loads(corrections)
+
+            # Parse the original JSON (even if malformed, try our best)
+            try:
+                original_data = json.loads(original_json)
+            except json.JSONDecodeError:
+                # If original is malformed, try to parse it partially
+                logger.warning("Original JSON is malformed, attempting partial repair")
+                original_data = {}
+
+            # Apply corrections by updating the original data
+            def update_nested_dict(target, source):
+                for key, value in source.items():
+                    if isinstance(value, dict) and key in target and isinstance(target[key], dict):
+                        update_nested_dict(target[key], value)
+                    else:
+                        target[key] = value
+
+            update_nested_dict(original_data, correction_data)
+
+            # Return the corrected JSON
+            corrected_json = json.dumps(original_data, indent=2)
+            logger.info("Successfully applied JSON corrections")
+            return corrected_json
+
+        except Exception as e:
+            logger.error(f"Failed to apply JSON corrections: {e}")
+            return original_json
 
     def _parse_recommendation(self, response: str) -> CodeRecommendation:
         """Parse API response as code recommendation"""
@@ -271,33 +263,73 @@ FOCUS: You only need to output a json format. You must fill in bo_parameters and
                 try:
                     data = json.loads(fixed_json)
                     logger.info("Successfully fixed JSON formatting issues")
-                except json.JSONDecodeError:
-                    # If still failing, try a more aggressive approach
-                    logger.warning("Standard fixes failed, attempting manual JSON repair")
-                    
+                except json.JSONDecodeError as second_e:
+                    # If still failing, use GPT to debug the JSON
+                    logger.warning("Standard fixes failed, using GPT to debug JSON")
+
                     # Save the problematic JSON for debugging
                     debug_file = Path("debug_malformed_json.txt")
                     with open(debug_file, 'w') as f:
                         f.write(f"Original JSON:\n{json_str}\n\nFixed JSON:\n{fixed_json}")
                     logger.info(f"Saved malformed JSON to {debug_file} for debugging")
-                    
-                    raise
+
+                    # Use GPT to debug and fix the JSON
+                    corrections = self._debug_json_with_gpt(fixed_json, str(second_e))
+                    if corrections and corrections != "{}":
+                        corrected_json = self._apply_json_corrections(fixed_json, corrections)
+                        try:
+                            data = json.loads(corrected_json)
+                            logger.info("Successfully repaired JSON using GPT debugging")
+                        except json.JSONDecodeError:
+                            logger.error("GPT-assisted JSON repair also failed")
+                            raise
+                    else:
+                        logger.error("GPT could not provide valid corrections")
+                        raise
             
-            # Validate required fields
-            required_fields = ["model_name", "training_code", "hyperparameters", "reasoning", "confidence", "bo_parameters", "bo_search_space"]
-            for field in required_fields:
-                if field not in data:
-                    raise ValueError(f"Missing required field: {field}")
-            
-            # Standardize hyperparameter names for BO compatibility
-            standardized_hyperparams = self._standardize_hyperparameter_names(data["hyperparameters"])
-            standardized_bo_params = [self._standardize_hyperparameter_names({p: None}).get(p, p) for p in data["bo_parameters"]]
-            
-            # Standardize search space keys
-            standardized_search_space = {}
-            for key, value in data["bo_search_space"].items():
-                std_key = self._standardize_hyperparameter_names({key: None}).get(key, key)
-                standardized_search_space[std_key] = value
+            # Check if using new combined format or old separate format
+            if "bo_config" in data:
+                # New combined format
+                required_fields = ["model_name", "training_code", "bo_config", "reasoning", "confidence"]
+                for field in required_fields:
+                    if field not in data:
+                        raise ValueError(f"Missing required field: {field}")
+
+                # Extract hyperparameters, bo_parameters, and bo_search_space from combined config
+                combined_config = data["bo_config"]
+                hyperparams = {}
+                bo_params = []
+                search_space = {}
+
+                for param_name, config in combined_config.items():
+                    # Extract default value for hyperparameters
+                    if "default" in config:
+                        hyperparams[param_name] = config["default"]
+
+                    # Add to bo_parameters list
+                    bo_params.append(param_name)
+
+                    # Extract search space (remove 'default' key)
+                    space_config = {k: v for k, v in config.items() if k != "default"}
+                    if space_config:  # Only add if there's actual search space config
+                        search_space[param_name] = space_config
+
+                # Use GPT names directly - no standardization
+                standardized_hyperparams = hyperparams
+                standardized_bo_params = bo_params
+                standardized_search_space = search_space
+
+            else:
+                # Old separate format (fallback)
+                required_fields = ["model_name", "training_code", "hyperparameters", "reasoning", "confidence", "bo_parameters", "bo_search_space"]
+                for field in required_fields:
+                    if field not in data:
+                        raise ValueError(f"Missing required field: {field}")
+
+                # Use GPT names directly - no standardization
+                standardized_hyperparams = data["hyperparameters"]
+                standardized_bo_params = data["bo_parameters"]
+                standardized_search_space = data["bo_search_space"]
             
             return CodeRecommendation(
                 model_name=data["model_name"],
@@ -314,7 +346,7 @@ FOCUS: You only need to output a json format. You must fill in bo_parameters and
             logger.error(f"Original response: {response}")
             raise ValueError(f"Failed to parse AI code recommendation: {e}")
     
-    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None, error_message: Optional[str] = None, previous_code: Optional[str] = None) -> CodeRecommendation:
+    def generate_training_function(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None) -> CodeRecommendation:
         """Generate training function code based on data characteristics with optional literature review"""
 
         literature_review = None
@@ -336,8 +368,8 @@ FOCUS: You only need to output a json format. You must fill in bo_parameters and
                 logger.warning(f"Literature review failed: {e}, proceeding without it")
                 literature_review = None
 
-        # Generate training function with literature review insights and error debugging
-        prompt = self._create_prompt(data_profile, input_shape, num_classes, literature_review, error_message, previous_code)
+        # Generate training function with literature review insights
+        prompt = self._create_prompt(data_profile, input_shape, num_classes, literature_review)
         response = self._call_openai_api(prompt)
         recommendation = self._parse_recommendation(response)
 
@@ -391,49 +423,8 @@ ai_code_generator = AICodeGenerator()
 
 def generate_training_code_for_data(data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, include_literature_review: bool = None) -> CodeRecommendation:
     """
-    Convenience function: Generate training code for data with literature review and error debugging retry logic
+    Convenience function: Generate training code for data with literature review (JSON errors handled by GPT debugging)
     """
-    import traceback
-    from error_monitor import temporarily_disable_error_monitoring, re_enable_error_monitoring
-    
-    debug_attempts = 0
-    max_debug_attempts = config.debug_chances
-    last_error = None
-    
-    # Temporarily disable error monitoring during debug cycles to allow retries
-    temporarily_disable_error_monitoring()
-    
-    while debug_attempts < max_debug_attempts:
-        try:
-            # Generate training code (with error context if this is a retry)
-            error_context = str(last_error) if last_error else None
-            if error_context:
-                logger.info(f"Debug attempt {debug_attempts + 1}/{max_debug_attempts} - regenerating code with error context")
-            
-            recommendation = ai_code_generator.generate_training_function(
-                data_profile, input_shape, num_classes, include_literature_review, error_context
-            )
-            
-            # Return the recommendation - validation will happen during training
-            if debug_attempts > 0:
-                logger.info(f"Generated new training function after {debug_attempts + 1} attempts")
-            
-            # Re-enable error monitoring before returning
-            re_enable_error_monitoring()
-            return recommendation
-                
-        except Exception as e:
-            debug_attempts += 1
-            last_error = traceback.format_exc()
-            logger.warning(f"Training function generation attempt {debug_attempts} failed: {e}")
-            
-            if debug_attempts >= max_debug_attempts:
-                logger.error(f"Failed to generate training function after {max_debug_attempts} attempts")
-                logger.error(f"Final error: {last_error}")
-                # Re-enable error monitoring before raising final error
-                re_enable_error_monitoring()
-                raise RuntimeError(f"Code generation failed after {max_debug_attempts} debug attempts. Final error: {e}")
-    
-    # Should never reach here, but just in case
-    re_enable_error_monitoring()
-    raise RuntimeError("Unexpected exit from debug retry loop")
+    return ai_code_generator.generate_training_function(
+        data_profile, input_shape, num_classes, include_literature_review
+    )

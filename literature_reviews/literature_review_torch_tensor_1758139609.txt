@@ -1,0 +1,65 @@
+LITERATURE REVIEW
+=================
+
+Query: ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods
+Generated: 2025-09-17 15:06:49
+Confidence: 0.78
+
+DATA PROFILE:
+{
+  "data_type": "torch_tensor",
+  "shape": [
+    62352,
+    1000,
+    2
+  ],
+  "dtype": "float32",
+  "feature_count": 2,
+  "sample_count": 62352,
+  "is_sequence": true,
+  "is_image": false,
+  "is_tabular": false,
+  "has_labels": true,
+  "label_count": 5,
+  "sequence_lengths": null,
+  "channels": null,
+  "height": null,
+  "width": null,
+  "metadata": {}
+}
+
+COMPREHENSIVE REVIEW:
+Problem framing: You aim to classify 5 arrhythmia classes from MIT‑BIH Arrhythmia Database ECG sequences, modeled as torch tensors of shape (1000, 2) per sample (two leads, e.g., MLII and a precordial lead), which is consistent with MIT‑BIH’s two-channel 360 Hz recordings and AAMI 5-class labeling used in many studies. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))
+
+Recent state-of-the-art (2024–2025):
+- Tiny Transformer (ViT-style, 1D) for embedded inference: Busia et al. (2024, IEEE TBioCAS) propose a 6k-parameter ViT adapted to 1D ECG beats with a conv patch embed and RR-interval side inputs. On MIT‑BIH 5-class, they report 98.97% accuracy with 8-bit inference; worst-case post-deployment 98.36% after motion-artifact augmentation; on GAP9 MCU, inference is 4.28 ms at 0.09 mJ. This establishes a strong accuracy–efficiency point on MIT‑BIH. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))
+- CNN+Attention+Transformer hybrid (CAT‑Net): A 2024 Biomedical Signal Processing and Control paper introduces a single‑lead hybrid that pairs local CNN features with Transformer encoders and class-imbalance handling (SMOTE‑Tomek). On MIT‑BIH 5-class, CAT‑Net reports 99.14% overall accuracy and 94.69% macro‑F1 (also tested on INCART). This demonstrates robust macro‑F1, an important metric under class imbalance. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+- Swin Transformer with wavelet time‑frequency maps: A 2024 Frontiers in Cardiovascular Medicine article converts beats to CWT scalograms and uses Swin Transformer, reporting 99.34% intra‑patient and 98.37% inter‑patient accuracy on MIT‑BIH—showing strong cross‑patient generalization with image-based pipelines. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38911517/))
+- Mamba/State‑Space models for long sequences: ECGMamba (2024) replaces attention with bidirectional state-space modeling (BiSSM/Mamba) to obtain linear-time sequence modeling with competitive performance, highlighting a promising path for efficient long-context ECG classification. (Metrics are summarized as competitive; emphasis is on computational efficiency via linear complexity.) ([arxiv.org](https://arxiv.org/abs/2406.10098))
+- Lightweight/pruned networks: A 2024 Applied Soft Computing study demonstrates pruning and fine‑tuning for wearable deployment, achieving 99.24% on MIT‑BIH with a ~4.3 MB model and ~49% FLOPs/47.6% parameter reduction vs. benchmark—evidence that compact CNNs can remain highly accurate. ([dl.acm.org](https://dl.acm.org/doi/10.1016/j.asoc.2024.111340?utm_source=openai))
+
+Methodological cautions (protocols matter): Systematic reviews consistently show large gaps between intra‑ and inter‑patient protocols on MIT‑BIH (e.g., average accuracy ~98.4% intra vs ~90.1% inter across studies), so claimed SOTA must be interpreted with the split in mind. Prefer inter‑patient (AAMI‑style) splits and report macro‑F1/recall for minority classes (S, V, F, Q). ([mdpi.com](https://www.mdpi.com/2076-3417/13/8/4964))
+
+Computational considerations for your (1000, 2) input: 1D approaches (Tiny-Transformer, CAT‑Net’s 1D front‑ends) consume less memory and are simpler to deploy than CWT+2D image models while maintaining high accuracy on MIT‑BIH. Tiny ViT models provide explicit footprint/latency/energy numbers, and Mamba/SSM variants scale linearly with sequence length—advantageous at 1000 samples and two leads. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))
+
+Bottom line: For a two‑lead, 1000‑sample sequence classifier with 5 classes, a tiny ViT‑style 1D Transformer (as in Busia et al.) adapted to two channels offers the best balance of proven MIT‑BIH performance, PyTorch implementability, and computational efficiency. If minority‑class macro‑F1 is the priority and compute allows, CAT‑Net’s CNN+Transformer hybrid is also a strong choice; for longer contexts or tighter runtime, a Mamba/SSM encoder is a viable alternative.
+
+KEY FINDINGS:
+1. A 6k‑parameter Tiny Transformer (ViT‑style with conv patch embedding + RR intervals) achieves 98.97% 5‑class accuracy on MIT‑BIH; on GAP9 MCU it runs in 4.28 ms at 0.09 mJ with 8‑bit inference, evidencing excellent accuracy‑efficiency trade‑offs. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))
+2. CAT‑Net (CNN+Attention+Transformer) reports 99.14% overall accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class using single‑lead inputs and SMOTE‑Tomek balancing, highlighting strong minority‑class performance. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+3. Image‑based Swin Transformer on CWT time‑frequency maps attains 98.37% inter‑patient and 99.34% intra‑patient accuracy on MIT‑BIH, showing that time‑frequency + Transformer hybrids can generalize across patients. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38911517/))
+4. Pruned lightweight CNNs can reach 99.24% on MIT‑BIH with ~51% model‑size reduction and ~49% FLOPs reduction, confirming that compact models can remain competitive for deployment. ([dl.acm.org](https://dl.acm.org/doi/10.1016/j.asoc.2024.111340?utm_source=openai))
+5. Systematic review evidence shows intra‑ vs inter‑patient performance gaps (e.g., ~98.4% vs ~90.1% accuracy averages across studies), so cross‑paper comparisons must control for the evaluation protocol and report macro‑F1/recall. ([mdpi.com](https://www.mdpi.com/2076-3417/13/8/4964))
+
+RECOMMENDED APPROACHES:
+1. Tiny 1D ViT-style Transformer adapted from Busia et al. (2024), implemented in PyTorch: 1D conv patch embedding over the (1000, 2) input (e.g., patch size 16–32, stride=patch), positional encoding + [2–4] lightweight Transformer encoder blocks (small d_model and few heads), and a linear classifier for 5 classes. Rationale: proven 98.97% MIT‑BIH 5‑class accuracy with a ~6k‑param design; explicit efficiency (ms/mJ) on hardware; easy to extend from 1 to 2 leads by setting in_channels=2 in the embedding layer; train with an inter‑patient split and class‑balanced or focal loss for minority classes. Optional: include RR‑interval side features if heartbeat segmentation is available, as in the original paper, to further boost robustness. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))
+
+RECENT PAPERS:
+- A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (IEEE TBioCAS, 2024): Introduces a ~6k‑parameter ViT‑style 1D model; 98.97% 5‑class MIT‑BIH accuracy with 8‑bit inference; 4.28 ms and 0.09 mJ on GAP9; strong robustness to motion artifacts via augmentation. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))
+- CAT‑Net: Convolution, attention, and transformer based network for single‑lead ECG arrhythmia classification (BSPC, 2024): CNN + Transformer hybrid with imbalance handling (SMOTE‑Tomek); 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class; also validated on INCART. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))
+- A novel method of Swin Transformer with time‑frequency characteristics for ECG‑based arrhythmia detection (Frontiers in Cardiovascular Medicine, 2024): CWT scalograms + Swin Transformer; 99.34% intra‑patient and 98.37% inter‑patient accuracy on MIT‑BIH; demonstrates strong cross‑patient generalization with image‑based Transformers. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38911517/))
+- ECGMamba: Towards Efficient ECG Classification with BiSSM (arXiv, 2024): Mamba/State‑Space based sequence model with linear‑time complexity; competitive results on ECG datasets and improved inference efficiency for long sequences. ([arxiv.org](https://arxiv.org/abs/2406.10098))
+- Pruned lightweight neural networks for arrhythmia classification with clinical 12‑Lead ECGs (Applied Soft Computing, 2024): Lightweight/pruned pipeline; 99.24% on MIT‑BIH; model size ~4.3 MB, parameters −47.6%, FLOPs −49.1% vs benchmark, supporting embedded feasibility. ([dl.acm.org](https://dl.acm.org/doi/10.1016/j.asoc.2024.111340?utm_source=openai))
+- A Systematic Review of ECG Arrhythmia Classification: Adherence to Standards, Fair Evaluation, and Embedded Feasibility (arXiv, 2025): Synthesizes 2017–2024 studies; emphasizes inter‑patient protocols (AAMI), embedded feasibility, and standardized reporting for fair comparisons. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))
+
+==================================================

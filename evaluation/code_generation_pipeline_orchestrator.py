@@ -3,10 +3,11 @@ Code Generation Pipeline Orchestrator
 Manages ML pipeline with AI-generated training functions
 """
 
-import logging
 import sys
+import logging
 from typing import Dict, Any, Tuple, Optional, List
 import torch
+from logging_config import get_pipeline_logger
 from torch.utils.data import DataLoader
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -18,10 +19,10 @@ from evaluation.evaluate import evaluate_model
 from visualization import generate_bo_charts, create_charts_folder
 from config import config
 from data_splitting import create_consistent_splits, get_current_splits, compute_standardization_stats
-from error_monitor import enable_error_termination, disable_error_termination
+from error_monitor import set_bo_process_mode
 from adapters.universal_converter import convert_to_torch_dataset
 
-logger = logging.getLogger(__name__)
+logger = get_pipeline_logger(__name__)
 
 class CodeGenerationPipelineOrchestrator:
     """Orchestrates ML pipeline with AI-generated training functions"""
@@ -82,22 +83,19 @@ class CodeGenerationPipelineOrchestrator:
         # STEP 3: Bayesian Optimization
         logger.info("🔍 STEP 3: Bayesian Optimization")
 
-        # Enable error monitoring for BO process
-        enable_error_termination(
-        error_keywords=["ERROR"],
-        ignore_patterns=[]
-        )
+        # Enable BO process mode for error handling
+        set_bo_process_mode(True)
 
         bo_results = self._run_bayesian_optimization(X, y, device, code_rec)
+
+        # Disable BO process mode after BO
+        set_bo_process_mode(False)
 
         # STEP 4: Final Training with Optimized Parameters
         logger.info("🚀 STEP 4: Final Training Execution")
         final_model, training_results = self._execute_final_training(
             X, y, device, json_filepath, bo_results
         )
-
-        # Disable error monitoring before evaluation
-        disable_error_termination()
 
         # STEP 5: Performance Analysis
         logger.info("📊 STEP 5: Performance Analysis")
@@ -182,7 +180,17 @@ class CodeGenerationPipelineOrchestrator:
     def _run_bayesian_optimization(self, X, y, device: str, code_rec) -> Dict[str, Any]:
         """Run Bayesian Optimization for hyperparameter tuning"""
         logger.info(f"Running BO for generated training function: {code_rec.model_name}")
-        
+
+        # Install GPT code dependencies before starting BO
+        logger.info("📦 Installing dependencies for GPT-generated training code...")
+        from package_installer import install_gpt_code_dependencies
+        try:
+            success = install_gpt_code_dependencies(code_rec.training_code, raise_on_failure=True)
+            logger.info("✅ All dependencies installed successfully")
+        except RuntimeError as e:
+            logger.error(f"❌ Failed to install required packages: {e}")
+            raise RuntimeError(f"Cannot proceed with BO - missing dependencies: {e}")
+
         # Use full centralized dataset for BO
         logger.info(f"BO dataset size: {len(X)} samples (using full dataset)")
         logger.info(f"BO will optimize: {code_rec.bo_parameters}")
@@ -198,27 +206,11 @@ class CodeGenerationPipelineOrchestrator:
         # Create BO objective function with centralized splits (no subset)
         objective_func = BO_TrainingObjective(training_data, None, None, device)
         
-        # Set up search space
+        # Set up search space using GPT-generated search space
         from bo.run_bo import BayesianOptimizer
-        from skopt.space import Real, Integer, Categorical
-        
-        search_space = []
-        for param in code_rec.bo_parameters:
-            if param == 'lr':
-                search_space.append(Real(1e-5, 1e-1, prior='log-uniform', name='lr'))
-            elif param == 'epochs':
-                search_space.append(Integer(3, 30, name='epochs'))
-            elif param == 'batch_size':
-                search_space.append(Categorical([8, 16, 32, 64, 128, 256], name='batch_size'))
-            elif param == 'hidden_size':
-                search_space.append(Integer(16, 512, name='hidden_size'))
-            elif param == 'dropout':
-                search_space.append(Real(0.0, 0.7, name='dropout'))
-            elif param == 'num_layers':
-                search_space.append(Integer(1, 5, name='num_layers'))
-        
-        # Initialize BO optimizer
-        bo_optimizer = BayesianOptimizer(search_space=search_space, n_initial_points=3)
+
+        # Use GPT's search space directly
+        bo_optimizer = BayesianOptimizer(gpt_search_space=code_rec.bo_search_space, n_initial_points=3)
         
         # Run BO optimization
         results = []

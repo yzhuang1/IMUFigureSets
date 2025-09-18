@@ -7,7 +7,6 @@ Model Generation → BO → Evaluation → Feedback Loop
 from error_monitor import enable_strict_error_monitoring
 enable_strict_error_monitoring()
 
-import logging
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -20,70 +19,22 @@ from adapters.universal_converter import convert_to_torch_dataset
 from evaluation.code_generation_pipeline_orchestrator import CodeGenerationPipelineOrchestrator
 # from visualization import create_charts_folder  # No longer needed - charts handled by orchestrator
 
-# Setup logging with error handling
+# Setup centralized logging
+from logging_config import get_pipeline_logger, get_log_file_path
 from datetime import datetime
 
-def setup_logging():
-    """Setup logging with comprehensive error handling and debugging"""
-    LOG_DIR = "logs"
-    
-    try:
-        # Create logs directory
-        os.makedirs(LOG_DIR, exist_ok=True)
-        print(f"✅ Log directory created/verified: {os.path.abspath(LOG_DIR)}")
-        
-        # Generate log filename
-        log_filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log")
-        log_path = os.path.join(LOG_DIR, log_filename)
-        
-        # Test write permissions
-        test_path = os.path.join(LOG_DIR, "test_write.tmp")
-        with open(test_path, 'w') as f:
-            f.write("test")
-        os.remove(test_path)
-        print(f"✅ Write permissions verified for: {LOG_DIR}")
-        
-        # Clear any existing handlers to avoid conflicts
-        root_logger = logging.getLogger()
-        if root_logger.handlers:
-            print(f"⚠️  Clearing {len(root_logger.handlers)} existing handlers")
-            for handler in root_logger.handlers[:]:
-                root_logger.removeHandler(handler)
-        
-        # Configure logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-            handlers=[
-                logging.FileHandler(log_path, mode="w", encoding="utf-8"),
-                logging.StreamHandler()
-            ],
-            force=True  # Force reconfiguration
-        )
-        
-        print(f"✅ Logging configured successfully")
-        print(f"📝 Log file: {os.path.abspath(log_path)}")
-        
-        # Test logging
-        logger = logging.getLogger(__name__)
-        logger.info("Logging system initialized successfully")
-        print(f"✅ Test log message written")
-        
-        return logger
-        
-    except Exception as e:
-        print(f"❌ Failed to setup logging: {e}")
-        print(f"Current working directory: {os.getcwd()}")
-        # Fallback to console-only logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-            handlers=[logging.StreamHandler()],
-            force=True
-        )
-        return logging.getLogger(__name__)
+# Initialize pipeline logger
+logger = get_pipeline_logger(__name__)
 
-logger = setup_logging()
+# Print setup confirmation to terminal
+log_path = get_log_file_path()
+if log_path:
+    print(f"✅ Logging configured: {os.path.abspath(log_path)}")
+else:
+    print(f"⚠️  Logging not configured properly")
+
+# Test logging (goes to file only)
+logger.info("Logging system initialized successfully")
 
 def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, **kwargs):
     """
@@ -343,10 +294,11 @@ def load_data_from_files():
 
 def process_real_data():
     """Process real data from data/ directory"""
-    
+
     print("\n" + "=" * 80)
     print("PROCESSING REAL DATA FROM data/ DIRECTORY")
     print("=" * 80)
+    logger.info("Starting real data processing from data/ directory")
     
     # Try to load data
     data_result = load_data_from_files()
@@ -357,6 +309,7 @@ def process_real_data():
         print("  - CSV: dataset.csv (with target column named 'target', 'label', etc.)")
         print("  - NumPy: X.npy + y.npy (or features.npy + labels.npy)")
         print("  - NPZ: data.npz (containing 'X' and 'y' arrays)")
+        logger.info("No data files found in data/ directory")
         return False
     
     X, y, data_info = data_result
@@ -366,15 +319,18 @@ def process_real_data():
     print(f"  Format: {data_info['format']}")
     print(f"  Shape: {data_info['shape']}")
     print(f"  Classes/Labels: {data_info['classes']}")
-    
+
     # Set device
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"  Device: {device}")
+
+    logger.info(f"Data loaded successfully: {data_info['source']}, shape: {data_info['shape']}, device: {device}")
     
     # Check OpenAI API key
     from config import config
     if not config.is_openai_configured():
         print("\n[NOTICE] OpenAI API key required for AI-enhanced processing!")
+        logger.warning("OpenAI API key not configured")
         return False
     
     print(f"  OpenAI: {config.openai_model}")
@@ -397,6 +353,8 @@ def process_real_data():
     print(f"  Pipeline success: {result['attempt_summary']['final_success']}")
     print(f"  Total model attempts: {result['attempt_summary']['total_attempts']}")
     print(f"  Best model: {result['pipeline_results']['model_name']}")
+
+    logger.info(f"Pipeline completed: {result['pipeline_results']['model_name']}, metrics: {result['final_metrics']}")
     
     # Charts are automatically generated by the pipeline orchestrator in subfolders
     print(f"\n📊 BO charts have been automatically generated by the pipeline orchestrator")
@@ -440,6 +398,7 @@ def process_real_data():
         json.dump(pipeline_summary, f, indent=2, default=str)
     
     print(f"\n[SUCCESS] Pipeline summary saved to charts/pipeline_summary_{timestamp_suffix}.json")
+    logger.info(f"Pipeline summary saved to charts/pipeline_summary_{timestamp_suffix}.json")
 
     # Save the final trained model with best parameters to trained_models folder
     if 'model' in result and result['model'] is not None:
@@ -463,6 +422,8 @@ def process_real_data():
         print(f"  📈 Performance: {result['final_metrics']}")
         print(f"  ⚙️  Best hyperparameters: {result['pipeline_results'].get('optimized_hyperparameters', {})}")
 
+        logger.info(f"Model saved: {model_save_path}, performance: {result['final_metrics']}")
+
         # Update pipeline summary with model save path
         pipeline_summary['saved_model_path'] = model_save_path
 
@@ -474,6 +435,8 @@ def process_real_data():
     print(f"🎉 AI-ENHANCED PROCESSING COMPLETED SUCCESSFULLY!")
     print(f"=" * 80)
 
+    logger.info("AI-enhanced processing completed successfully")
+
     return True
 
 if __name__ == "__main__":
@@ -481,6 +444,7 @@ if __name__ == "__main__":
     print("\n🤖 AI-Enhanced Machine Learning Pipeline")
     print("Code Generation Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation")
     print("=" * 80)
+    logger.info("Starting AI-Enhanced Machine Learning Pipeline")
     
     # Process real data from data/ directory
     processed_real_data = process_real_data()
@@ -496,3 +460,5 @@ if __name__ == "__main__":
         print("  1. Load and analyze your data → 2. Generate AI training code → 3. Optimize hyperparameters")
         print("  4. Execute training → 5. Evaluate performance → 6. Generate charts and summaries")
         print("\n📂 Example: data/my_dataset.csv  or  data/X.npy + data/y.npy")
+
+        logger.info("Main execution completed - no data files found")
