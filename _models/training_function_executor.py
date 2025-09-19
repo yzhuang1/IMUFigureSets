@@ -94,7 +94,19 @@ class TrainingFunctionExecutor:
         logger.debug("Hyperparameter validation complete (constraint enforcement handled by BO)")
         
         return validated
-    
+
+    def _count_model_parameters(self, model) -> int:
+        """Count the total number of parameters in a PyTorch model"""
+        try:
+            if hasattr(model, 'parameters'):
+                return sum(p.numel() for p in model.parameters())
+            else:
+                logger.warning("Model does not have parameters() method")
+                return 0
+        except Exception as e:
+            logger.error(f"Failed to count model parameters: {e}")
+            return 0
+
     def validate_training_function(self, training_data: Dict[str, Any]) -> bool:
         """Validate training function data and model architecture"""
         try:
@@ -260,8 +272,19 @@ class TrainingFunctionExecutor:
                 'hyperparameters_used': final_hyperparams
             })
             
+            # Validate model size (parameter count)
+            model_size = self._count_model_parameters(model)
+            logger.info(f"Model parameter count: {model_size:,}")
+
+            # Add model size to metrics
+            if isinstance(metrics, dict):
+                metrics['model_parameter_count'] = model_size
+                metrics['model_size_validation'] = 'PASS' if model_size <= 256_000 else 'FAIL'
+                if model_size > 256_000:
+                    logger.warning(f"Model size {model_size:,} exceeds 256K limit!")
+
             logger.info(f"Training completed successfully: {dict(metrics) if metrics else 'None'}")
-            
+
             return model, metrics
             
         except Exception as e:
@@ -471,7 +494,20 @@ class BO_TrainingObjective:
         self.y_train = torch.tensor(y_train, dtype=torch.long, device=self.device)
         self.X_val = torch.tensor(X_val, dtype=torch.float32, device=self.device)
         self.y_val = torch.tensor(y_val, dtype=torch.long, device=self.device)
-    
+
+    def _calculate_size_penalty(self, model_param_count: int) -> float:
+        """Calculate penalty for model size to encourage compression"""
+        target_size = 256_000  # 256K parameter limit
+
+        if model_param_count <= target_size:
+            # No penalty for models within size limit
+            return 0.0
+        else:
+            # Heavy penalty for oversized models: penalty increases exponentially
+            excess_ratio = (model_param_count - target_size) / target_size
+            penalty = min(excess_ratio * 0.5, 0.8)  # Cap penalty at 0.8 to avoid negative objectives
+            return penalty
+
     def __call__(self, hparams: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
         """Execute training function with given hyperparameters"""
         t0 = time.time()
@@ -495,23 +531,33 @@ class BO_TrainingObjective:
                 **processed_hparams
             )
             
-            # Return objective value (F1 score or accuracy)
+            # Return objective value with model size penalty
             # Try val_f1 (list), then macro_f1, then val_acc (list), then val_accuracy, default 0.0
             val_f1 = metrics.get('val_f1', [])
             val_acc = metrics.get('val_acc', [])
-            
+
             if val_f1 and isinstance(val_f1, list) and len(val_f1) > 0:
                 # Use the last (best) F1 score from training
-                objective_value = val_f1[-1]
+                base_objective = val_f1[-1]
             elif 'macro_f1' in metrics:
-                objective_value = metrics['macro_f1']
+                base_objective = metrics['macro_f1']
             elif val_acc and isinstance(val_acc, list) and len(val_acc) > 0:
                 # Use the last (best) accuracy from training
-                objective_value = val_acc[-1]
+                base_objective = val_acc[-1]
             elif 'val_accuracy' in metrics:
-                objective_value = metrics['val_accuracy']
+                base_objective = metrics['val_accuracy']
             else:
-                objective_value = 0.0
+                base_objective = 0.0
+
+            # Apply model size penalty for compression-aware optimization
+            model_param_count = metrics.get('model_parameter_count', 0)
+            size_penalty = self._calculate_size_penalty(model_param_count)
+
+            # Final objective = performance - size_penalty
+            objective_value = base_objective - size_penalty
+
+            logger.info(f"BO Objective: base={base_objective:.4f}, size_penalty={size_penalty:.4f}, final={objective_value:.4f}")
+            logger.info(f"Model size: {model_param_count:,} parameters ({'PASS' if model_param_count <= 256_000 else 'FAIL'} 256K limit)")
             
             objective_time = time.time() - t0
             logger.info(f"[PROFILE] objective(train+eval) took {objective_time:.3f}s")

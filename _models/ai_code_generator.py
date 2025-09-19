@@ -73,10 +73,13 @@ Please implement the recommended model architecture from the literature review."
 Requirements:
 - Function: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
 - X_train, y_train, X_val, y_val are PyTorch tensors
-- Lightweight architecture (model shoule be smaller than 500K)
+- CRITICAL: Final model after quantization MUST be smaller than 256K parameters
+- Implement quantization based on hyperparameters (quantization_bits, quantize_weights, quantize_activations)
+- Use PyTorch's quantization APIs (torch.quantization) for post-training quantization
+- Choose quantization strategy based on model architecture characteristics
 - Bayesian Optimization will handle hyperparameter tuning (You can decide what parameters you want base on the model you choose)
 - Focus on core training loop, avoid complex scheduling/early stopping
-- Build model from scratch, include basic training loop, return model and metrics
+- Build model from scratch, include basic training loop, return quantized model and metrics
 - Use clear, descriptive parameter names that match your model implementation
 
 Response JSON format example:
@@ -88,7 +91,10 @@ Response JSON format example:
         "batch_size": {{"default": 64, "type": "Categorical", "categories": [8, 16, 32, 64, 128]}},
         "epochs": {{"default": 10, "type": "Integer", "low": 5, "high": 50}},
         "hidden_size": {{"default": 128, "type": "Integer", "low": 32, "high": 512}},
-        "dropout": {{"default": 0.1, "type": "Real", "low": 0.0, "high": 0.7}}
+        "dropout": {{"default": 0.1, "type": "Real", "low": 0.0, "high": 0.7}},
+        "quantization_bits": {{"default": 32, "type": "Categorical", "categories": [8, 16, 32]}},
+        "quantize_weights": {{"default": false, "type": "Categorical", "categories": [true, false]}},
+        "quantize_activations": {{"default": false, "type": "Categorical", "categories": [true, false]}}
     }},
     "confidence": 0.9
 }}
@@ -101,6 +107,15 @@ CRITICAL bo_config REQUIREMENTS:
 - For "Integer": specify "low", "high" (inclusive bounds)
 - For "Categorical": specify "categories" list with valid options
 - Only include parameters that are actually used in your training_code
+
+QUANTIZATION REQUIREMENTS:
+- ALWAYS include quantization parameters: quantization_bits, quantize_weights, quantize_activations
+- quantization_bits: 8 (INT8), 16 (FP16), 32 (FP32) - choose based on model complexity
+- quantize_weights: Apply quantization to model weights (recommended for large models)
+- quantize_activations: Apply quantization to activations (aggressive compression)
+- Implement post-training quantization using torch.quantization.quantize_dynamic or torch.ao.quantization
+- Consider model architecture when choosing quantization strategy (CNNs vs Transformers)
+- Verify final model size ≤ 256K parameters after quantization
 
 - IMPORTANT: For log-uniform prior, "low" MUST be > 0 (use 1e-6 minimum for learning rates)
 - Validate ranges make sense (e.g., dropout 0.0-0.7, lr 1e-6 to 1e-1)
