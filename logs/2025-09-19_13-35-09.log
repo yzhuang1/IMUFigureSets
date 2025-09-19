@@ -1,0 +1,318 @@
+2025-09-19 13:35:10,543 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 13:35:10,875 - INFO - __main__ - Logging system initialized successfully
+2025-09-19 13:35:10,875 - INFO - __main__ - Starting AI-Enhanced Machine Learning Pipeline
+2025-09-19 13:35:10,876 - INFO - __main__ - Starting real data processing from data/ directory
+2025-09-19 13:35:10,877 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'X.npy', 'y.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-19 13:35:10,877 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-19 13:35:10,878 - INFO - __main__ - Attempting to load: X.npy
+2025-09-19 13:35:11,002 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-19 13:35:11,090 - INFO - __main__ - Data loaded successfully: X.npy + y.npy, shape: (62352, 1000, 2), device: cuda
+2025-09-19 13:35:11,091 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-19 13:35:11,091 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-19 13:35:11,091 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-19 13:35:11,093 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 13:35:11,093 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-19 13:35:11,093 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-19 13:35:11,093 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-19 13:35:11,093 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-19 13:35:11,094 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-19 13:35:11,094 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-19 13:35:11,094 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-19 13:35:11,094 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-19 13:35:11,295 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-19 13:35:11,296 - INFO - class_balancing - Class imbalance analysis:
+2025-09-19 13:35:11,296 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-19 13:35:11,296 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-19 13:35:11,296 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-19 13:35:11,296 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-19 13:35:11,296 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-19 13:35:11,296 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-19 13:35:11,296 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-19 13:35:11,296 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-19 13:35:11,970 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-19 13:35:11,979 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-19 13:35:11,979 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-19 13:35:11,979 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-19 13:35:11,979 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-19 13:35:11,979 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-19 13:35:11,979 - INFO - _models.ai_code_generator - Conducting literature review before code generation...
+2025-09-19 13:37:37,538 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-19 13:37:37,616 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-19 13:37:37,616 - INFO - _models.ai_code_generator - Prompt length: 3234 characters
+2025-09-19 13:37:37,616 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-19 13:37:37,616 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-19 13:37:37,616 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-19 13:39:44,018 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-19 13:39:44,073 - INFO - _models.ai_code_generator - Successfully extracted response content
+2025-09-19 13:39:44,073 - INFO - _models.ai_code_generator - AI generated training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:39:44,073 - INFO - _models.ai_code_generator - Confidence: 0.88
+2025-09-19 13:39:44,073 - INFO - _models.ai_code_generator - Literature review informed code generation (confidence: 0.74)
+2025-09-19 13:39:44,073 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:39:44,073 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['epochs', 'lr', 'batch_size', 'weight_decay', 'grad_clip', 'use_amp', 'stem_c1', 'stem_c2', 'd_model', 'nhead', 'ff_dim', 'num_layers', 'token_kernel', 'token_stride', 'dropout', 'use_weighted_sampler', 'label_smoothing', 'seed', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'calib_batches']
+2025-09-19 13:39:44,073 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.88
+2025-09-19 13:39:44,074 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-19 13:39:44,077 - INFO - _models.ai_code_generator - Training function saved to: generated_training_functions\training_function_torch_tensor_TinyCATNet1D-Transformer___=256k_1758307184.json
+2025-09-19 13:39:44,077 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions\training_function_torch_tensor_TinyCATNet1D-Transformer___=256k_1758307184.json
+2025-09-19 13:39:44,080 - INFO - _models.training_function_executor - Training function validation passed
+2025-09-19 13:39:44,080 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-19 13:39:44,080 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:39:44,080 - INFO - evaluation.code_generation_pipeline_orchestrator - 📦 Installing dependencies for GPT-generated training code...
+2025-09-19 13:39:44,084 - INFO - package_installer - 🔍 Analyzing GPT-generated code for package dependencies...
+2025-09-19 13:39:44,084 - WARNING - package_installer - Could not parse code for imports due to syntax error: unexpected character after line continuation character (<unknown>, line 1)
+2025-09-19 13:39:44,084 - INFO - package_installer - Extracted imports from code: set()
+2025-09-19 13:39:44,084 - INFO - package_installer - ✅ No external packages required
+2025-09-19 13:39:44,085 - INFO - evaluation.code_generation_pipeline_orchestrator - ✅ All dependencies installed successfully
+2025-09-19 13:39:44,085 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 62352 samples (using full dataset)
+2025-09-19 13:39:44,085 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['epochs', 'lr', 'batch_size', 'weight_decay', 'grad_clip', 'use_amp', 'stem_c1', 'stem_c2', 'd_model', 'nhead', 'ff_dim', 'num_layers', 'token_kernel', 'token_stride', 'dropout', 'use_weighted_sampler', 'label_smoothing', 'seed', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'calib_batches']
+2025-09-19 13:39:44,085 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 13:39:44,085 - INFO - _models.training_function_executor - Using centralized data splits for BO objective
+2025-09-19 13:39:44,406 - INFO - bo.run_bo - Converted GPT search space: 22 parameters
+2025-09-19 13:39:44,406 - INFO - bo.run_bo - Using GPT-generated search space
+2025-09-19 13:39:44,407 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-19 13:39:44,408 - INFO - bo.run_bo - 🔍BO Trial 1: Initial random exploration
+2025-09-19 13:39:44,408 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 13:39:44,409 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:39:44,409 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:39:44,409 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 56, 'lr': 0.007114476009343424, 'batch_size': 128, 'weight_decay': 9.846738873614565e-06, 'grad_clip': 0.3120372808848731, 'use_amp': True, 'stem_c1': 32, 'stem_c2': 80, 'd_model': 55, 'nhead': 4, 'ff_dim': 116, 'num_layers': 2, 'token_kernel': 6, 'token_stride': 9, 'dropout': 0.1061695553391381, 'use_weighted_sampler': True, 'label_smoothing': 0.03668090197068677, 'seed': 184779, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calib_batches': 68}
+2025-09-19 13:39:44,479 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 56, 'lr': 0.007114476009343424, 'batch_size': 128, 'weight_decay': 9.846738873614565e-06, 'grad_clip': 0.3120372808848731, 'use_amp': True, 'stem_c1': 32, 'stem_c2': 80, 'd_model': 55, 'nhead': 4, 'ff_dim': 116, 'num_layers': 2, 'token_kernel': 6, 'token_stride': 9, 'dropout': 0.1061695553391381, 'use_weighted_sampler': True, 'label_smoothing': 0.03668090197068677, 'seed': 184779, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calib_batches': 68}
+2025-09-19 13:39:45,862 - ERROR - _models.training_function_executor - Training execution failed: 'str' object has no attribute 'type'
+2025-09-19 13:39:45,862 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---------...
+2025-09-19 13:39:45,862 - ERROR - _models.training_function_executor - BO training objective failed: 'str' object has no attribute 'type'
+2025-09-19 13:39:45,862 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 1.452s
+2025-09-19 13:39:45,862 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 13:39:45,862 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-19 13:39:45,862 - INFO - bo.run_bo - Recorded observation #1: hparams={'epochs': np.int64(56), 'lr': 0.007114476009343424, 'batch_size': 128, 'weight_decay': 9.846738873614565e-06, 'grad_clip': 0.3120372808848731, 'use_amp': True, 'stem_c1': 32, 'stem_c2': 80, 'd_model': np.int64(55), 'nhead': 4, 'ff_dim': np.int64(116), 'num_layers': np.int64(2), 'token_kernel': np.int64(6), 'token_stride': np.int64(9), 'dropout': 0.1061695553391381, 'use_weighted_sampler': True, 'label_smoothing': 0.03668090197068677, 'seed': np.int64(184779), 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calib_batches': np.int64(68)}, value=0.0000
+2025-09-19 13:39:45,862 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'epochs': np.int64(56), 'lr': 0.007114476009343424, 'batch_size': 128, 'weight_decay': 9.846738873614565e-06, 'grad_clip': 0.3120372808848731, 'use_amp': True, 'stem_c1': 32, 'stem_c2': 80, 'd_model': np.int64(55), 'nhead': 4, 'ff_dim': np.int64(116), 'num_layers': np.int64(2), 'token_kernel': np.int64(6), 'token_stride': np.int64(9), 'dropout': 0.1061695553391381, 'use_weighted_sampler': True, 'label_smoothing': 0.03668090197068677, 'seed': np.int64(184779), 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calib_batches': np.int64(68)} -> 0.0000
+2025-09-19 13:39:45,864 - INFO - bo.run_bo - 🔍BO Trial 2: Initial random exploration
+2025-09-19 13:39:45,864 - INFO - bo.run_bo - [PROFILE] suggest() took 0.002s
+2025-09-19 13:39:45,864 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:39:45,864 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:39:45,864 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 46, 'lr': 1.3803746963532816e-05, 'batch_size': 256, 'weight_decay': 1.4583329959039015e-07, 'grad_clip': 0.18121286906564163, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 34, 'nhead': 8, 'ff_dim': 198, 'num_layers': 1, 'token_kernel': 3, 'token_stride': 10, 'dropout': 0.006632480579933266, 'use_weighted_sampler': False, 'label_smoothing': 0.11265764356910787, 'seed': 698361, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 120}
+2025-09-19 13:39:45,866 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 46, 'lr': 1.3803746963532816e-05, 'batch_size': 256, 'weight_decay': 1.4583329959039015e-07, 'grad_clip': 0.18121286906564163, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 34, 'nhead': 8, 'ff_dim': 198, 'num_layers': 1, 'token_kernel': 3, 'token_stride': 10, 'dropout': 0.006632480579933266, 'use_weighted_sampler': False, 'label_smoothing': 0.11265764356910787, 'seed': 698361, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 120}
+2025-09-19 13:40:53,708 - ERROR - _models.training_function_executor - Training execution failed: 'function' object has no attribute 'device'
+2025-09-19 13:40:53,708 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---------...
+2025-09-19 13:40:53,708 - ERROR - _models.training_function_executor - BO training objective failed: 'function' object has no attribute 'device'
+2025-09-19 13:40:53,708 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 67.844s
+2025-09-19 13:40:53,708 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 13:40:53,708 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-19 13:40:53,708 - INFO - bo.run_bo - Recorded observation #2: hparams={'epochs': np.int64(46), 'lr': 1.3803746963532816e-05, 'batch_size': 256, 'weight_decay': 1.4583329959039015e-07, 'grad_clip': 0.18121286906564163, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': np.int64(34), 'nhead': 8, 'ff_dim': np.int64(198), 'num_layers': np.int64(1), 'token_kernel': np.int64(3), 'token_stride': np.int64(10), 'dropout': 0.006632480579933266, 'use_weighted_sampler': False, 'label_smoothing': 0.11265764356910787, 'seed': np.int64(698361), 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': np.int64(120)}, value=0.0000
+2025-09-19 13:40:53,708 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 2: {'epochs': np.int64(46), 'lr': 1.3803746963532816e-05, 'batch_size': 256, 'weight_decay': 1.4583329959039015e-07, 'grad_clip': 0.18121286906564163, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': np.int64(34), 'nhead': 8, 'ff_dim': np.int64(198), 'num_layers': np.int64(1), 'token_kernel': np.int64(3), 'token_stride': np.int64(10), 'dropout': 0.006632480579933266, 'use_weighted_sampler': False, 'label_smoothing': 0.11265764356910787, 'seed': np.int64(698361), 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': np.int64(120)} -> 0.0000
+2025-09-19 13:40:53,709 - INFO - bo.run_bo - 🔍BO Trial 3: Initial random exploration
+2025-09-19 13:40:53,710 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 13:40:53,710 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:40:53,710 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:40:53,710 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 64, 'lr': 2.3233503515390097e-05, 'batch_size': 64, 'weight_decay': 1.4857392806279237e-08, 'grad_clip': 1.8186408041575646, 'use_amp': True, 'stem_c1': 48, 'stem_c2': 48, 'd_model': 37, 'nhead': 2, 'ff_dim': 67, 'num_layers': 2, 'token_kernel': 7, 'token_stride': 10, 'dropout': 0.42114238729749937, 'use_weighted_sampler': True, 'label_smoothing': 0.0790300472003629, 'seed': 623587, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': True, 'calib_batches': 199}
+2025-09-19 13:40:53,713 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 64, 'lr': 2.3233503515390097e-05, 'batch_size': 64, 'weight_decay': 1.4857392806279237e-08, 'grad_clip': 1.8186408041575646, 'use_amp': True, 'stem_c1': 48, 'stem_c2': 48, 'd_model': 37, 'nhead': 2, 'ff_dim': 67, 'num_layers': 2, 'token_kernel': 7, 'token_stride': 10, 'dropout': 0.42114238729749937, 'use_weighted_sampler': True, 'label_smoothing': 0.0790300472003629, 'seed': 623587, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': True, 'calib_batches': 199}
+2025-09-19 13:40:53,718 - ERROR - _models.training_function_executor - Training execution failed: 'str' object has no attribute 'type'
+2025-09-19 13:40:53,718 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---------...
+2025-09-19 13:40:53,718 - ERROR - _models.training_function_executor - BO training objective failed: 'str' object has no attribute 'type'
+2025-09-19 13:40:53,719 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.009s
+2025-09-19 13:40:53,941 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 13:40:53,941 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.222s
+2025-09-19 13:40:53,941 - INFO - bo.run_bo - Recorded observation #3: hparams={'epochs': np.int64(64), 'lr': 2.3233503515390097e-05, 'batch_size': 64, 'weight_decay': 1.4857392806279237e-08, 'grad_clip': 1.8186408041575646, 'use_amp': True, 'stem_c1': 48, 'stem_c2': 48, 'd_model': np.int64(37), 'nhead': 2, 'ff_dim': np.int64(67), 'num_layers': np.int64(2), 'token_kernel': np.int64(7), 'token_stride': np.int64(10), 'dropout': 0.42114238729749937, 'use_weighted_sampler': True, 'label_smoothing': 0.0790300472003629, 'seed': np.int64(623587), 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': True, 'calib_batches': np.int64(199)}, value=0.0000
+2025-09-19 13:40:53,941 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 3: {'epochs': np.int64(64), 'lr': 2.3233503515390097e-05, 'batch_size': 64, 'weight_decay': 1.4857392806279237e-08, 'grad_clip': 1.8186408041575646, 'use_amp': True, 'stem_c1': 48, 'stem_c2': 48, 'd_model': np.int64(37), 'nhead': 2, 'ff_dim': np.int64(67), 'num_layers': np.int64(2), 'token_kernel': np.int64(7), 'token_stride': np.int64(10), 'dropout': 0.42114238729749937, 'use_weighted_sampler': True, 'label_smoothing': 0.0790300472003629, 'seed': np.int64(623587), 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': True, 'calib_batches': np.int64(199)} -> 0.0000
+2025-09-19 13:40:53,941 - INFO - bo.run_bo - 🔍BO Trial 4: Using RF surrogate + Expected Improvement
+2025-09-19 13:40:53,941 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 13:40:53,941 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:40:53,941 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:40:53,941 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 44, 'lr': 0.0009848089147285648, 'batch_size': 32, 'weight_decay': 4.167894134298301e-08, 'grad_clip': 1.1769919584148902, 'use_amp': False, 'stem_c1': 64, 'stem_c2': 48, 'd_model': 96, 'nhead': 4, 'ff_dim': 77, 'num_layers': 3, 'token_kernel': 8, 'token_stride': 5, 'dropout': 0.02357290231534715, 'use_weighted_sampler': False, 'label_smoothing': 0.04767920398894793, 'seed': 820867, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calib_batches': 57}
+2025-09-19 13:40:53,944 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 44, 'lr': 0.0009848089147285648, 'batch_size': 32, 'weight_decay': 4.167894134298301e-08, 'grad_clip': 1.1769919584148902, 'use_amp': False, 'stem_c1': 64, 'stem_c2': 48, 'd_model': 96, 'nhead': 4, 'ff_dim': 77, 'num_layers': 3, 'token_kernel': 8, 'token_stride': 5, 'dropout': 0.02357290231534715, 'use_weighted_sampler': False, 'label_smoothing': 0.04767920398894793, 'seed': 820867, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calib_batches': 57}
+2025-09-19 13:46:53,428 - ERROR - _models.training_function_executor - Training execution failed: 'function' object has no attribute 'device'
+2025-09-19 13:46:53,428 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---------...
+2025-09-19 13:46:53,428 - ERROR - _models.training_function_executor - BO training objective failed: 'function' object has no attribute 'device'
+2025-09-19 13:46:53,428 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 359.487s
+2025-09-19 13:46:53,651 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 13:46:53,651 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.221s
+2025-09-19 13:46:53,651 - INFO - bo.run_bo - Recorded observation #4: hparams={'epochs': np.int64(44), 'lr': 0.0009848089147285648, 'batch_size': np.int64(32), 'weight_decay': 4.167894134298301e-08, 'grad_clip': 1.1769919584148902, 'use_amp': np.False_, 'stem_c1': np.int64(64), 'stem_c2': np.int64(48), 'd_model': np.int64(96), 'nhead': np.int64(4), 'ff_dim': np.int64(77), 'num_layers': np.int64(3), 'token_kernel': np.int64(8), 'token_stride': np.int64(5), 'dropout': 0.02357290231534715, 'use_weighted_sampler': np.False_, 'label_smoothing': 0.04767920398894793, 'seed': np.int64(820867), 'quantization_bits': np.int64(16), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calib_batches': np.int64(57)}, value=0.0000
+2025-09-19 13:46:53,651 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 4: {'epochs': np.int64(44), 'lr': 0.0009848089147285648, 'batch_size': np.int64(32), 'weight_decay': 4.167894134298301e-08, 'grad_clip': 1.1769919584148902, 'use_amp': np.False_, 'stem_c1': np.int64(64), 'stem_c2': np.int64(48), 'd_model': np.int64(96), 'nhead': np.int64(4), 'ff_dim': np.int64(77), 'num_layers': np.int64(3), 'token_kernel': np.int64(8), 'token_stride': np.int64(5), 'dropout': 0.02357290231534715, 'use_weighted_sampler': np.False_, 'label_smoothing': 0.04767920398894793, 'seed': np.int64(820867), 'quantization_bits': np.int64(16), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calib_batches': np.int64(57)} -> 0.0000
+2025-09-19 13:46:53,651 - INFO - bo.run_bo - 🔍BO Trial 5: Using RF surrogate + Expected Improvement
+2025-09-19 13:46:53,651 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 13:46:53,651 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:46:53,651 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:46:53,651 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 55, 'lr': 0.00039733005772626153, 'batch_size': 64, 'weight_decay': 3.384632226293454e-08, 'grad_clip': 1.342843907808708, 'use_amp': False, 'stem_c1': 32, 'stem_c2': 48, 'd_model': 55, 'nhead': 2, 'ff_dim': 173, 'num_layers': 2, 'token_kernel': 3, 'token_stride': 6, 'dropout': 0.13565887471651453, 'use_weighted_sampler': True, 'label_smoothing': 0.11806240794457434, 'seed': 752895, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calib_batches': 30}
+2025-09-19 13:46:53,653 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 55, 'lr': 0.00039733005772626153, 'batch_size': 64, 'weight_decay': 3.384632226293454e-08, 'grad_clip': 1.342843907808708, 'use_amp': False, 'stem_c1': 32, 'stem_c2': 48, 'd_model': 55, 'nhead': 2, 'ff_dim': 173, 'num_layers': 2, 'token_kernel': 3, 'token_stride': 6, 'dropout': 0.13565887471651453, 'use_weighted_sampler': True, 'label_smoothing': 0.11806240794457434, 'seed': 752895, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calib_batches': 30}
+2025-09-19 13:50:08,997 - ERROR - _models.training_function_executor - Training execution failed: 'function' object has no attribute 'device'
+2025-09-19 13:50:08,997 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---------...
+2025-09-19 13:50:08,997 - ERROR - _models.training_function_executor - BO training objective failed: 'function' object has no attribute 'device'
+2025-09-19 13:50:08,997 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 195.346s
+2025-09-19 13:50:09,217 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 13:50:09,217 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.220s
+2025-09-19 13:50:09,217 - INFO - bo.run_bo - Recorded observation #5: hparams={'epochs': np.int64(55), 'lr': 0.00039733005772626153, 'batch_size': np.int64(64), 'weight_decay': 3.384632226293454e-08, 'grad_clip': 1.342843907808708, 'use_amp': np.False_, 'stem_c1': np.int64(32), 'stem_c2': np.int64(48), 'd_model': np.int64(55), 'nhead': np.int64(2), 'ff_dim': np.int64(173), 'num_layers': np.int64(2), 'token_kernel': np.int64(3), 'token_stride': np.int64(6), 'dropout': 0.13565887471651453, 'use_weighted_sampler': np.True_, 'label_smoothing': 0.11806240794457434, 'seed': np.int64(752895), 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calib_batches': np.int64(30)}, value=0.0000
+2025-09-19 13:50:09,217 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 5: {'epochs': np.int64(55), 'lr': 0.00039733005772626153, 'batch_size': np.int64(64), 'weight_decay': 3.384632226293454e-08, 'grad_clip': 1.342843907808708, 'use_amp': np.False_, 'stem_c1': np.int64(32), 'stem_c2': np.int64(48), 'd_model': np.int64(55), 'nhead': np.int64(2), 'ff_dim': np.int64(173), 'num_layers': np.int64(2), 'token_kernel': np.int64(3), 'token_stride': np.int64(6), 'dropout': 0.13565887471651453, 'use_weighted_sampler': np.True_, 'label_smoothing': 0.11806240794457434, 'seed': np.int64(752895), 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calib_batches': np.int64(30)} -> 0.0000
+2025-09-19 13:50:09,217 - INFO - bo.run_bo - 🔍BO Trial 6: Using RF surrogate + Expected Improvement
+2025-09-19 13:50:09,217 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 13:50:09,218 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:50:09,218 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:50:09,218 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 74, 'lr': 5.438542619340095e-05, 'batch_size': 64, 'weight_decay': 9.461842523288435e-07, 'grad_clip': 0.5863449966715676, 'use_amp': True, 'stem_c1': 64, 'stem_c2': 48, 'd_model': 55, 'nhead': 2, 'ff_dim': 98, 'num_layers': 2, 'token_kernel': 8, 'token_stride': 10, 'dropout': 0.21551162849215216, 'use_weighted_sampler': False, 'label_smoothing': 0.022481081193581567, 'seed': 287199, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': False, 'calib_batches': 53}
+2025-09-19 13:50:09,220 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 74, 'lr': 5.438542619340095e-05, 'batch_size': 64, 'weight_decay': 9.461842523288435e-07, 'grad_clip': 0.5863449966715676, 'use_amp': True, 'stem_c1': 64, 'stem_c2': 48, 'd_model': 55, 'nhead': 2, 'ff_dim': 98, 'num_layers': 2, 'token_kernel': 8, 'token_stride': 10, 'dropout': 0.21551162849215216, 'use_weighted_sampler': False, 'label_smoothing': 0.022481081193581567, 'seed': 287199, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': False, 'calib_batches': 53}
+2025-09-19 13:50:09,232 - ERROR - _models.training_function_executor - Training execution failed: 'str' object has no attribute 'type'
+2025-09-19 13:50:09,232 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---------...
+2025-09-19 13:50:09,232 - ERROR - _models.training_function_executor - BO training objective failed: 'str' object has no attribute 'type'
+2025-09-19 13:50:09,232 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.014s
+2025-09-19 13:50:09,449 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 13:50:09,449 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.217s
+2025-09-19 13:50:09,449 - INFO - bo.run_bo - Recorded observation #6: hparams={'epochs': np.int64(74), 'lr': 5.438542619340095e-05, 'batch_size': np.int64(64), 'weight_decay': 9.461842523288435e-07, 'grad_clip': 0.5863449966715676, 'use_amp': np.True_, 'stem_c1': np.int64(64), 'stem_c2': np.int64(48), 'd_model': np.int64(55), 'nhead': np.int64(2), 'ff_dim': np.int64(98), 'num_layers': np.int64(2), 'token_kernel': np.int64(8), 'token_stride': np.int64(10), 'dropout': 0.21551162849215216, 'use_weighted_sampler': np.False_, 'label_smoothing': 0.022481081193581567, 'seed': np.int64(287199), 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calib_batches': np.int64(53)}, value=0.0000
+2025-09-19 13:50:09,449 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 6: {'epochs': np.int64(74), 'lr': 5.438542619340095e-05, 'batch_size': np.int64(64), 'weight_decay': 9.461842523288435e-07, 'grad_clip': 0.5863449966715676, 'use_amp': np.True_, 'stem_c1': np.int64(64), 'stem_c2': np.int64(48), 'd_model': np.int64(55), 'nhead': np.int64(2), 'ff_dim': np.int64(98), 'num_layers': np.int64(2), 'token_kernel': np.int64(8), 'token_stride': np.int64(10), 'dropout': 0.21551162849215216, 'use_weighted_sampler': np.False_, 'label_smoothing': 0.022481081193581567, 'seed': np.int64(287199), 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calib_batches': np.int64(53)} -> 0.0000
+2025-09-19 13:50:09,449 - INFO - bo.run_bo - 🔍BO Trial 7: Using RF surrogate + Expected Improvement
+2025-09-19 13:50:09,449 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 13:50:09,450 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:50:09,450 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:50:09,450 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 69, 'lr': 0.00033078047818853627, 'batch_size': 256, 'weight_decay': 1.7268969786089122e-05, 'grad_clip': 0.8696746715602748, 'use_amp': True, 'stem_c1': 48, 'stem_c2': 64, 'd_model': 45, 'nhead': 4, 'ff_dim': 143, 'num_layers': 1, 'token_kernel': 3, 'token_stride': 10, 'dropout': 0.4177231628630643, 'use_weighted_sampler': True, 'label_smoothing': 0.17627346178774472, 'seed': 270218, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 195}
+2025-09-19 13:50:09,452 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 69, 'lr': 0.00033078047818853627, 'batch_size': 256, 'weight_decay': 1.7268969786089122e-05, 'grad_clip': 0.8696746715602748, 'use_amp': True, 'stem_c1': 48, 'stem_c2': 64, 'd_model': 45, 'nhead': 4, 'ff_dim': 143, 'num_layers': 1, 'token_kernel': 3, 'token_stride': 10, 'dropout': 0.4177231628630643, 'use_weighted_sampler': True, 'label_smoothing': 0.17627346178774472, 'seed': 270218, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 195}
+2025-09-19 13:50:09,458 - ERROR - _models.training_function_executor - Training execution failed: 'str' object has no attribute 'type'
+2025-09-19 13:50:09,458 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---------...
+2025-09-19 13:50:09,458 - ERROR - _models.training_function_executor - BO training objective failed: 'str' object has no attribute 'type'
+2025-09-19 13:50:09,458 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.009s
+2025-09-19 13:50:09,674 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 13:50:09,674 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.216s
+2025-09-19 13:50:09,674 - INFO - bo.run_bo - Recorded observation #7: hparams={'epochs': np.int64(69), 'lr': 0.00033078047818853627, 'batch_size': np.int64(256), 'weight_decay': 1.7268969786089122e-05, 'grad_clip': 0.8696746715602748, 'use_amp': np.True_, 'stem_c1': np.int64(48), 'stem_c2': np.int64(64), 'd_model': np.int64(45), 'nhead': np.int64(4), 'ff_dim': np.int64(143), 'num_layers': np.int64(1), 'token_kernel': np.int64(3), 'token_stride': np.int64(10), 'dropout': 0.4177231628630643, 'use_weighted_sampler': np.True_, 'label_smoothing': 0.17627346178774472, 'seed': np.int64(270218), 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calib_batches': np.int64(195)}, value=0.0000
+2025-09-19 13:50:09,674 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 7: {'epochs': np.int64(69), 'lr': 0.00033078047818853627, 'batch_size': np.int64(256), 'weight_decay': 1.7268969786089122e-05, 'grad_clip': 0.8696746715602748, 'use_amp': np.True_, 'stem_c1': np.int64(48), 'stem_c2': np.int64(64), 'd_model': np.int64(45), 'nhead': np.int64(4), 'ff_dim': np.int64(143), 'num_layers': np.int64(1), 'token_kernel': np.int64(3), 'token_stride': np.int64(10), 'dropout': 0.4177231628630643, 'use_weighted_sampler': np.True_, 'label_smoothing': 0.17627346178774472, 'seed': np.int64(270218), 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calib_batches': np.int64(195)} -> 0.0000
+2025-09-19 13:50:09,674 - INFO - bo.run_bo - 🔍BO Trial 8: Using RF surrogate + Expected Improvement
+2025-09-19 13:50:09,674 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 13:50:09,674 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:50:09,674 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:50:09,674 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 55, 'lr': 0.0003774020047965106, 'batch_size': 64, 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 40, 'nhead': 8, 'ff_dim': 230, 'num_layers': 2, 'token_kernel': 3, 'token_stride': 8, 'dropout': 0.18323246408367175, 'use_weighted_sampler': True, 'label_smoothing': 0.11513836337097402, 'seed': 816672, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 64}
+2025-09-19 13:50:09,676 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 55, 'lr': 0.0003774020047965106, 'batch_size': 64, 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 40, 'nhead': 8, 'ff_dim': 230, 'num_layers': 2, 'token_kernel': 3, 'token_stride': 8, 'dropout': 0.18323246408367175, 'use_weighted_sampler': True, 'label_smoothing': 0.11513836337097402, 'seed': 816672, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 64}
+2025-09-19 13:53:29,593 - INFO - _models.training_function_executor - Model parameter count: 84,955
+2025-09-19 13:53:29,593 - INFO - _models.training_function_executor - Training completed successfully: {'param_count': 84955, 'train_loss_last_epoch': 0.336889498575076, 'val_loss': 1.0805963752467371, 'val_accuracy': 0.877718753132204, 'val_f1_macro': 0.7210137669443528, 'val_f1_per_class': [0.9155629139072847, 0.941026458399745, 0.453125, 0.4095808383233533, 0.8857736240913812], 'quantization': {'approach': 'none', 'bits': 32, 'quantize_weights': True, 'quantize_activations': False}, 'quantized_val_loss': 1.0801181895849734, 'quantized_val_accuracy': 0.8781196752530821, 'quantized_val_f1_macro': 0.721532648483448, 'quantized_val_f1_per_class': [0.9158892566957568, 0.941026458399745, 0.4549019607843137, 0.4100719424460432, 0.8857736240913812], 'model_name': 'TinyCATNet1D-Transformer (<=256k)', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'epochs': 55, 'lr': 0.0003774020047965106, 'batch_size': 64, 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 40, 'nhead': 8, 'ff_dim': 230, 'num_layers': 2, 'token_kernel': 3, 'token_stride': 8, 'dropout': 0.18323246408367175, 'use_weighted_sampler': True, 'label_smoothing': 0.11513836337097402, 'seed': 816672, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 64}, 'model_parameter_count': 84955, 'model_size_validation': 'PASS'}
+2025-09-19 13:53:29,593 - INFO - _models.training_function_executor - BO Objective: base=0.8777, size_penalty=0.0000, final=0.8777
+2025-09-19 13:53:29,593 - INFO - _models.training_function_executor - Model size: 84,955 parameters (PASS 256K limit)
+2025-09-19 13:53:29,593 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) took 199.920s
+2025-09-19 13:53:29,844 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.8777
+2025-09-19 13:53:29,844 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.251s
+2025-09-19 13:53:29,844 - INFO - bo.run_bo - Recorded observation #8: hparams={'epochs': np.int64(55), 'lr': 0.0003774020047965106, 'batch_size': np.int64(64), 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': np.False_, 'stem_c1': np.int64(48), 'stem_c2': np.int64(80), 'd_model': np.int64(40), 'nhead': np.int64(8), 'ff_dim': np.int64(230), 'num_layers': np.int64(2), 'token_kernel': np.int64(3), 'token_stride': np.int64(8), 'dropout': 0.18323246408367175, 'use_weighted_sampler': np.True_, 'label_smoothing': 0.11513836337097402, 'seed': np.int64(816672), 'quantization_bits': np.int64(32), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calib_batches': np.int64(64)}, value=0.8777
+2025-09-19 13:53:29,844 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 8: {'epochs': np.int64(55), 'lr': 0.0003774020047965106, 'batch_size': np.int64(64), 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': np.False_, 'stem_c1': np.int64(48), 'stem_c2': np.int64(80), 'd_model': np.int64(40), 'nhead': np.int64(8), 'ff_dim': np.int64(230), 'num_layers': np.int64(2), 'token_kernel': np.int64(3), 'token_stride': np.int64(8), 'dropout': 0.18323246408367175, 'use_weighted_sampler': np.True_, 'label_smoothing': 0.11513836337097402, 'seed': np.int64(816672), 'quantization_bits': np.int64(32), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calib_batches': np.int64(64)} -> 0.8777
+2025-09-19 13:53:29,844 - INFO - bo.run_bo - 🔍BO Trial 9: Using RF surrogate + Expected Improvement
+2025-09-19 13:53:29,844 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 13:53:29,845 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:53:29,845 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:53:29,845 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 47, 'lr': 2.486207902701716e-05, 'batch_size': 128, 'weight_decay': 8.493672422225511e-05, 'grad_clip': 1.41573824631082, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 60, 'nhead': 8, 'ff_dim': 138, 'num_layers': 1, 'token_kernel': 3, 'token_stride': 5, 'dropout': 0.17609506973905, 'use_weighted_sampler': False, 'label_smoothing': 0.16733950502709916, 'seed': 703061, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 171}
+2025-09-19 13:53:29,847 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 47, 'lr': 2.486207902701716e-05, 'batch_size': 128, 'weight_decay': 8.493672422225511e-05, 'grad_clip': 1.41573824631082, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 60, 'nhead': 8, 'ff_dim': 138, 'num_layers': 1, 'token_kernel': 3, 'token_stride': 5, 'dropout': 0.17609506973905, 'use_weighted_sampler': False, 'label_smoothing': 0.16733950502709916, 'seed': 703061, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 171}
+2025-09-19 13:55:19,784 - INFO - _models.training_function_executor - Model parameter count: 67,809
+2025-09-19 13:55:19,784 - INFO - _models.training_function_executor - Training completed successfully: {'param_count': 67809, 'train_loss_last_epoch': 1.963028084495685, 'val_loss': 1.4078821549497316, 'val_accuracy': 0.22772376465871505, 'val_f1_macro': 0.3816492676163173, 'val_f1_per_class': [0.00914507413052515, 0.8260542168674699, 0.09148027142498114, 0.08673818762839534, 0.8948285880302149], 'quantization': {'approach': 'none', 'bits': 32, 'quantize_weights': True, 'quantize_activations': False}, 'quantized_val_loss': 1.4080121213094354, 'quantized_val_accuracy': 0.22812468677959308, 'quantized_val_f1_macro': 0.38198645465704273, 'quantized_val_f1_per_class': [0.009420892213909671, 0.8273787138021813, 0.09152627608750315, 0.08677780315140442, 0.8948285880302149], 'model_name': 'TinyCATNet1D-Transformer (<=256k)', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'epochs': 47, 'lr': 2.486207902701716e-05, 'batch_size': 128, 'weight_decay': 8.493672422225511e-05, 'grad_clip': 1.41573824631082, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 60, 'nhead': 8, 'ff_dim': 138, 'num_layers': 1, 'token_kernel': 3, 'token_stride': 5, 'dropout': 0.17609506973905, 'use_weighted_sampler': False, 'label_smoothing': 0.16733950502709916, 'seed': 703061, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 171}, 'model_parameter_count': 67809, 'model_size_validation': 'PASS'}
+2025-09-19 13:55:19,784 - INFO - _models.training_function_executor - BO Objective: base=0.2277, size_penalty=0.0000, final=0.2277
+2025-09-19 13:55:19,784 - INFO - _models.training_function_executor - Model size: 67,809 parameters (PASS 256K limit)
+2025-09-19 13:55:19,784 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) took 109.939s
+2025-09-19 13:55:20,056 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.2277
+2025-09-19 13:55:20,056 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.272s
+2025-09-19 13:55:20,056 - INFO - bo.run_bo - Recorded observation #9: hparams={'epochs': np.int64(47), 'lr': 2.486207902701716e-05, 'batch_size': np.int64(128), 'weight_decay': 8.493672422225511e-05, 'grad_clip': 1.41573824631082, 'use_amp': np.False_, 'stem_c1': np.int64(48), 'stem_c2': np.int64(80), 'd_model': np.int64(60), 'nhead': np.int64(8), 'ff_dim': np.int64(138), 'num_layers': np.int64(1), 'token_kernel': np.int64(3), 'token_stride': np.int64(5), 'dropout': 0.17609506973905, 'use_weighted_sampler': np.False_, 'label_smoothing': 0.16733950502709916, 'seed': np.int64(703061), 'quantization_bits': np.int64(32), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calib_batches': np.int64(171)}, value=0.2277
+2025-09-19 13:55:20,056 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 9: {'epochs': np.int64(47), 'lr': 2.486207902701716e-05, 'batch_size': np.int64(128), 'weight_decay': 8.493672422225511e-05, 'grad_clip': 1.41573824631082, 'use_amp': np.False_, 'stem_c1': np.int64(48), 'stem_c2': np.int64(80), 'd_model': np.int64(60), 'nhead': np.int64(8), 'ff_dim': np.int64(138), 'num_layers': np.int64(1), 'token_kernel': np.int64(3), 'token_stride': np.int64(5), 'dropout': 0.17609506973905, 'use_weighted_sampler': np.False_, 'label_smoothing': 0.16733950502709916, 'seed': np.int64(703061), 'quantization_bits': np.int64(32), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calib_batches': np.int64(171)} -> 0.2277
+2025-09-19 13:55:20,056 - INFO - bo.run_bo - 🔍BO Trial 10: Using RF surrogate + Expected Improvement
+2025-09-19 13:55:20,056 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 13:55:20,056 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:55:20,056 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:55:20,056 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 7, 'lr': 2.233444361557066e-05, 'batch_size': 64, 'weight_decay': 0.00020458245547388832, 'grad_clip': 1.8146485420844276, 'use_amp': False, 'stem_c1': 32, 'stem_c2': 80, 'd_model': 45, 'nhead': 8, 'ff_dim': 131, 'num_layers': 3, 'token_kernel': 7, 'token_stride': 5, 'dropout': 0.1923220847870828, 'use_weighted_sampler': False, 'label_smoothing': 0.18278861834831361, 'seed': 133692, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calib_batches': 85}
+2025-09-19 13:55:20,059 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 7, 'lr': 2.233444361557066e-05, 'batch_size': 64, 'weight_decay': 0.00020458245547388832, 'grad_clip': 1.8146485420844276, 'use_amp': False, 'stem_c1': 32, 'stem_c2': 80, 'd_model': 45, 'nhead': 8, 'ff_dim': 131, 'num_layers': 3, 'token_kernel': 7, 'token_stride': 5, 'dropout': 0.1923220847870828, 'use_weighted_sampler': False, 'label_smoothing': 0.18278861834831361, 'seed': 133692, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calib_batches': 85}
+2025-09-19 13:55:55,549 - INFO - _models.training_function_executor - Model parameter count: 92,448
+2025-09-19 13:55:55,549 - INFO - _models.training_function_executor - Training completed successfully: {'param_count': 92448, 'train_loss_last_epoch': 2.221284273250063, 'val_loss': 1.6334770009215853, 'val_accuracy': 0.216798636864789, 'val_f1_macro': 0.36383372189674557, 'val_f1_per_class': [0.0033351862145636468, 0.7591508052708639, 0.08288457035822994, 0.08529630547979171, 0.8885017421602788], 'quantization': {'approach': 'none', 'bits': 32, 'quantize_weights': False, 'quantize_activations': True}, 'quantized_val_loss': 1.6337032235551718, 'quantized_val_accuracy': 0.21689886739500852, 'quantized_val_f1_macro': 0.36391565048662045, 'quantized_val_f1_per_class': [0.0033351862145636468, 0.7588730332967436, 0.08288457035822994, 0.08533862565120318, 0.8891468369123621], 'model_name': 'TinyCATNet1D-Transformer (<=256k)', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'epochs': 7, 'lr': 2.233444361557066e-05, 'batch_size': 64, 'weight_decay': 0.00020458245547388832, 'grad_clip': 1.8146485420844276, 'use_amp': False, 'stem_c1': 32, 'stem_c2': 80, 'd_model': 45, 'nhead': 8, 'ff_dim': 131, 'num_layers': 3, 'token_kernel': 7, 'token_stride': 5, 'dropout': 0.1923220847870828, 'use_weighted_sampler': False, 'label_smoothing': 0.18278861834831361, 'seed': 133692, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calib_batches': 85}, 'model_parameter_count': 92448, 'model_size_validation': 'PASS'}
+2025-09-19 13:55:55,549 - INFO - _models.training_function_executor - BO Objective: base=0.2168, size_penalty=0.0000, final=0.2168
+2025-09-19 13:55:55,549 - INFO - _models.training_function_executor - Model size: 92,448 parameters (PASS 256K limit)
+2025-09-19 13:55:55,549 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) took 35.494s
+2025-09-19 13:55:55,830 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.2168
+2025-09-19 13:55:55,830 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.280s
+2025-09-19 13:55:55,830 - INFO - bo.run_bo - Recorded observation #10: hparams={'epochs': np.int64(7), 'lr': 2.233444361557066e-05, 'batch_size': np.int64(64), 'weight_decay': 0.00020458245547388832, 'grad_clip': 1.8146485420844276, 'use_amp': np.False_, 'stem_c1': np.int64(32), 'stem_c2': np.int64(80), 'd_model': np.int64(45), 'nhead': np.int64(8), 'ff_dim': np.int64(131), 'num_layers': np.int64(3), 'token_kernel': np.int64(7), 'token_stride': np.int64(5), 'dropout': 0.1923220847870828, 'use_weighted_sampler': np.False_, 'label_smoothing': 0.18278861834831361, 'seed': np.int64(133692), 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calib_batches': np.int64(85)}, value=0.2168
+2025-09-19 13:55:55,830 - INFO - evaluation.code_generation_pipeline_orchestrator - BO completed - Best score: 0.8777
+2025-09-19 13:55:55,830 - INFO - evaluation.code_generation_pipeline_orchestrator - Best params: {'epochs': np.int64(55), 'lr': 0.0003774020047965106, 'batch_size': np.int64(64), 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': np.False_, 'stem_c1': np.int64(48), 'stem_c2': np.int64(80), 'd_model': np.int64(40), 'nhead': np.int64(8), 'ff_dim': np.int64(230), 'num_layers': np.int64(2), 'token_kernel': np.int64(3), 'token_stride': np.int64(8), 'dropout': 0.18323246408367175, 'use_weighted_sampler': np.True_, 'label_smoothing': 0.11513836337097402, 'seed': np.int64(816672), 'quantization_bits': np.int64(32), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calib_batches': np.int64(64)}
+2025-09-19 13:55:55,831 - ERROR - evaluation.code_generation_pipeline_orchestrator - Failed to generate BO charts: [WinError 123] 文件名、目录名或卷标语法不正确。: 'charts\\BO_TinyCATNet1D-Transformer (<=256k)_20250919_135555'
+2025-09-19 13:55:55,831 - INFO - evaluation.code_generation_pipeline_orchestrator - 🚀 STEP 4: Final Training Execution
+2025-09-19 13:55:55,832 - INFO - evaluation.code_generation_pipeline_orchestrator - Using centralized splits - Train: (39904, 1000, 2), Val: (9977, 1000, 2), Test: (12471, 1000, 2)
+2025-09-19 13:55:56,004 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 13:55:56,011 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 13:55:56,020 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 13:55:56,029 - INFO - _models.training_function_executor - Loaded training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:55:56,030 - INFO - _models.training_function_executor - Reasoning: No reasoning provided
+2025-09-19 13:55:56,030 - INFO - evaluation.code_generation_pipeline_orchestrator - Executing final training with optimized params: {'epochs': np.int64(55), 'lr': 0.0003774020047965106, 'batch_size': np.int64(64), 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': np.False_, 'stem_c1': np.int64(48), 'stem_c2': np.int64(80), 'd_model': np.int64(40), 'nhead': np.int64(8), 'ff_dim': np.int64(230), 'num_layers': np.int64(2), 'token_kernel': np.int64(3), 'token_stride': np.int64(8), 'dropout': 0.18323246408367175, 'use_weighted_sampler': np.True_, 'label_smoothing': 0.11513836337097402, 'seed': np.int64(816672), 'quantization_bits': np.int64(32), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calib_batches': np.int64(64)}
+2025-09-19 13:55:56,030 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 13:55:56,060 - INFO - _models.training_function_executor - Executing training function: TinyCATNet1D-Transformer (<=256k)
+2025-09-19 13:55:56,060 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': np.int64(55), 'lr': 0.0003774020047965106, 'batch_size': np.int64(64), 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': np.False_, 'stem_c1': np.int64(48), 'stem_c2': np.int64(80), 'd_model': np.int64(40), 'nhead': np.int64(8), 'ff_dim': np.int64(230), 'num_layers': np.int64(2), 'token_kernel': np.int64(3), 'token_stride': np.int64(8), 'dropout': 0.18323246408367175, 'use_weighted_sampler': np.True_, 'label_smoothing': 0.11513836337097402, 'seed': np.int64(816672), 'quantization_bits': np.int64(32), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calib_batches': np.int64(64)}
+2025-09-19 13:55:56,063 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 55, 'lr': 0.0003774020047965106, 'batch_size': 64, 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 40, 'nhead': 8, 'ff_dim': 230, 'num_layers': 2, 'token_kernel': 3, 'token_stride': 8, 'dropout': 0.18323246408367175, 'use_weighted_sampler': True, 'label_smoothing': 0.11513836337097402, 'seed': 816672, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 64}
+2025-09-19 13:59:17,443 - INFO - _models.training_function_executor - Model parameter count: 84,955
+2025-09-19 13:59:17,443 - INFO - _models.training_function_executor - Training completed successfully: {'param_count': 84955, 'train_loss_last_epoch': 0.3366776391708478, 'val_loss': 1.0833310100565552, 'val_accuracy': 0.866192242156961, 'val_f1_macro': 0.7089379474762743, 'val_f1_per_class': [0.9052711414486159, 0.9420702754036089, 0.3619246861924686, 0.43478260869565216, 0.9006410256410255], 'quantization': {'approach': 'none', 'bits': 32, 'quantize_weights': True, 'quantize_activations': False}, 'quantized_val_loss': 1.0827738146176376, 'quantized_val_accuracy': 0.866994086398717, 'quantized_val_f1_macro': 0.709779163088381, 'quantized_val_f1_per_class': [0.9058663028649386, 0.9420702754036089, 0.3649789029535864, 0.4353393085787452, 0.9006410256410255], 'model_name': 'TinyCATNet1D-Transformer (<=256k)', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'epochs': 55, 'lr': 0.0003774020047965106, 'batch_size': 64, 'weight_decay': 7.290808404932193e-06, 'grad_clip': 1.7787048240822538, 'use_amp': False, 'stem_c1': 48, 'stem_c2': 80, 'd_model': 40, 'nhead': 8, 'ff_dim': 230, 'num_layers': 2, 'token_kernel': 3, 'token_stride': 8, 'dropout': 0.18323246408367175, 'use_weighted_sampler': True, 'label_smoothing': 0.11513836337097402, 'seed': 816672, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calib_batches': 64}, 'model_parameter_count': 84955, 'model_size_validation': 'PASS'}
+2025-09-19 13:59:17,463 - ERROR - __main__ - Unhandled exception: RuntimeError: Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same
+Traceback (most recent call last):
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 484, in <module>
+    processed_real_data = process_real_data()
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 342, in process_real_data
+    result = process_data_with_ai_enhanced_evaluation(
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 136, in process_data_with_ai_enhanced_evaluation
+    result = train_with_iterative_selection(data, labels, device=device, **kwargs)
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 85, in train_with_iterative_selection
+    best_model, pipeline_results = orchestrator.run_complete_pipeline(
+  File "D:\_A\GPT_research\ml_pipeline\evaluation\code_generation_pipeline_orchestrator.py", line 96, in run_complete_pipeline
+    final_model, training_results = self._execute_final_training(
+  File "D:\_A\GPT_research\ml_pipeline\evaluation\code_generation_pipeline_orchestrator.py", line 349, in _execute_final_training
+    final_metrics = evaluate_model(trained_model, test_loader, device)
+  File "C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\utils\_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "D:\_A\GPT_research\ml_pipeline\evaluation\evaluate.py", line 27, in evaluate_model
+    logits = model(X) if lengths is None else model(X, lengths=lengths)
+  File "C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\nn\modules\module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\nn\modules\module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "<string>", line 109, in forward
+  File "C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\nn\modules\module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\nn\modules\module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "<string>", line 38, in forward
+  File "C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\nn\modules\module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\nn\modules\module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\nn\modules\conv.py", line 375, in forward
+    return self._conv_forward(input, self.weight, self.bias)
+  File "C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\nn\modules\conv.py", line 370, in _conv_forward
+    return F.conv1d(
+RuntimeError: Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same
+

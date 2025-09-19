@@ -1,0 +1,170 @@
+{
+  "model_name": "ECGTransMini-MSCNN-BiT-PTQ",
+  "training_code": "import copy\nimport math\nfrom typing import Dict, Any\n\ndef train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    import torch\n    import torch.nn as nn\n    import torch.nn.functional as F\n    from torch.utils.data import TensorDataset, DataLoader\n    import torch.ao.quantization as tq\n\n    # ---------------------\n    # Hyperparameters (with sensible defaults)\n    # ---------------------\n    hp = {\n        'lr': 1e-3,\n        'batch_size': 64,\n        'epochs': 15,\n        'weight_decay': 1e-4,\n        'dropout': 0.1,\n        'd_model': 64,\n        'nhead': 4,\n        'num_layers': 1,\n        'dim_feedforward': 128,\n        'conv_channels': 16,  # per-branch channels in multi-scale CNN\n        'se_ratio': 8,\n        'downsample_stride': 4,\n        'focal_gamma': 2.0,\n        'label_smoothing': 0.0,\n        'class_weight_mode': 'balanced',  # ['inverse','sqrt_inv','balanced','none']\n        'max_grad_norm': 1.0,\n        'quantization_bits': 8,           # [8, 16, 32]\n        'quantize_weights': True,\n        'quantize_activations': True,\n        'calib_batches': 50,\n    }\n    hp.update(hyperparams or {})\n\n    num_classes = 5\n\n    # ---------------------\n    # Utilities\n    # ---------------------\n    def count_params(model: nn.Module) -> int:\n        return sum(p.numel() for p in model.parameters() if p.requires_grad)\n\n    def make_class_weights(y: torch.Tensor, mode: str) -> torch.Tensor:\n        eps = 1e-9\n        counts = torch.bincount(y.to(torch.long), minlength=num_classes).float()\n        if mode == 'none':\n            w = torch.ones(num_classes, dtype=torch.float32)\n        elif mode == 'inverse':\n            w = 1.0 / (counts + eps)\n        elif mode == 'sqrt_inv':\n            w = 1.0 / torch.sqrt(counts + eps)\n        else:  # 'balanced' (sklearn-style)\n            total = counts.sum()\n            w = total / (num_classes * (counts + eps))\n        # Normalize to mean=1 for stability\n        w = w * (num_classes / (w.sum() + eps))\n        return w\n\n    class FocalLoss(nn.Module):\n        def __init__(self, alpha: torch.Tensor, gamma: float = 2.0, label_smoothing: float = 0.0):\n            super().__init__()\n            self.register_buffer('alpha', alpha)\n            self.gamma = gamma\n            self.label_smoothing = float(label_smoothing)\n        def forward(self, logits, target):\n            # Cross entropy with optional label smoothing; without reduction to get per-sample loss\n            ce = F.cross_entropy(logits, target, reduction='none', label_smoothing=self.label_smoothing)\n            # pt = exp(-CE)\n            pt = torch.exp(-ce)\n            alpha_t = self.alpha[target]\n            loss = (alpha_t * ((1.0 - pt) ** self.gamma) * ce)\n            return loss.mean()\n\n    # ---------------------\n    # Model definition: Multi-scale CNN trunk + lightweight Transformer encoder + classifier\n    # CNN trunk includes quantization stubs to enable static PTQ on activations/weights\n    # ---------------------\n    class ConvBranch(nn.Module):\n        def __init__(self, in_ch, out_ch, k):\n            super().__init__()\n            pad = k // 2\n            self.conv = nn.Conv1d(in_ch, out_ch, kernel_size=k, padding=pad, bias=True)\n            self.bn = nn.BatchNorm1d(out_ch)\n            self.relu = nn.ReLU(inplace=True)\n        def fuse(self):\n            try:\n                tq.fuse_modules(self, [['conv', 'bn', 'relu']], inplace=True)\n            except Exception:\n                pass\n        def forward(self, x):\n            return self.relu(self.bn(self.conv(x)))\n\n    class SEBlock(nn.Module):\n        def __init__(self, ch, se_ratio=8):\n            super().__init__()\n            hidden = max(1, ch // se_ratio)\n            self.pool = nn.AdaptiveAvgPool1d(1)\n            self.fc1 = nn.Linear(ch, hidden)\n            self.relu = nn.ReLU(inplace=True)\n            self.fc2 = nn.Linear(hidden, ch)\n            self.sigmoid = nn.Sigmoid()\n        def forward(self, x):\n            # x: (B, C, L)\n            b, c, _ = x.shape\n            s = self.pool(x).view(b, c)\n            s = self.fc2(self.relu(self.fc1(s)))\n            s = self.sigmoid(s).view(b, c, 1)\n            return x * s\n\n    class MultiScaleConvTrunk(nn.Module):\n        def __init__(self, in_ch=2, branch_ch=16, d_model=64, stride=4, se_ratio=8, dropout=0.1):\n            super().__init__()\n            self.enable_quant = True  # used to control QuantStub/DeQuantStub\n            self.quant = tq.QuantStub()\n            self.dequant = tq.DeQuantStub()\n            # Three branches with different kernels\n            self.b1 = ConvBranch(in_ch, branch_ch, 3)\n            self.b2 = ConvBranch(in_ch, branch_ch, 5)\n            self.b3 = ConvBranch(in_ch, branch_ch, 7)\n            self.merge = nn.Conv1d(branch_ch * 3, d_model, kernel_size=5, stride=stride, padding=2, bias=True)\n            self.merge_bn = nn.BatchNorm1d(d_model)\n            self.merge_relu = nn.ReLU(inplace=True)\n            self.se = SEBlock(d_model, se_ratio=se_ratio)\n            self.drop = nn.Dropout(dropout)\n        def fuse(self):\n            self.b1.fuse(); self.b2.fuse(); self.b3.fuse()\n            try:\n                tq.fuse_modules(self, [['merge', 'merge_bn', 'merge_relu']], inplace=True)\n            except Exception:\n                pass\n        def forward(self, x):\n            # x: (B, C, L)\n            if self.enable_quant:\n                x = self.quant(x)\n            x1 = self.b1(x); x2 = self.b2(x); x3 = self.b3(x)\n            x = torch.cat([x1, x2, x3], dim=1)\n            x = self.merge_relu(self.merge_bn(self.merge(x)))\n            x = self.se(x)\n            x = self.drop(x)\n            if self.enable_quant:\n                x = self.dequant(x)\n            return x  # (B, d_model, L')\n\n    class PositionalEncoding(nn.Module):\n        def __init__(self, d_model, max_len=2000, dropout=0.0):\n            super().__init__()\n            self.dropout = nn.Dropout(dropout)\n            pe = torch.zeros(max_len, d_model)\n            position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)\n            div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))\n            pe[:, 0::2] = torch.sin(position * div_term)\n            pe[:, 1::2] = torch.cos(position * div_term)\n            self.register_buffer('pe', pe)  # (max_len, d_model)\n        def forward(self, x):\n            # x: (B, L, D)\n            L = x.size(1)\n            x = x + self.pe[:L].unsqueeze(0)\n            return self.dropout(x)\n\n    class ECGTransMini(nn.Module):\n        def __init__(self, d_model=64, nhead=4, num_layers=1, dim_ff=128, dropout=0.1, conv_channels=16, se_ratio=8, ds_stride=4):\n            super().__init__()\n            self.trunk = MultiScaleConvTrunk(in_ch=2, branch_ch=conv_channels, d_model=d_model, stride=ds_stride, se_ratio=se_ratio, dropout=dropout)\n            encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dim_feedforward=dim_ff, dropout=dropout, batch_first=True, activation='gelu')\n            self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)\n            self.pos = PositionalEncoding(d_model, dropout=dropout)\n            self.drop = nn.Dropout(dropout)\n            self.head = nn.Linear(d_model, num_classes)\n        def forward(self, x):\n            # x: (B, 2, 1000)\n            feats = self.trunk(x)  # (B, D, L')\n            x = feats.transpose(1, 2)  # (B, L', D)\n            x = self.pos(x)\n            x = self.encoder(x)  # bidirectional self-attention by default\n            x = x.mean(dim=1)  # global average pooling over time\n            x = self.drop(x)\n            logits = self.head(x)\n            return logits\n\n    # Adjust heads if not dividing d_model\n    def adjust_nhead(d_model, nhead):\n        nhead = int(max(1, min(int(nhead), int(d_model))))\n        while d_model % nhead != 0 and nhead > 1:\n            nhead -= 1\n        return nhead\n\n    hp['nhead'] = adjust_nhead(hp['d_model'], hp['nhead'])\n\n    # ---------------------\n    # Datasets and loaders\n    # ---------------------\n    # Expect X tensors shaped (N, 1000, 2); rearrange to (N, C=2, L=1000)\n    if X_train.dim() == 3 and X_train.size(-1) == 2:\n        X_train_c = X_train.permute(0, 2, 1).contiguous()\n    else:\n        X_train_c = X_train\n    if X_val.dim() == 3 and X_val.size(-1) == 2:\n        X_val_c = X_val.permute(0, 2, 1).contiguous()\n    else:\n        X_val_c = X_val\n\n    y_train = y_train.to(torch.long)\n    y_val = y_val.to(torch.long)\n\n    train_ds = TensorDataset(X_train_c, y_train)\n    val_ds = TensorDataset(X_val_c, y_val)\n\n    train_loader = DataLoader(train_ds, batch_size=int(hp['batch_size']), shuffle=True, drop_last=False)\n    val_loader = DataLoader(val_ds, batch_size=int(hp['batch_size']), shuffle=False, drop_last=False)\n\n    # ---------------------\n    # Model, loss, optimizer\n    # ---------------------\n    model = ECGTransMini(d_model=int(hp['d_model']), nhead=int(hp['nhead']), num_layers=int(hp['num_layers']), dim_ff=int(hp['dim_feedforward']), dropout=float(hp['dropout']), conv_channels=int(hp['conv_channels']), se_ratio=int(hp['se_ratio']), ds_stride=int(hp['downsample_stride']))\n    model.to(device)\n\n    total_params = count_params(model)\n    if total_params > 256000:\n        raise RuntimeError(f'Model has {total_params} parameters, which exceeds the 256K requirement. Reduce d_model/num_layers/conv_channels.')\n\n    class_weights = make_class_weights(y_train.cpu(), hp['class_weight_mode']).to(device)\n    criterion = FocalLoss(alpha=class_weights, gamma=float(hp['focal_gamma']), label_smoothing=float(hp['label_smoothing']))\n\n    optimizer = torch.optim.AdamW(model.parameters(), lr=float(hp['lr']), weight_decay=float(hp['weight_decay']))\n\n    # ---------------------\n    # Training loop\n    # ---------------------\n    def evaluate(m: nn.Module):\n        m.eval()\n        correct = 0\n        total = 0\n        all_preds = []\n        all_tgts = []\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device)\n                yb = yb.to(device)\n                logits = m(xb)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                total += yb.numel()\n                all_preds.append(preds.detach().cpu())\n                all_tgts.append(yb.detach().cpu())\n        acc = correct / max(1, total)\n        preds = torch.cat(all_preds)\n        tgts = torch.cat(all_tgts)\n        # Per-class F1\n        eps = 1e-9\n        f1s = []\n        for c in range(num_classes):\n            tp = ((preds == c) & (tgts == c)).sum().item()\n            fp = ((preds == c) & (tgts != c)).sum().item()\n            fn = ((preds != c) & (tgts == c)).sum().item()\n            f1 = (2 * tp) / max(1.0, (2 * tp + fp + fn))\n            f1s.append(f1)\n        macro_f1 = float(sum(f1s) / num_classes)\n        return acc, macro_f1, f1s\n\n    history = {'train_loss': [], 'val_acc': [], 'val_macro_f1': []}\n\n    for epoch in range(int(hp['epochs'])):\n        model.train()\n        running = 0.0\n        for xb, yb in train_loader:\n            xb = xb.to(device)\n            yb = yb.to(device)\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if hp['max_grad_norm'] and hp['max_grad_norm'] > 0:\n                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float(hp['max_grad_norm']))\n            optimizer.step()\n            running += loss.item() * yb.size(0)\n        train_loss = running / max(1, len(train_ds))\n        val_acc, val_macro_f1, _ = evaluate(model)\n        history['train_loss'].append(train_loss)\n        history['val_acc'].append(val_acc)\n        history['val_macro_f1'].append(val_macro_f1)\n\n    float_val_acc, float_val_macro_f1, float_f1_per_class = evaluate(model)\n\n    # ---------------------\n    # Post-training quantization\n    #   - int8 dynamic for Linear (Transformer + head)\n    #   - optional static int8 for CNN trunk activations/weights (requires CPU calibration)\n    #   - fp16 dynamic for Linear if bits==16\n    # ---------------------\n    def quantize_model(trained_model: nn.Module, Xc: torch.Tensor) -> nn.Module:\n        bits = int(hp['quantization_bits'])\n        qw = bool(hp['quantize_weights'])\n        qa = bool(hp['quantize_activations'])\n\n        if bits == 32 or (not qw and not qa):\n            return copy.deepcopy(trained_model)  # float32 model\n\n        m = copy.deepcopy(trained_model).cpu().eval()\n\n        if bits == 8:\n            # Static quantization for CNN trunk (activations + weights)\n            if qa:\n                # Enable quant stubs on trunk\n                m.trunk.enable_quant = True\n                # Prepare trunk for fusion and set qconfig only for trunk\n                m.qconfig = None\n                m.trunk.qconfig = tq.get_default_qconfig('fbgemm')\n                # Fuse conv+bn+relu patterns in trunk\n                m.trunk.fuse()\n                # Prepare model (observers inserted in trunk only)\n                tq.prepare(m, inplace=True)\n                # Calibration using a few batches from validation (or training) inputs\n                calib_loader = DataLoader(TensorDataset(Xc, torch.zeros(len(Xc), dtype=torch.long)), batch_size=int(hp['batch_size']), shuffle=False, drop_last=False)\n                with torch.no_grad():\n                    n_seen = 0\n                    for xb, _ in calib_loader:\n                        # Expect (N, 2, 1000)\n                        if xb.dim() == 3 and xb.size(1) != 2 and xb.size(-1) == 2:\n                            xb = xb.permute(0, 2, 1).contiguous()\n                        xb = xb.float()\n                        _ = m(xb)\n                        n_seen += xb.size(0)\n                        if n_seen >= int(hp['calib_batches']) * int(hp['batch_size']):\n                            break\n                tq.convert(m, inplace=True)\n                # After convert, trunk is quantized with dequant at output\n            else:\n                # Disable quant stubs if not quantizing activations\n                m.trunk.enable_quant = False\n\n            # Dynamic quantization for Linear layers elsewhere (Transformer + head)\n            if qw:\n                m = tq.quantize_dynamic(m, {nn.Linear}, dtype=torch.qint8, inplace=True)\n            return m\n\n        if bits == 16:\n            # fp16 dynamic quantization for Linear layers\n            if qw:\n                m = tq.quantize_dynamic(m, {nn.Linear}, dtype=torch.float16, inplace=True)\n            # Activations remain float32 on CPU; if user wants full fp16 and is on CUDA,\n            # they can .half() the model after moving to CUDA for inference.\n            return m\n\n        # Fallback: return copy if unsupported config\n        return m\n\n    # Build calibration tensor from validation set in (N, C=2, L=1000) format\n    X_calib = X_val_c if X_val_c.device.type == 'cpu' else X_val_c.cpu()\n    q_model = quantize_model(model, X_calib)\n\n    # Evaluate quantized model on CPU\n    def evaluate_cpu(m: nn.Module):\n        m.eval()\n        correct = 0\n        total = 0\n        all_preds = []\n        all_tgts = []\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb_cpu = xb.cpu().float()\n                logits = m(xb_cpu)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb.cpu()).sum().item()\n                total += yb.numel()\n                all_preds.append(preds)\n                all_tgts.append(yb.cpu())\n        acc = correct / max(1, total)\n        preds = torch.cat(all_preds)\n        tgts = torch.cat(all_tgts)\n        eps = 1e-9\n        f1s = []\n        for c in range(num_classes):\n            tp = ((preds == c) & (tgts == c)).sum().item()\n            fp = ((preds == c) & (tgts != c)).sum().item()\n            fn = ((preds != c) & (tgts == c)).sum().item()\n            f1 = (2 * tp) / max(1.0, (2 * tp + fp + fn))\n            f1s.append(f1)\n        macro_f1 = float(sum(f1s) / num_classes)\n        return acc, macro_f1, f1s\n\n    q_val_acc, q_val_macro_f1, q_f1_per_class = evaluate_cpu(q_model)\n\n    metrics: Dict[str, Any] = {\n        'float_val_acc': float(float_val_acc),\n        'float_val_macro_f1': float(float_val_macro_f1),\n        'float_val_f1_per_class': [float(x) for x in float_f1_per_class],\n        'quantized_val_acc': float(q_val_acc),\n        'quantized_val_macro_f1': float(q_val_macro_f1),\n        'quantized_val_f1_per_class': [float(x) for x in q_f1_per_class],\n        'params': int(total_params),\n        'history': history,\n        'quantization': {\n            'bits': int(hp['quantization_bits']),\n            'quantize_weights': bool(hp['quantize_weights']),\n            'quantize_activations': bool(hp['quantize_activations'])\n        }\n    }\n\n    return q_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.005,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 64,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128
+      ]
+    },
+    "epochs": {
+      "default": 15,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "d_model": {
+      "default": 64,
+      "type": "Integer",
+      "low": 32,
+      "high": 128
+    },
+    "nhead": {
+      "default": 4,
+      "type": "Integer",
+      "low": 1,
+      "high": 8
+    },
+    "num_layers": {
+      "default": 1,
+      "type": "Integer",
+      "low": 1,
+      "high": 2
+    },
+    "dim_feedforward": {
+      "default": 128,
+      "type": "Integer",
+      "low": 64,
+      "high": 256
+    },
+    "conv_channels": {
+      "default": 16,
+      "type": "Integer",
+      "low": 8,
+      "high": 32
+    },
+    "se_ratio": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "downsample_stride": {
+      "default": 4,
+      "type": "Integer",
+      "low": 2,
+      "high": 8
+    },
+    "focal_gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 3.0
+    },
+    "label_smoothing": {
+      "default": 0.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.1
+    },
+    "class_weight_mode": {
+      "default": "balanced",
+      "type": "Categorical",
+      "categories": [
+        "inverse",
+        "sqrt_inv",
+        "balanced",
+        "none"
+      ]
+    },
+    "max_grad_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "calib_batches": {
+      "default": 50,
+      "type": "Integer",
+      "low": 10,
+      "high": 200
+    }
+  },
+  "confidence": 0.86,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758297116,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

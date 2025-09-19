@@ -1,0 +1,141 @@
+2025-09-19 12:38:57,762 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 12:38:58,075 - INFO - __main__ - Logging system initialized successfully
+2025-09-19 12:38:58,075 - INFO - __main__ - Starting AI-Enhanced Machine Learning Pipeline
+2025-09-19 12:38:58,076 - INFO - __main__ - Starting real data processing from data/ directory
+2025-09-19 12:38:58,077 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'X.npy', 'y.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-19 12:38:58,077 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-19 12:38:58,078 - INFO - __main__ - Attempting to load: X.npy
+2025-09-19 12:38:58,200 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-19 12:38:58,287 - INFO - __main__ - Data loaded successfully: X.npy + y.npy, shape: (62352, 1000, 2), device: cuda
+2025-09-19 12:38:58,288 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-19 12:38:58,288 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-19 12:38:58,288 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-19 12:38:58,290 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 12:38:58,290 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-19 12:38:58,290 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-19 12:38:58,290 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-19 12:38:58,290 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-19 12:38:58,290 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-19 12:38:58,290 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-19 12:38:58,290 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-19 12:38:58,291 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-19 12:38:58,495 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-19 12:38:58,495 - INFO - class_balancing - Class imbalance analysis:
+2025-09-19 12:38:58,495 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-19 12:38:58,495 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-19 12:38:58,495 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-19 12:38:58,495 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-19 12:38:58,495 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-19 12:38:58,495 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-19 12:38:58,495 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-19 12:38:58,495 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-19 12:38:59,177 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-19 12:38:59,186 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-19 12:38:59,186 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-19 12:38:59,186 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-19 12:38:59,186 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-19 12:38:59,186 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-19 12:38:59,186 - INFO - _models.ai_code_generator - Conducting literature review before code generation...
+2025-09-19 12:41:56,449 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-19 12:41:56,557 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-19 12:41:56,557 - INFO - _models.ai_code_generator - Prompt length: 3069 characters
+2025-09-19 12:41:56,557 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-19 12:41:56,557 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-19 12:41:56,557 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-19 12:46:14,127 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-19 12:46:14,179 - INFO - _models.ai_code_generator - Successfully extracted response content
+2025-09-19 12:46:14,179 - INFO - _models.ai_code_generator - AI generated training function: MB-MHA-TCN-ECG-5C
+2025-09-19 12:46:14,179 - INFO - _models.ai_code_generator - Confidence: 0.83
+2025-09-19 12:46:14,179 - INFO - _models.ai_code_generator - Literature review informed code generation (confidence: 0.78)
+2025-09-19 12:46:14,179 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: MB-MHA-TCN-ECG-5C
+2025-09-19 12:46:14,179 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['epochs', 'lr', 'batch_size', 'branch_channels', 'd_model', 'mha_heads', 'tcn_channels', 'tcn_layers', 'dilation_base', 'dropout', 'focal_alpha', 'focal_gamma', 'weight_decay', 'use_weighted_sampler', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'per_channel_q']
+2025-09-19 12:46:14,179 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.83
+2025-09-19 12:46:14,181 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-19 12:46:14,182 - INFO - _models.ai_code_generator - Training function saved to: generated_training_functions\training_function_torch_tensor_MB-MHA-TCN-ECG-5C_1758303974.json
+2025-09-19 12:46:14,182 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions\training_function_torch_tensor_MB-MHA-TCN-ECG-5C_1758303974.json
+2025-09-19 12:46:14,185 - INFO - _models.training_function_executor - Training function validation passed
+2025-09-19 12:46:14,185 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-19 12:46:14,185 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: MB-MHA-TCN-ECG-5C
+2025-09-19 12:46:14,185 - INFO - evaluation.code_generation_pipeline_orchestrator - 📦 Installing dependencies for GPT-generated training code...
+2025-09-19 12:46:14,186 - INFO - package_installer - 🔍 Analyzing GPT-generated code for package dependencies...
+2025-09-19 12:46:14,186 - WARNING - package_installer - Could not parse code for imports due to syntax error: unexpected character after line continuation character (<unknown>, line 1)
+2025-09-19 12:46:14,186 - INFO - package_installer - Extracted imports from code: set()
+2025-09-19 12:46:14,186 - INFO - package_installer - ✅ No external packages required
+2025-09-19 12:46:14,186 - INFO - evaluation.code_generation_pipeline_orchestrator - ✅ All dependencies installed successfully
+2025-09-19 12:46:14,186 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 62352 samples (using full dataset)
+2025-09-19 12:46:14,186 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['epochs', 'lr', 'batch_size', 'branch_channels', 'd_model', 'mha_heads', 'tcn_channels', 'tcn_layers', 'dilation_base', 'dropout', 'focal_alpha', 'focal_gamma', 'weight_decay', 'use_weighted_sampler', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'per_channel_q']
+2025-09-19 12:46:14,187 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 12:46:14,187 - INFO - _models.training_function_executor - Using centralized data splits for BO objective
+2025-09-19 12:46:14,517 - INFO - bo.run_bo - Converted GPT search space: 18 parameters
+2025-09-19 12:46:14,517 - INFO - bo.run_bo - Using GPT-generated search space
+2025-09-19 12:46:14,517 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-19 12:46:14,519 - INFO - bo.run_bo - 🔍BO Trial 1: Initial random exploration
+2025-09-19 12:46:14,519 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 12:46:14,519 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 12:46:14,519 - INFO - _models.training_function_executor - Executing training function: MB-MHA-TCN-ECG-5C
+2025-09-19 12:46:14,519 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 56, 'lr': 0.007114476009343424, 'batch_size': 128, 'branch_channels': 28, 'd_model': 114, 'mha_heads': 2, 'tcn_channels': 106, 'tcn_layers': 5, 'dilation_base': 4, 'dropout': 0.010292247147901225, 'focal_alpha': 0.7289368965133961, 'focal_gamma': 4.329770563201688, 'weight_decay': 7.068974950624601e-06, 'use_weighted_sampler': True, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'per_channel_q': True}
+2025-09-19 12:46:14,522 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 56, 'lr': 0.007114476009343424, 'batch_size': 128, 'branch_channels': 28, 'd_model': 114, 'mha_heads': 2, 'tcn_channels': 106, 'tcn_layers': 5, 'dilation_base': 4, 'dropout': 0.010292247147901225, 'focal_alpha': 0.7289368965133961, 'focal_gamma': 4.329770563201688, 'weight_decay': 7.068974950624601e-06, 'use_weighted_sampler': True, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'per_channel_q': True}
+2025-09-19 12:46:14,552 - ERROR - _models.training_function_executor - Training execution failed: Model has 428929 parameters, exceeds 256k limit. Reduce channels/layers.
+2025-09-19 12:46:14,552 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---- Foca...
+2025-09-19 12:46:14,552 - ERROR - _models.training_function_executor - BO training objective failed: Model has 428929 parameters, exceeds 256k limit. Reduce channels/layers.
+2025-09-19 12:46:14,552 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.033s
+2025-09-19 12:46:14,553 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 12:46:14,553 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.001s
+2025-09-19 12:46:14,553 - INFO - bo.run_bo - Recorded observation #1: hparams={'epochs': np.int64(56), 'lr': 0.007114476009343424, 'batch_size': 128, 'branch_channels': np.int64(28), 'd_model': np.int64(114), 'mha_heads': 2, 'tcn_channels': np.int64(106), 'tcn_layers': np.int64(5), 'dilation_base': np.int64(4), 'dropout': 0.010292247147901225, 'focal_alpha': 0.7289368965133961, 'focal_gamma': 4.329770563201688, 'weight_decay': 7.068974950624601e-06, 'use_weighted_sampler': True, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'per_channel_q': True}, value=0.0000
+2025-09-19 12:46:14,553 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'epochs': np.int64(56), 'lr': 0.007114476009343424, 'batch_size': 128, 'branch_channels': np.int64(28), 'd_model': np.int64(114), 'mha_heads': 2, 'tcn_channels': np.int64(106), 'tcn_layers': np.int64(5), 'dilation_base': np.int64(4), 'dropout': 0.010292247147901225, 'focal_alpha': 0.7289368965133961, 'focal_gamma': 4.329770563201688, 'weight_decay': 7.068974950624601e-06, 'use_weighted_sampler': True, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'per_channel_q': True} -> 0.0000
+2025-09-19 12:46:14,553 - INFO - bo.run_bo - 🔍BO Trial 2: Initial random exploration
+2025-09-19 12:46:14,554 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 12:46:14,554 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 12:46:14,554 - INFO - _models.training_function_executor - Executing training function: MB-MHA-TCN-ECG-5C
+2025-09-19 12:46:14,554 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 53, 'lr': 0.0003752528339573976, 'batch_size': 64, 'branch_channels': 35, 'd_model': 91, 'mha_heads': 4, 'tcn_channels': 93, 'tcn_layers': 3, 'dilation_base': 4, 'dropout': 0.4916154429033942, 'focal_alpha': 0.37673402527358596, 'focal_gamma': 4.439761626945283, 'weight_decay': 0.0005262961031076745, 'use_weighted_sampler': True, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'per_channel_q': True}
+2025-09-19 12:46:14,555 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 53, 'lr': 0.0003752528339573976, 'batch_size': 64, 'branch_channels': 35, 'd_model': 91, 'mha_heads': 4, 'tcn_channels': 93, 'tcn_layers': 3, 'dilation_base': 4, 'dropout': 0.4916154429033942, 'focal_alpha': 0.37673402527358596, 'focal_gamma': 4.439761626945283, 'weight_decay': 0.0005262961031076745, 'use_weighted_sampler': True, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'per_channel_q': True}
+2025-09-19 12:46:14,558 - ERROR - _models.training_function_executor - Training execution failed: embed_dim must be divisible by num_heads
+2025-09-19 12:46:14,558 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---- Foca...
+2025-09-19 12:46:14,558 - ERROR - _models.training_function_executor - BO training objective failed: embed_dim must be divisible by num_heads
+2025-09-19 12:46:14,558 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.005s
+2025-09-19 12:46:14,558 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 12:46:14,558 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-19 12:46:14,558 - INFO - bo.run_bo - Recorded observation #2: hparams={'epochs': np.int64(53), 'lr': 0.0003752528339573976, 'batch_size': 64, 'branch_channels': np.int64(35), 'd_model': np.int64(91), 'mha_heads': 4, 'tcn_channels': np.int64(93), 'tcn_layers': np.int64(3), 'dilation_base': np.int64(4), 'dropout': 0.4916154429033942, 'focal_alpha': 0.37673402527358596, 'focal_gamma': 4.439761626945283, 'weight_decay': 0.0005262961031076745, 'use_weighted_sampler': True, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'per_channel_q': True}, value=0.0000
+2025-09-19 12:46:14,558 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 2: {'epochs': np.int64(53), 'lr': 0.0003752528339573976, 'batch_size': 64, 'branch_channels': np.int64(35), 'd_model': np.int64(91), 'mha_heads': 4, 'tcn_channels': np.int64(93), 'tcn_layers': np.int64(3), 'dilation_base': np.int64(4), 'dropout': 0.4916154429033942, 'focal_alpha': 0.37673402527358596, 'focal_gamma': 4.439761626945283, 'weight_decay': 0.0005262961031076745, 'use_weighted_sampler': True, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'per_channel_q': True} -> 0.0000
+2025-09-19 12:46:14,559 - INFO - bo.run_bo - 🔍BO Trial 3: Initial random exploration
+2025-09-19 12:46:14,559 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 12:46:14,559 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 12:46:14,559 - INFO - _models.training_function_executor - Executing training function: MB-MHA-TCN-ECG-5C
+2025-09-19 12:46:14,559 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 94, 'lr': 1.9634341572933314e-05, 'batch_size': 128, 'branch_channels': 14, 'd_model': 75, 'mha_heads': 4, 'tcn_channels': 78, 'tcn_layers': 3, 'dilation_base': 3, 'dropout': 0.19553030378662045, 'focal_alpha': 0.17756526145164364, 'focal_gamma': 4.021445641270611, 'weight_decay': 5.0190728339613256e-05, 'use_weighted_sampler': True, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'per_channel_q': True}
+2025-09-19 12:46:14,561 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 94, 'lr': 1.9634341572933314e-05, 'batch_size': 128, 'branch_channels': 14, 'd_model': 75, 'mha_heads': 4, 'tcn_channels': 78, 'tcn_layers': 3, 'dilation_base': 3, 'dropout': 0.19553030378662045, 'focal_alpha': 0.17756526145164364, 'focal_gamma': 4.021445641270611, 'weight_decay': 5.0190728339613256e-05, 'use_weighted_sampler': True, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'per_channel_q': True}
+2025-09-19 12:46:14,563 - ERROR - _models.training_function_executor - Training execution failed: embed_dim must be divisible by num_heads
+2025-09-19 12:46:14,563 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from typing import Dict, Tuple
+
+# ---- Foca...
+2025-09-19 12:46:14,563 - ERROR - _models.training_function_executor - BO training objective failed: embed_dim must be divisible by num_heads
+2025-09-19 12:46:14,563 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.004s
+2025-09-19 12:46:14,712 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 12:46:14,712 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.149s
+2025-09-19 12:46:14,712 - INFO - bo.run_bo - Recorded observation #3: hparams={'epochs': np.int64(94), 'lr': 1.9634341572933314e-05, 'batch_size': 128, 'branch_channels': np.int64(14), 'd_model': np.int64(75), 'mha_heads': 4, 'tcn_channels': np.int64(78), 'tcn_layers': np.int64(3), 'dilation_base': np.int64(3), 'dropout': 0.19553030378662045, 'focal_alpha': 0.17756526145164364, 'focal_gamma': 4.021445641270611, 'weight_decay': 5.0190728339613256e-05, 'use_weighted_sampler': True, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'per_channel_q': True}, value=0.0000
+2025-09-19 12:46:14,712 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 3: {'epochs': np.int64(94), 'lr': 1.9634341572933314e-05, 'batch_size': 128, 'branch_channels': np.int64(14), 'd_model': np.int64(75), 'mha_heads': 4, 'tcn_channels': np.int64(78), 'tcn_layers': np.int64(3), 'dilation_base': np.int64(3), 'dropout': 0.19553030378662045, 'focal_alpha': 0.17756526145164364, 'focal_gamma': 4.021445641270611, 'weight_decay': 5.0190728339613256e-05, 'use_weighted_sampler': True, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'per_channel_q': True} -> 0.0000
+2025-09-19 12:46:14,712 - INFO - bo.run_bo - 🔍BO Trial 4: Using RF surrogate + Expected Improvement
+2025-09-19 12:46:14,712 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 12:46:14,713 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 12:46:14,713 - INFO - _models.training_function_executor - Executing training function: MB-MHA-TCN-ECG-5C
+2025-09-19 12:46:14,713 - INFO - _models.training_function_executor - Hyperparameters: {'epochs': 78, 'lr': 1.8582440763378547e-05, 'batch_size': 32, 'branch_channels': 43, 'd_model': 108, 'mha_heads': 4, 'tcn_channels': 70, 'tcn_layers': 5, 'dilation_base': 2, 'dropout': 0.2479264847999355, 'focal_alpha': 0.7020081652762012, 'focal_gamma': 1.8894579217520568, 'weight_decay': 1.0487166517356822e-05, 'use_weighted_sampler': True, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': False, 'per_channel_q': False}
+2025-09-19 12:46:14,714 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'epochs': 78, 'lr': 1.8582440763378547e-05, 'batch_size': 32, 'branch_channels': 43, 'd_model': 108, 'mha_heads': 4, 'tcn_channels': 70, 'tcn_layers': 5, 'dilation_base': 2, 'dropout': 0.2479264847999355, 'focal_alpha': 0.7020081652762012, 'focal_gamma': 1.8894579217520568, 'weight_decay': 1.0487166517356822e-05, 'use_weighted_sampler': True, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': False, 'per_channel_q': False}

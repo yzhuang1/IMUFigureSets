@@ -1,0 +1,58 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem context: You have 1D sequential ECG data (torch tensors) with windows of shape (1000, 2) and 5 output classes (AAMI-style). The MIT-BIH Arrhythmia Database (360 Hz, typically two leads) is a standard benchmark; many recent papers report 5-class AAMI results but often differ in segmentation, splits, and class rebalancing. A 2025 systematic review warns that many high scores use non–inter-patient (patient-dependent) splits and lack deployment considerations, so reported SOTA numbers should be interpreted alongside protocol details. ([arxiv.org](https://arxiv.org/abs/2503.07276))\nRecent state-of-the-art approaches (2024–2025) emphasize lightweight temporal models, transformer hybrids, and class-imbalance handling:\n- MB-MHA-TCN (multi-branch, multi-head attention temporal convolutional network) integrates parallel 1D conv branches with differing kernel sizes/dilations, a multi-head self-attention fusion, and a TCN backbone for long-range dependencies. On MIT-BIH (AAMI 5 classes), five-fold CV reports overall accuracy ≈98.75–99.02% and macro F1≈96.9%, with explicit ablations and imbalance strategies (K-means undersampling + SMOTE with Tomek links, plus focal loss). Computational footprint is discussed qualitatively (lower cost vs RNNs; parallelizable), but exact params/FLOPs are not reported. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))\n- CAT-Net (CNN + attention + transformer, single-lead) couples local convolutions with a transformer encoder for global context and uses SMOTE–Tomek for class balancing. On MIT-BIH 5-class AAMI, it reports 99.14% accuracy and 94.69% macro F1; code is available publicly (PyTorch). While designed for single-lead beats, the architecture is readily adapted to 2-channel windows by setting in_channels=2 in 1D convolutions. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))\n- Tiny Transformer for microcontrollers: a ViT-style 1D transformer with only ~6k parameters that adds pre/post-RR interval features and targets wearable deployment. On MIT-BIH (5-class), it reports 98.97% accuracy (8-bit quantized), with measured 4.28 ms inference and 0.09 mJ on GAP9. The authors note their training/testing is intra-patient; nevertheless, it sets a strong efficiency baseline and shows robust post-deployment accuracy (98.36%) under noise. ([arxiv.org](https://arxiv.org/abs/2402.10748))\n- ECGTransForm (Bidirectional Transformer + multi-scale conv + channel recalibration + context-aware loss), with open-source PyTorch code, reports AAMI 5-class macro F1≈94.26% on MIT-BIH (patient-split details should be checked in your replication). The framework explicitly targets imbalance via a custom loss. ([github.com](https://github.com/emadeldeen24/ECGTransForm?utm_source=openai))\n- Additional 2024–2025 references include multi-input CNNs with time–frequency inputs that achieve ≈99.1% accuracy and ≈94.5% macro-F1 on AAMI 5-class MIT-BIH, and broader reviews confirming CNN dominance with growing use of hybrid/transformer modules. These underscore the benefits of mixing local morphological features with global context and using principled rebalancing. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC12173367/?utm_source=openai))\nMethodological notes for your data shape (1000×2):\n- TCN-based or CNN–Transformer hybrids natively accept long 1D windows and multi-lead inputs; you can feed (B, C=2, T=1000). Multi-branch front-ends (varying kernel sizes/dilations) plus attention pooling are well-suited to capture both beat-level morphology and longer inter-beat context without excessive compute. This aligns closely with MB-MHA-TCN’s design. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))\n- Ensure inter-patient evaluation (e.g., MIT-BIH DS1/DS2 split or leave-one-patient-out) and AAMI label mapping for fair comparisons; the 2025 review highlights that many works otherwise overestimate performance. ([arxiv.org](https://arxiv.org/abs/2503.07276))\n- Favor focal loss or class-balanced loss and moderate oversampling (e.g., SMOTE–Tomek) to stabilize minority-class F1, as used in top-performing works. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))",
+  "key_findings": [
+    "Multi-branch + attention + TCN yields top macro-F1 on AAMI 5-class MIT-BIH: MB-MHA-TCN reports ≈96.9% macro F1 with ~98.75–99.02% accuracy using five-fold CV and targeted imbalance handling (SMOTE–Tomek + focal loss). ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))",
+    "Hybrid CNN–Transformer models remain highly competitive: CAT-Net achieves 99.14% accuracy and 94.69% macro F1 on AAMI 5-class MIT-BIH, aided by SMOTE–Tomek; open-source code facilitates PyTorch replication. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "Extreme efficiency is feasible: a ~6k-parameter Tiny Transformer reaches 98.97% accuracy (5-class MIT-BIH) with 4.28 ms inference and 0.09 mJ on GAP9, demonstrating strong on-device viability (noting intra-patient evaluation). ([arxiv.org](https://arxiv.org/abs/2402.10748))"
+  ],
+  "recommended_approaches": [
+    "Adopt a Multi-Branch MHA-TCN (MB-MHA-TCN) in PyTorch for (1000,2) windows: 1) multi-scale 1D conv branches (e.g., kernel sizes 5/9/17 with dilations) on both leads; 2) concatenate and fuse via multi-head self-attention; 3) residual dilated TCN blocks to model long-range dependencies; 4) global pooling + linear classifier for 5 AAMI classes; 5) training with focal loss, minority oversampling (e.g., SMOTE–Tomek), and patient-independent splits. This choice matches your long 2-channel sequences, has demonstrated top macro-F1 on MIT-BIH under comparable labeling, and balances accuracy with efficiency better than heavier transformer stacks. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))"
+  ],
+  "recent_papers": [
+    {
+      "title": "Accurate Arrhythmia Classification with Multi-Branch, Multi-Head Attention Temporal Convolutional Networks (Sensors, 2024)",
+      "contribution": "Introduces MB-MHA-TCN combining multi-scale conv branches, multi-head attention, and TCN; reports ≈98.75–99.02% accuracy and ≈96.9% macro F1 on AAMI 5-class MIT-BIH with explicit imbalance strategies and ablations. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))"
+    },
+    {
+      "title": "CAT-Net: Convolution, Attention, and Transformer based Network for single-lead ECG arrhythmia classification (BSPC, 2024)",
+      "contribution": "CNN–Transformer hybrid with SMOTE–Tomek; achieves 99.14% accuracy and 94.69% macro F1 on AAMI 5-class MIT-BIH; public repo eases PyTorch implementation and adaptation to 2 channels. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (IEEE TBCAS/arXiv, 2024)",
+      "contribution": "ViT-style 1D transformer (~6k params) with RR-interval features; 98.97% accuracy on 5-class MIT-BIH; 4.28 ms and 0.09 mJ on GAP9; highlights efficiency and robustness under noise (intra-patient protocol). ([arxiv.org](https://arxiv.org/abs/2402.10748))"
+    },
+    {
+      "title": "ECGTransForm: Empowering adaptive ECG arrhythmia classification with bidirectional transformer (BSPC, 2024)",
+      "contribution": "Bi-directional transformer + multi-scale conv + channel recalibration and a class-imbalance-aware loss; open-source PyTorch; reports macro F1≈94.26% on MIT-BIH AAMI 5-class. ([github.com](https://github.com/emadeldeen24/ECGTransForm?utm_source=openai))"
+    },
+    {
+      "title": "A Systematic Review of ECG Arrhythmia Classification: Adherence to Standards, Fair Evaluation, and Embedded Feasibility (arXiv, 2025)",
+      "contribution": "Synthesizes 2017–2024 studies; emphasizes inter-patient evaluation, AAMI compliance, and embedded feasibility; cautions that many high accuracies use non-standard splits. ([arxiv.org](https://arxiv.org/abs/2503.07276))"
+    }
+  ],
+  "confidence": 0.78,
+  "timestamp": 1758303716,
+  "generated_time": "2025-09-19 12:41:56",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

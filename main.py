@@ -436,13 +436,50 @@ def process_real_data():
 
     return True
 
+def setup_global_exception_handler():
+    """Setup global exception handler to capture unhandled exceptions and log them"""
+    import sys
+    import traceback
+    from logging_config import get_pipeline_logger
+
+    def handle_exception(exc_type, exc_value, exc_traceback):
+        """Global exception handler that logs exceptions before termination"""
+        # Skip if it's KeyboardInterrupt
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+
+        # Get logger and log the exception
+        logger = get_pipeline_logger(__name__)
+        error_msg = f"Unhandled exception: {exc_type.__name__}: {exc_value}"
+
+        # Log the full traceback
+        tb_str = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        logger.error(f"{error_msg}\n{tb_str}")
+
+        # Also write to stderr (which the error monitor will catch)
+        sys.stderr.write(f"ERROR: {error_msg}\n")
+        sys.stderr.flush()
+
+        # Give error monitor time to process the error
+        import time
+        time.sleep(0.1)  # Small delay to ensure error monitor can react
+
+        # Call the default handler
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+    # Set the global exception handler
+    sys.excepthook = handle_exception
+
 if __name__ == "__main__":
-    
+    # Setup global exception handler first
+    setup_global_exception_handler()
+
     print("\n🤖 AI-Enhanced Machine Learning Pipeline")
     print("Code Generation Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation")
     print("=" * 80)
     logger.info("Starting AI-Enhanced Machine Learning Pipeline")
-    
+
     # Process real data from data/ directory
     processed_real_data = process_real_data()
     

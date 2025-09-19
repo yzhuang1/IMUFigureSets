@@ -45,82 +45,64 @@ class AICodeGenerator:
         # Dataset context for better model selection
         dataset_context = ""
         if config.dataset_name and config.dataset_name != "Unknown Dataset":
-            dataset_context = f"""
+            dataset_context = f"\nDataset: {config.dataset_name}\nSource: {config.dataset_source}"
 
-Dataset: {config.dataset_name}
-Source: {config.dataset_source}"""
+        # Sample count
+        num_samples = data_profile.get("sample_count", data_profile.get("num_samples", "unknown"))
 
-        # Base prompt
-        # Get sample count from data profile (correct field name is 'sample_count')
-        num_samples = data_profile.get('sample_count', data_profile.get('num_samples', 'unknown'))
+        prompt = f"""
+Generate a PyTorch training function for a {num_classes}-class classifier.
 
-        base_prompt = f"""
+Data: {data_profile['data_type']}, input shape {input_shape}, {num_samples} samples{dataset_context}
 
-Generate PyTorch training function for {num_classes}-class classification.
+- Use the first recommended approach if available, otherwise proceed with a reasonable architecture.
+"""
 
-Data: {data_profile['data_type']}, shape {input_shape}, {num_samples} samples{dataset_context}"""
-
-        # Add literature review insights if available
         if literature_review:
-            base_prompt += f"""
+            rec = (literature_review.recommended_approaches[0]
+                if literature_review.recommended_approaches else "No specific recommendation")
+            prompt += f"\Recommend: {rec}"
 
-LITERATURE REVIEW INSIGHTS:
-Recommended Model: {literature_review.recommended_approaches[0] if literature_review.recommended_approaches else 'No specific recommendation'}
-Please implement the recommended model architecture from the literature review."""
-
-        prompt = base_prompt + f"""
+        prompt += """
+Output: VALID JSON ONLY.
 
 Requirements:
-- Function: train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
-- X_train, y_train, X_val, y_val are PyTorch tensors
-- CRITICAL: Final model after quantization MUST be smaller than 256K parameters
-- Implement quantization based on hyperparameters (quantization_bits, quantize_weights, quantize_activations)
-- Use PyTorch's quantization APIs (torch.quantization) for post-training quantization
-- Choose quantization strategy based on model architecture characteristics
-- Bayesian Optimization will handle hyperparameter tuning (You can decide what parameters you want base on the model you choose)
-- Focus on core training loop, avoid complex scheduling/early stopping
-- Build model from scratch, include basic training loop, return quantized model and metrics
-- Use clear, descriptive parameter names that match your model implementation
+- Provide "training_code" implementing:
+  def train_model(X_train, y_train, X_val, y_val, device, **hyperparams **quantization parameters)
+  * tensors as inputs
+  * build model from scratch
+  * core train loop only (no fancy schedulers/early stopping)
+  * return quantized model + metrics
+  * fill in the real input you need for hyperparams and quantization parameters
+- Final model (after quantization) MUST have ≤ 256K parameters.
+- Implement post-training quantization using torch.quantization / torch.ao.quantization.
+  * Include hyperparams: quantization_bits ∈ {8, 16, 32}, quantize_weights ∈ {true,false}, quantize_activations ∈ {true,false}.
+  * Choose a sensible strategy for the chosen architecture (e.g., CNN vs Transformer).
 
-Response JSON format example:
-{{
-    "model_name": "ModelName",
-    "training_code": "def train_model(...):\\n    # Complete PyTorch training code here",
-    "bo_config": {{
-        "lr": {{"default": 0.001, "type": "Real", "low": 1e-5, "high": 1e-1, "prior": "log-uniform"}},
-        "batch_size": {{"default": 64, "type": "Categorical", "categories": [8, 16, 32, 64, 128]}},
-        "epochs": {{"default": 10, "type": "Integer", "low": 5, "high": 50}},
-        "hidden_size": {{"default": 128, "type": "Integer", "low": 32, "high": 512}},
-        "dropout": {{"default": 0.1, "type": "Real", "low": 0.0, "high": 0.7}},
-        "quantization_bits": {{"default": 32, "type": "Categorical", "categories": [8, 16, 32]}},
-        "quantize_weights": {{"default": false, "type": "Categorical", "categories": [true, false]}},
-        "quantize_activations": {{"default": false, "type": "Categorical", "categories": [true, false]}}
-    }},
-    "confidence": 0.9
-}}
+Bayesian Optimization:
+- Provide "bo_config" with ALL hyperparameters used in training_code.
+- Each item MUST have: "default", "type" ∈ {"Real","Integer","Categorical"}, and valid ranges:
+  * Real: low, high, optional prior ∈ {"uniform","log-uniform"} (if log-uniform, low > 0, e.g., 1e-6)
+  * Integer: low, high (inclusive)
+  * Categorical: categories [..]
+- Only include params actually consumed by training_code.
 
-CRITICAL bo_config REQUIREMENTS:
-- bo_config contains ALL hyperparameters for Bayesian Optimization
-- Each parameter MUST have: "default", "type", and valid ranges
-- Parameter types: "Real", "Integer", "Categorical"
-- For "Real": specify "low", "high", and optionally "prior" ("uniform" or "log-uniform")
-- For "Integer": specify "low", "high" (inclusive bounds)
-- For "Categorical": specify "categories" list with valid options
-- Only include parameters that are actually used in your training_code
-
-QUANTIZATION REQUIREMENTS:
-- ALWAYS include quantization parameters: quantization_bits, quantize_weights, quantize_activations
-- quantization_bits: 8 (INT8), 16 (FP16), 32 (FP32) - choose based on model complexity
-- quantize_weights: Apply quantization to model weights (recommended for large models)
-- quantize_activations: Apply quantization to activations (aggressive compression)
-- Implement post-training quantization using torch.quantization.quantize_dynamic or torch.ao.quantization
-- Consider model architecture when choosing quantization strategy (CNNs vs Transformers)
-- Verify final model size ≤ 256K parameters after quantization
-
-- IMPORTANT: For log-uniform prior, "low" MUST be > 0 (use 1e-6 minimum for learning rates)
-- Validate ranges make sense (e.g., dropout 0.0-0.7, lr 1e-6 to 1e-1)
-
-FOCUS: You MUST output valid JSON format only. No other text.
+Response JSON example:
+{
+  "model_name": "ModelName",
+  "training_code": "def train_model(...):\\n    # code",
+  "bo_config": {
+    "lr": {"default": 0.001, "type": "Real", "low": 1e-6, "high": 1e-1, "prior": "log-uniform"},
+    "batch_size": {"default": 64, "type": "Categorical", "categories": [8,16,32,64,128]},
+    "epochs": {"default": 10, "type": "Integer", "low": 5, "high": 50},
+    "hidden_size": {"default": 128, "type": "Integer", "low": 32, "high": 512},
+    "dropout": {"default": 0.1, "type": "Real", "low": 0.0, "high": 0.7},
+    "quantization_bits": {"default": 32, "type": "Categorical", "categories": [8,16,32]},
+    "quantize_weights": {"default": false, "type": "Categorical", "categories": [true,false]},
+    "quantize_activations": {"default": false, "type": "Categorical", "categories": [true,false]}
+  },
+  "confidence": 0.9
+}
 """
         return prompt
     
@@ -167,18 +149,46 @@ FOCUS: You MUST output valid JSON format only. No other text.
     
 
     def _debug_json_with_gpt(self, malformed_json: str, error_message: str) -> str:
-        """Use GPT to debug and fix JSON formatting issues"""
-        debug_prompt = f"""Examine what's the possible error in this JSON format and respond to me a correct version. ONLY output the error variable pair in JSON format.
+        """Use GPT to debug and fix any kind of error - JSON, training, or other issues"""
+
+        # Check if this is a training error or JSON error
+        is_training_error = any(keyword in error_message for keyword in [
+            "parameters, exceeds", "embed_dim must be divisible", "Expected all tensors",
+            "Model has", "quantized tensors", "cannot pin", "object has no attribute"
+        ])
+
+        if is_training_error:
+            debug_prompt = f"""Analyze this PyTorch training error and provide hyperparameter corrections.
+
+Training Error: {error_message}
+
+Training Code Context:
+{malformed_json}
+
+This error occurred during Bayesian Optimization. Provide ONLY a JSON object with corrected hyperparameter values that would fix this specific error. For example:
+
+- If "Model has X parameters, exceeds 256k limit" → reduce model size parameters like d_model, hidden_size, channels, layers, etc.
+- If "embed_dim must be divisible by num_heads" → adjust d_model or mha_heads to be compatible
+- If "Expected all tensors to be on the same device" → this is a code issue, return empty JSON
+- If parameter count error → return smaller architecture parameters
+
+Return only JSON with the specific parameter corrections needed:"""
+        else:
+            # Original JSON debugging logic
+            debug_prompt = f"""Analyze this error and provide debugging suggestions. Handle any type of error (JSON, PyTorch, training, etc.).
 
 Error: {error_message}
 
-Malformed JSON:
+Context/Code:
 {malformed_json}
 
 Only return the corrected key-value pair(s) that need to be fixed, nothing else."""
 
         try:
-            logger.info("Calling GPT to debug JSON formatting issues")
+            if is_training_error:
+                logger.info("Calling GPT to debug training error and suggest hyperparameter corrections")
+            else:
+                logger.info("Calling GPT to debug JSON formatting issues")
             debug_response = self._call_openai_api(debug_prompt)
 
             # Clean the debug response
@@ -384,9 +394,16 @@ Only return the corrected key-value pair(s) that need to be fixed, nothing else.
         
         # Create unique filename based on data characteristics and timestamp
         import time
+        import re
         timestamp = int(time.time())
         data_type = data_profile.get('data_type', 'unknown')
-        filename = f"training_function_{data_type}_{recommendation.model_name}_{timestamp}.json"
+
+        # Sanitize model name for filename (remove/replace invalid characters)
+        safe_model_name = re.sub(r'[<>:"/\\|?*()[\]{}]', '_', recommendation.model_name)
+        safe_model_name = re.sub(r'\s+', '_', safe_model_name)  # Replace spaces with underscores
+        safe_model_name = safe_model_name.strip('_')  # Remove leading/trailing underscores
+
+        filename = f"training_function_{data_type}_{safe_model_name}_{timestamp}.json"
         filepath = self.code_storage_dir / filename
         
         # Prepare data for JSON storage

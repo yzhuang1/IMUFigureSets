@@ -1,0 +1,184 @@
+{
+  "model_name": "Tiny1DViT-BeatTok-RR (MIT-BIH, 5-class)",
+  "training_code": "import math\\nimport torch\\nimport torch.nn as nn\\nimport torch.nn.functional as F\\nfrom torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler\\n\\n\\ndef train_model(X_train, y_train, X_val, y_val, device, **params):\\n    \"\"\"\\n    Train a tiny 1D ViT-style classifier with beat-centered tokenization, two-lead embedding, and RR-interval fusion.\\n\\n    Inputs:\\n      - X_train, X_val: torch.Tensor of shape (N, 1000, 2) with 2-lead ECG windows\\n      - y_train, y_val: torch.LongTensor of shape (N,) with 5-class labels (0..4)\\n      - device: torch.device('cuda' or 'cpu')\\n      - params: hyperparameters and quantization parameters (see bo_config)\\n\\n    Returns:\\n      - qmodel: post-training quantized model (according to quantization_bits/flags)\\n      - metrics: dict with training/validation metrics and parameter count\\n    \"\"\"\\n\\n    # ------------------ Hyperparameters (with safe defaults) ------------------\\n    hp = {\\n        'lr':               params.get('lr', 1e-3),\\n        'epochs':           int(params.get('epochs', 15)),\\n        'batch_size':       int(params.get('batch_size', 128)),\\n        'weight_decay':     params.get('weight_decay', 1e-4),\\n        'd_model':          int(params.get('d_model', 64)),\\n        'n_heads':          int(params.get('n_heads', 4)),\\n        'n_layers':         int(params.get('n_layers', 2)),\\n        'mlp_ratio':        int(params.get('mlp_ratio', 2)),\\n        'dropout':          float(params.get('dropout', 0.1)),\\n        'max_tokens':       int(params.get('max_tokens', 12)),\\n        'segment_len':      int(params.get('segment_len', 64)),\\n        'min_r_distance':   int(params.get('min_r_distance', 50)),\\n        'peak_threshold':   float(params.get('peak_threshold', 0.5)),\\n        'focal_gamma':      float(params.get('focal_gamma', 2.0)),\\n        'label_smoothing':  float(params.get('label_smoothing', 0.0)),\\n        'aug_noise_std':    float(params.get('aug_noise_std', 0.005)),\\n        'aug_time_jitter':  int(params.get('aug_time_jitter', 4)),\\n        'class_balance':    bool(params.get('class_balance', True)),\\n        'grad_clip_norm':   float(params.get('grad_clip_norm', 1.0)),\\n        # Quantization\\n        'quantization_bits':    params.get('quantization_bits', 8),\\n        'quantize_weights':     bool(params.get('quantize_weights', True)),\\n        'quantize_activations': bool(params.get('quantize_activations', False)),\\n    }\\n\\n    # Ensure heads divides d_model\\n    if hp['d_model'] % hp['n_heads'] != 0:\\n        # Pick the largest divisor of d_model not exceeding n_heads, fallback to 1\\n        divisors = [h for h in range(1, hp['n_heads']+1) if hp['d_model'] % h == 0]\\n        hp['n_heads'] = max(divisors) if len(divisors) > 0 else 1\\n\\n    # Ensure even segment_len\\n    if hp['segment_len'] % 2 != 0:\\n        hp['segment_len'] += 1\\n\\n    num_classes = 5\\n    window_len = X_train.shape[1]\\n    in_channels = X_train.shape[2]\\n\\n    # ------------------ Dataset and DataLoaders ------------------\\n    X_train = X_train.float()\\n    X_val = X_val.float()\\n    y_train = y_train.long()\\n    y_val = y_val.long()\\n\\n    train_ds = TensorDataset(X_train, y_train)\\n    val_ds = TensorDataset(X_val, y_val)\\n\\n    if hp['class_balance']:\\n        # Weighted sampling to emphasize minority classes\\n        with torch.no_grad():\\n            counts = torch.bincount(y_train, minlength=num_classes).float()\\n            counts[counts == 0] = 1.0\\n            class_weights = 1.0 / counts\\n            sample_weights = class_weights[y_train]\\n        sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)\\n        train_loader = DataLoader(train_ds, batch_size=hp['batch_size'], sampler=sampler, drop_last=True)\\n        shuffle_flag = False\\n    else:\\n        train_loader = DataLoader(train_ds, batch_size=hp['batch_size'], shuffle=True, drop_last=True)\\n        shuffle_flag = True\\n\\n    val_loader = DataLoader(val_ds, batch_size=hp['batch_size'], shuffle=False)\\n\\n    # ------------------ Model Definition ------------------\\n    class BeatTokenizer(nn.Module):\\n        def __init__(self, segment_len=64, max_tokens=12, d_model=64, min_r_distance=50, peak_threshold=0.5):\\n            super().__init__()\\n            self.segment_len = int(segment_len)\\n            self.half = self.segment_len // 2\\n            self.max_tokens = int(max_tokens)\\n            self.d_model = int(d_model)\\n            self.min_r_distance = int(min_r_distance)\\n            self.peak_threshold = float(peak_threshold)\\n            # Flatten 2*segment_len -> d_model\\n            self.embed = nn.Linear(in_channels * self.segment_len, self.d_model)\\n            self.rr_proj = nn.Linear(2, self.d_model)\\n            self.pos_emb = nn.Parameter(torch.zeros(1, self.max_tokens, self.d_model))\\n            self.cls_token = nn.Parameter(torch.zeros(1, 1, self.d_model))\\n            nn.init.trunc_normal_(self.pos_emb, std=0.02)\\n            nn.init.trunc_normal_(self.cls_token, std=0.02)\\n\\n        def detect_peaks_1d(self, x):\\n            # x: (T,) lead signal\\n            T = x.shape[0]\\n            dx = F.pad(x[1:] - x[:-1], (1, 0))\\n            sx = dx.pow(2)\\n            ma = F.avg_pool1d(sx.view(1, 1, -1), kernel_size=15, stride=1, padding=7).view(-1)\\n            thr = ma.mean() + self.peak_threshold * ma.std()\\n            mask = ma > thr\\n            peaks = []\\n            i = 0\\n            while i < T:\\n                if mask[i]:\\n                    j = min(i + self.min_r_distance, T)\\n                    seg = x[i:j]\\n                    if seg.numel() == 0:\\n                        break\\n                    idx_rel = int(torch.argmax(seg).item())\\n                    idx = i + idx_rel\\n                    peaks.append(idx)\\n                    i = j\\n                else:\\n                    i += 1\\n            if len(peaks) == 0:\\n                peaks = [T // 2]\\n            return peaks\\n\\n        def extract_tokens_for_sample(self, s):\\n            # s: (T, 2)\\n            lead0 = s[:, 0]\\n            T = s.shape[0]\\n            peaks = self.detect_peaks_1d(lead0)\\n            # If too many, pick strongest by lead0 amplitude at peak, keep time order among selected\\n            if len(peaks) > self.max_tokens:\\n                vals = torch.tensor([lead0[p].item() for p in peaks], device=s.device)\\n                topk_idx = torch.topk(vals, self.max_tokens).indices.tolist()\\n                peaks = [peaks[i] for i in sorted(topk_idx)]\\n\\n            rr_prev, rr_next = [], []\\n            for i, p in enumerate(peaks):\\n                prevp = peaks[i - 1] if i > 0 else p\\n                nextp = peaks[i + 1] if i < len(peaks) - 1 else p\\n                rr_p = (p - prevp) / max(1, T)\\n                rr_n = (nextp - p) / max(1, T)\\n                rr_prev.append(rr_p)\\n                rr_next.append(rr_n)\\n\\n            tokens = []\\n            for p in peaks:\\n                start = p - self.half\\n                end = start + self.segment_len\\n                pad_left = max(0, -start)\\n                pad_right = max(0, end - T)\\n                s_pad = F.pad(s, (0, 0, pad_left, pad_right), mode='constant', value=0.0)\\n                start = max(0, start)\\n                end = start + self.segment_len\\n                seg = s_pad[start:end, :]  # (segment_len, 2)\\n                tokens.append(seg)\\n\\n            pad_needed = self.max_tokens - len(tokens)\\n            if pad_needed > 0:\\n                tokens += [torch.zeros(self.segment_len, in_channels, dtype=s.dtype, device=s.device) for _ in range(pad_needed)]\\n                rr_prev += [0.0] * pad_needed\\n                rr_next += [0.0] * pad_needed\\n\\n            valid_count = min(self.max_tokens, len(peaks))\\n            pad_mask = torch.zeros(self.max_tokens, dtype=torch.bool, device=s.device)\\n            if valid_count < self.max_tokens:\\n                pad_mask[valid_count:] = True\\n\\n            tokens_tensor = torch.stack(tokens, dim=0)  # (max_tokens, segment_len, 2)\\n            rr = torch.tensor(list(zip(rr_prev, rr_next)), dtype=s.dtype, device=s.device)  # (max_tokens, 2)\\n            return tokens_tensor, rr, pad_mask, valid_count\\n\\n        def forward(self, x):\\n            # x: (B, T, 2)\\n            B, T, C = x.shape\\n            tok_list, rr_list, mask_list = [], [], []\\n            for b in range(B):\\n                tokens_b, rr_b, pad_mask_b, _ = self.extract_tokens_for_sample(x[b])\\n                tokens_b = tokens_b.reshape(self.max_tokens, -1)  # (max_tokens, 2*segment_len)\\n                tok_emb = self.embed(tokens_b)\\n                rr_emb = self.rr_proj(rr_b)\\n                tok = tok_emb + rr_emb + self.pos_emb[0]\\n                tok_list.append(tok)\\n                mask_list.append(pad_mask_b)\\n            tokens = torch.stack(tok_list, dim=0)  # (B, max_tokens, d_model)\\n            mask = torch.stack(mask_list, dim=0)    # (B, max_tokens) True for padding\\n            cls = self.cls_token.expand(B, -1, -1)  # (B,1,d_model)\\n            tokens = torch.cat([cls, tokens], dim=1)\\n            cls_mask = torch.zeros(B, 1, dtype=torch.bool, device=x.device)\\n            mask = torch.cat([cls_mask, mask], dim=1)\\n            return tokens, mask\\n\\n    class Tiny1DViTClassifier(nn.Module):\\n        def __init__(self, d_model=64, n_heads=4, n_layers=2, mlp_ratio=2, dropout=0.1, segment_len=64, max_tokens=12, min_r_distance=50, peak_threshold=0.5, num_classes=5):\\n            super().__init__()\\n            self.tokenizer = BeatTokenizer(segment_len=segment_len, max_tokens=max_tokens, d_model=d_model, min_r_distance=min_r_distance, peak_threshold=peak_threshold)\\n            encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, dim_feedforward=int(d_model * mlp_ratio), dropout=dropout, batch_first=True, activation='gelu', norm_first=True)\\n            self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)\\n            self.norm = nn.LayerNorm(d_model)\\n            self.head = nn.Linear(d_model, num_classes)\\n\\n        def forward(self, x):\\n            tokens, key_pad_mask = self.tokenizer(x)\\n            out = self.encoder(tokens, src_key_padding_mask=key_pad_mask)\\n            out = self.norm(out)\\n            cls = out[:, 0, :]\\n            logits = self.head(cls)\\n            return logits\\n\\n    # ------------------ Loss: Class-balanced Focal Loss ------------------\\n    class FocalLoss(nn.Module):\\n        def __init__(self, alpha=None, gamma=2.0, reduction='mean', label_smoothing=0.0):\\n            super().__init__()\\n            self.register_buffer('alpha', alpha if alpha is not None else None)\\n            self.gamma = gamma\\n            self.reduction = reduction\\n            self.ls = label_smoothing\\n\\n        def forward(self, logits, target):\\n            # logits: (B,C); target: (B,) int or (B,C) one-hot\\n            logp = F.log_softmax(logits, dim=-1)\\n            p = torch.exp(logp)\\n            if target.dim() == 1:\\n                target_one_hot = F.one_hot(target, num_classes=logits.size(-1)).float()\\n            else:\\n                target_one_hot = target\\n            if self.ls > 0.0:\\n                target_one_hot = (1 - self.ls) * target_one_hot + self.ls / logits.size(-1)\\n            ce = -(target_one_hot * logp).sum(dim=-1)\\n            pt = (target_one_hot * p).sum(dim=-1)\\n            focal_term = (1 - pt).clamp_min(1e-6).pow(self.gamma)\\n            if self.alpha is not None:\\n                alpha_t = (self.alpha.unsqueeze(0) * target_one_hot).sum(dim=-1)\\n                loss = alpha_t * focal_term * ce\\n            else:\\n                loss = focal_term * ce\\n            if self.reduction == 'mean':\\n                return loss.mean()\\n            elif self.reduction == 'sum':\\n                return loss.sum()\\n            else:\\n                return loss\\n\\n    # ------------------ Metrics ------------------\\n    @torch.no_grad()\\n    def evaluate(model, loader, device):\\n        model.eval()\\n        all_logits = []\\n        all_targets = []\\n        for xb, yb in loader:\\n            xb = xb.to(device)\\n            yb = yb.to(device)\\n            logits = model(xb)\\n            all_logits.append(logits.cpu())\\n            all_targets.append(yb.cpu())\\n        logits = torch.cat(all_logits, dim=0)\\n        targets = torch.cat(all_targets, dim=0)\\n        preds = logits.argmax(dim=-1)\\n        acc = (preds == targets).float().mean().item()\\n        # Confusion matrix\\n        C = torch.zeros(num_classes, num_classes, dtype=torch.long)\\n        for t, p in zip(targets, preds):\\n            C[t, p] += 1\\n        # Macro-F1\\n        f1s = []\\n        for i in range(num_classes):\\n            tp = C[i, i].item()\\n            fp = C[:, i].sum().item() - tp\\n            fn = C[i, :].sum().item() - tp\\n            denom = (2 * tp + fp + fn)\\n            f1 = 0.0 if denom == 0 else (2 * tp) / denom\\n            f1s.append(f1)\\n        f1_macro = float(sum(f1s) / len(f1s))\\n        return {\\n            'val_accuracy': acc,\\n            'val_f1_macro': f1_macro,\\n            'confusion_matrix': C.tolist()\\n        }\\n\\n    # ------------------ Instantiate model ------------------\\n    model = Tiny1DViTClassifier(\\n        d_model=hp['d_model'],\\n        n_heads=hp['n_heads'],\\n        n_layers=hp['n_layers'],\\n        mlp_ratio=hp['mlp_ratio'],\\n        dropout=hp['dropout'],\\n        segment_len=hp['segment_len'],\\n        max_tokens=hp['max_tokens'],\\n        min_r_distance=hp['min_r_distance'],\\n        peak_threshold=hp['peak_threshold'],\\n        num_classes=num_classes,\\n    ).to(device)\\n\\n    # Parameter count check (should be <= 256k)\\n    param_count = sum(p.numel() for p in model.parameters())\\n\\n    # ------------------ Optimizer & Loss ------------------\\n    with torch.no_grad():\\n        counts = torch.bincount(y_train, minlength=num_classes).float()\\n        counts[counts == 0] = 1.0\\n        alpha = (1.0 / counts)\\n        alpha = alpha / alpha.sum() * num_classes\\n    criterion = FocalLoss(alpha=alpha.to(device), gamma=hp['focal_gamma'], label_smoothing=hp['label_smoothing'])\\n    optimizer = torch.optim.AdamW(model.parameters(), lr=hp['lr'], weight_decay=hp['weight_decay'])\\n\\n    # ------------------ Training Loop ------------------\\n    def augment_batch(x):\\n        # Time-jitter (circular shift) and Gaussian noise\\n        if hp['aug_time_jitter'] > 0:\\n            shifts = torch.randint(low=-hp['aug_time_jitter'], high=hp['aug_time_jitter'] + 1, size=(x.size(0),))\\n            for i, s in enumerate(shifts):\\n                if s.item() != 0:\\n                    x[i] = torch.roll(x[i], shifts=int(s.item()), dims=0)\\n        if hp['aug_noise_std'] > 0:\\n            noise = torch.randn_like(x) * hp['aug_noise_std']\\n            x = x + noise\\n        return x\\n\\n    history = {\\n        'train_loss': [],\\n        'val_accuracy': [],\\n        'val_f1_macro': []\\n    }\\n\\n    for epoch in range(hp['epochs']):\\n        model.train()\\n        running_loss = 0.0\\n        n_batches = 0\\n        for xb, yb in train_loader:\\n            xb = xb.to(device)\\n            yb = yb.to(device)\\n            xb = augment_batch(xb)\\n\\n            optimizer.zero_grad(set_to_none=True)\\n            logits = model(xb)\\n            loss = criterion(logits, yb)\\n            loss.backward()\\n            if hp['grad_clip_norm'] and hp['grad_clip_norm'] > 0:\\n                nn.utils.clip_grad_norm_(model.parameters(), max_norm=hp['grad_clip_norm'])\\n            optimizer.step()\\n\\n            running_loss += loss.item()\\n            n_batches += 1\\n\\n        avg_train_loss = running_loss / max(1, n_batches)\\n        val_metrics = evaluate(model, val_loader, device)\\n        history['train_loss'].append(avg_train_loss)\\n        history['val_accuracy'].append(val_metrics['val_accuracy'])\\n        history['val_f1_macro'].append(val_metrics['val_f1_macro'])\\n\\n    # Final evaluation\\n    final_metrics = evaluate(model, val_loader, device)\\n    final_metrics['train_loss_last'] = history['train_loss'][-1] if len(history['train_loss'])>0 else None\\n    final_metrics['param_count'] = int(param_count)\\n\\n    # ------------------ Post-training Quantization ------------------\\n    # Always quantize on CPU for portability\\n    model_cpu = model.to('cpu').eval()\\n\\n    qbits = int(hp['quantization_bits'])\\n    qweights = bool(hp['quantize_weights'])\\n    qacts = bool(hp['quantize_activations'])\\n\\n    # Default: no quantization\\n    qmodel = model_cpu\\n\\n    if qbits == 32 or not qweights:\\n        # keep fp32\\n        qmodel = model_cpu\\n    elif qbits == 16:\\n        # Cast weights to half precision; on CPU float16 support is limited, use bfloat16 fallback\\n        try:\\n            qmodel = model_cpu.to(torch.float16)\\n        except Exception:\\n            qmodel = model_cpu.to(torch.bfloat16)\\n    elif qbits == 8 and qweights:\\n        # Dynamic quantization for Linear layers (works well for Transformer blocks).\\n        # Note: activations remain float in dynamic quantization even if quantize_activations=True.\\n        import torch.ao.quantization as aoq\\n        qmodel = aoq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.qint8)\\n\\n    return qmodel, final_metrics\\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.005,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 15,
+      "type": "Integer",
+      "low": 5,
+      "high": 40
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "d_model": {
+      "default": 64,
+      "type": "Integer",
+      "low": 48,
+      "high": 96
+    },
+    "n_heads": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        2,
+        4,
+        6
+      ]
+    },
+    "n_layers": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 3
+    },
+    "mlp_ratio": {
+      "default": 2,
+      "type": "Integer",
+      "low": 2,
+      "high": 3
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.3
+    },
+    "max_tokens": {
+      "default": 12,
+      "type": "Integer",
+      "low": 8,
+      "high": 16
+    },
+    "segment_len": {
+      "default": 64,
+      "type": "Integer",
+      "low": 48,
+      "high": 96
+    },
+    "min_r_distance": {
+      "default": 50,
+      "type": "Integer",
+      "low": 40,
+      "high": 80
+    },
+    "peak_threshold": {
+      "default": 0.5,
+      "type": "Real",
+      "low": 0.3,
+      "high": 1.0
+    },
+    "focal_gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 3.0
+    },
+    "label_smoothing": {
+      "default": 0.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.1
+    },
+    "aug_noise_std": {
+      "default": 0.005,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.02
+    },
+    "aug_time_jitter": {
+      "default": 4,
+      "type": "Integer",
+      "low": 0,
+      "high": 8
+    },
+    "class_balance": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "grad_clip_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 2.0
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    }
+  },
+  "confidence": 0.84,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758305884,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

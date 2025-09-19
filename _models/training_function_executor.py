@@ -54,9 +54,13 @@ class TrainingFunctionExecutor:
         if isinstance(training_code, str):
             try:
                 # Replace common JSON escape sequences that might cause issues
-                training_code = training_code.replace('\\n', '\n')
-                training_code = training_code.replace('\\t', '\t')
-                training_code = training_code.replace('\\r', '\r')
+                # Handle double-escaped sequences first, then single-escaped
+                training_code = training_code.replace('\\\\n', '\n')   # Handle double-escaped newlines
+                training_code = training_code.replace('\\n', '\n')     # Handle single-escaped newlines
+                training_code = training_code.replace('\\\\t', '\t')   # Handle double-escaped tabs
+                training_code = training_code.replace('\\t', '\t')     # Handle single-escaped tabs
+                training_code = training_code.replace('\\\\r', '\r')   # Handle double-escaped carriage returns
+                training_code = training_code.replace('\\r', '\r')     # Handle single-escaped carriage returns
                 training_code = training_code.replace('\\"', '"')
                 training_code = training_code.replace('\\\\', '\\')
             except Exception as e:

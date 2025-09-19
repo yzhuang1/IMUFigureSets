@@ -10,43 +10,39 @@ import io
 import atexit
 from typing import Set, List, Callable
 
+
+class LoggingErrorHandler(logging.Handler):
+    """Custom logging handler to monitor ERROR level messages"""
+
+    def __init__(self, error_terminator):
+        super().__init__()
+        self.error_terminator = error_terminator
+
+    def emit(self, record):
+        """Called when a log record is emitted"""
+        if record.levelname == "ERROR":
+            log_message = self.format(record)
+            self.error_terminator._check_for_error(log_message, "LOGGING")
+
+
 class ErrorTerminator:
     """
     Monitors logging output and stdout/stderr for ERROR messages.
     Terminates the program immediately when ERROR is detected.
     """
     
-    def __init__(self, 
+    def __init__(self,
                  terminate_on_error: bool = True,
-                 error_keywords: List[str] = None,
-                 ignore_patterns: List[str] = None):
+                 error_keywords: List[str] = None):
         """
         Initialize the error terminator.
-        
+
         Args:
             terminate_on_error: Whether to terminate on error detection
             error_keywords: List of keywords that trigger termination (default: ["ERROR"])
-            ignore_patterns: List of patterns to ignore (case-insensitive)
         """
         self.terminate_on_error = terminate_on_error
         self.error_keywords = error_keywords or ["ERROR"]
-        # Enhanced ignore patterns to avoid false positives
-        default_ignore_patterns = [
-            "error handling", "error detection", "no error", "error rate", 
-            "error analysis", "[notice]", "❌ error:", "error:", 
-            "pipeline error",
-            "failed to load", "could not load", "not found", "❌ pipeline error",
-            "critical error detected", "terminating program", "🚨",
-            "error monitoring", "monitoring activated", "terminate on",
-            
-            # Training errors that should trigger retry cycles, not termination
-            "training execution failed", "hidden_size must be divisible", 
-            "training function generation attempt", "debug attempt", 
-            "bo training objective failed", "model architecture validation failed",
-            "hyperparameter constraint", "divisible by nheads", "divisible by num_heads",
-            "failed to parse", "generation attempt", "regenerating code"
-        ]
-        self.ignore_patterns = [p.lower() for p in (ignore_patterns or [])] + default_ignore_patterns
         self.original_stdout = sys.stdout
         self.original_stderr = sys.stderr
         self.is_monitoring = False
@@ -56,7 +52,7 @@ class ErrorTerminator:
         self.log_handler = None
         
     def start_monitoring(self):
-        """Start monitoring stdout, stderr for ERROR messages"""
+        """Start monitoring stdout, stderr, and logging for ERROR messages"""
         if self.is_monitoring:
             return
 
@@ -66,10 +62,14 @@ class ErrorTerminator:
         sys.stdout = self._create_monitoring_stream(self.original_stdout, "STDOUT")
         sys.stderr = self._create_monitoring_stream(self.original_stderr, "STDERR")
 
+        # Add logging handler to monitor log messages
+        self.log_handler = LoggingErrorHandler(self)
+        logging.getLogger().addHandler(self.log_handler)
+
         # Register cleanup on exit
         atexit.register(self.stop_monitoring)
 
-        print("🔍 Error monitoring activated - program will terminate on critical errors")
+        print("[DEBUG] Error monitoring activated - program will terminate on critical errors")
         
     def stop_monitoring(self):
         """Stop monitoring and restore original streams"""
@@ -81,6 +81,11 @@ class ErrorTerminator:
         # Restore original streams
         sys.stdout = self.original_stdout
         sys.stderr = self.original_stderr
+
+        # Remove logging handler
+        if self.log_handler:
+            logging.getLogger().removeHandler(self.log_handler)
+            self.log_handler = None
 
             
     def _create_monitoring_stream(self, original_stream, stream_name):
@@ -112,28 +117,23 @@ class ErrorTerminator:
         if not self.terminate_on_error:
             return
 
+        # Skip monitoring our own debug messages to prevent recursion
+        if "[DEBUG]" in text or "BO Error detected" in text:
+            return
+
         # Check for ERROR pattern (case-sensitive)
         for keyword in self.error_keywords:
             if keyword in text:
-                # Check if this should be ignored (case-insensitive for ignore patterns)
-                should_ignore = False
-                text_lower = text.lower()
-                for ignore_pattern in self.ignore_patterns:
-                    if ignore_pattern in text_lower:
-                        should_ignore = True
-                        break
-
-                if not should_ignore:
-                    # Check if we're in BO process - if so, send to debug GPT instead of terminating
-                    global _in_bo_process
-                    if _in_bo_process:
-                        self._handle_bo_error(text, source)
-                        return
-
-                    error_msg = f"ERROR pattern '{keyword}' detected in {source}: {text.strip()}"
-                    self.detected_errors.append(error_msg)
-                    self._terminate_program(error_msg)
+                # Check if we're in BO process - if so, send to debug GPT instead of terminating
+                global _in_bo_process
+                if _in_bo_process:
+                    self._handle_bo_error(text, source)
                     return
+
+                error_msg = f"ERROR pattern '{keyword}' detected in {source}: {text.strip()}"
+                self.detected_errors.append(error_msg)
+                self._terminate_program(error_msg)
+                return
                 
     def _handle_bo_error(self, text: str, source: str):
         """Handle error during BO process - send to debug GPT instead of terminating"""
@@ -141,10 +141,62 @@ class ErrorTerminator:
             # Import and use the debug GPT functionality
             from _models.ai_code_generator import ai_code_generator
 
-            print(f"\n🔧 BO Error detected - sending to debug GPT: {text.strip()}")
+            print(f"\n[DEBUG] BO Error detected - sending to debug GPT: {text.strip()}")
 
-            # You can add the actual debug GPT call here
-            # For now, just log it and continue
+            # Store error information for potential combination with training code
+            if not hasattr(self, 'pending_training_error'):
+                self.pending_training_error = None
+                self.pending_training_code = None
+
+            # Check if this is a training execution error or training code log
+            if "Training execution failed:" in text:
+                # Extract the actual error message
+                error_start = text.find("Training execution failed:") + len("Training execution failed:")
+                actual_error = text[error_start:].strip()
+                self.pending_training_error = actual_error
+                print(f"[DEBUG] Captured training error: {actual_error}")
+                return  # Wait for the training code to be logged
+
+            elif "Training code:" in text:
+                # Extract the training code
+                code_start = text.find("Training code:") + len("Training code:")
+                training_code = text[code_start:].strip()
+                self.pending_training_code = training_code
+                print(f"[DEBUG] Captured training code: {training_code[:100]}...")
+
+                # If we have both error and code, send to GPT
+                if self.pending_training_error:
+                    print("[DEBUG] Calling _debug_json_with_gpt with combined context")
+                    corrections = ai_code_generator._debug_json_with_gpt(
+                        self.pending_training_code,
+                        self.pending_training_error
+                    )
+
+                    if corrections and corrections != "{}":
+                        print(f"[DEBUG] GPT suggested corrections: {corrections}")
+                        # Store corrections for potential use by the BO process
+                        self.last_json_corrections = corrections
+                    else:
+                        print("[DEBUG] GPT could not provide valid corrections")
+
+                    # Reset for next error
+                    self.pending_training_error = None
+                    self.pending_training_code = None
+                return
+
+            else:
+                # For other types of errors, use the original approach
+                print("[DEBUG] Calling _debug_json_with_gpt for general BO error")
+                corrections = ai_code_generator._debug_json_with_gpt(text, text.strip())
+
+                if corrections and corrections != "{}":
+                    print(f"[DEBUG] GPT suggested corrections: {corrections}")
+                    # Store corrections for potential use by the BO process
+                    self.last_json_corrections = corrections
+                else:
+                    print("[DEBUG] GPT could not provide valid corrections")
+
+            # Log the error but don't terminate
             error_msg = f"BO Error in {source}: {text.strip()}"
             self.detected_errors.append(error_msg)
 
@@ -197,14 +249,12 @@ _global_terminator = None
 # Global flag to track if we're in BO process
 _in_bo_process = False
 
-def enable_error_termination(error_keywords: List[str] = None, 
-                           ignore_patterns: List[str] = None):
+def enable_error_termination(error_keywords: List[str] = None):
     """
     Enable global error termination monitoring.
     
     Args:
         error_keywords: List of keywords that trigger termination (default: ["ERROR"])
-        ignore_patterns: List of patterns to ignore
     """
     global _global_terminator
     
@@ -212,7 +262,6 @@ def enable_error_termination(error_keywords: List[str] = None,
         _global_terminator = ErrorTerminator(
             terminate_on_error=True,
             error_keywords=error_keywords,
-            ignore_patterns=ignore_patterns
         )
         _global_terminator.start_monitoring()
     
@@ -245,12 +294,21 @@ def re_enable_error_monitoring():
 
 def set_bo_process_mode(enabled: bool):
     """Set whether we're currently in BO process (for error handling)"""
-    global _in_bo_process
+    global _in_bo_process, _global_terminator
     _in_bo_process = enabled
     if enabled:
-        print("🔧 BO process mode enabled - errors will be sent to debug GPT")
+        print("[DEBUG] BO process mode enabled - errors will be sent to debug GPT")
+        # Start error monitoring if not already active
+        if not _global_terminator or not _global_terminator.is_monitoring:
+            _global_terminator = ErrorTerminator()
+            _global_terminator.start_monitoring()
+            print("[DEBUG] Error monitoring started for BO process")
     else:
-        print("🔍 BO process mode disabled - errors will terminate program")
+        print("[DEBUG] BO process mode disabled - errors will terminate program")
+        # Stop error monitoring when BO process ends
+        if _global_terminator and _global_terminator.is_monitoring:
+            _global_terminator.stop_monitoring()
+            print("[DEBUG] Error monitoring stopped - BO process ended")
 
 def is_in_bo_process() -> bool:
     """Check if we're currently in BO process"""
@@ -264,7 +322,6 @@ if __name__ == "__main__":
     # Enable monitoring
     enable_error_termination(
         error_keywords=["ERROR"],
-        ignore_patterns=[]
     )
     
     print("This is a normal message")

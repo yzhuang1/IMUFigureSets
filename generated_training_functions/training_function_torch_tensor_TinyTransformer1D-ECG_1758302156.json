@@ -1,0 +1,225 @@
+{
+  "model_name": "TinyTransformer1D-ECG",
+  "training_code": "import math\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.data import TensorDataset, DataLoader\nfrom typing import Dict, Any, Tuple\n\n# ----------------------------\n# TinyTransformer-1D for (L=1000, C=2) inputs\n# ----------------------------\nclass SinusoidalPositionalEncoding(nn.Module):\n    def __init__(self, d_model: int, max_len: int = 1000):\n        super().__init__()\n        pe = torch.zeros(max_len, d_model)\n        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)\n        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))\n        pe[:, 0::2] = torch.sin(position * div_term)\n        pe[:, 1::2] = torch.cos(position * div_term)\n        self.register_buffer('pe', pe, persistent=False)\n    def forward(self, x):\n        # x: (B, L, D)\n        L = x.size(1)\n        return x + self.pe[:L].unsqueeze(0)\n\nclass MHSelfAttention(nn.Module):\n    def __init__(self, dim: int, num_heads: int, attn_dropout: float = 0.0, proj_dropout: float = 0.0):\n        super().__init__()\n        self.dim = dim\n        self.num_heads = max(1, num_heads)\n        self.head_dim = dim // self.num_heads\n        if dim % self.num_heads != 0:\n            # Fall back to single head if incompatible\n            self.num_heads = 1\n            self.head_dim = dim\n        self.scale = self.head_dim ** -0.5\n        self.q = nn.Linear(dim, dim, bias=True)\n        self.k = nn.Linear(dim, dim, bias=True)\n        self.v = nn.Linear(dim, dim, bias=True)\n        self.proj = nn.Linear(dim, dim)\n        self.attn_drop = nn.Dropout(attn_dropout)\n        self.proj_drop = nn.Dropout(proj_dropout)\n    def forward(self, x):\n        # x: (B, L, C)\n        B, L, C = x.shape\n        q = self.q(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)  # (B, h, L, d)\n        k = self.k(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)\n        v = self.v(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)\n        attn = (q @ k.transpose(-2, -1)) * self.scale\n        attn = F.softmax(attn, dim=-1)\n        attn = self.attn_drop(attn)\n        out = attn @ v  # (B, h, L, d)\n        out = out.transpose(1, 2).contiguous().view(B, L, C)\n        out = self.proj(out)\n        out = self.proj_drop(out)\n        return out\n\nclass TransformerBlock(nn.Module):\n    def __init__(self, dim: int, num_heads: int, mlp_ratio: float = 2.0, dropout: float = 0.1, attn_dropout: float = 0.0):\n        super().__init__()\n        hidden_dim = max(8, int(dim * mlp_ratio))\n        self.norm1 = nn.LayerNorm(dim)\n        self.attn = MHSelfAttention(dim, num_heads, attn_dropout=attn_dropout, proj_dropout=dropout)\n        self.norm2 = nn.LayerNorm(dim)\n        self.mlp = nn.Sequential(\n            nn.Linear(dim, hidden_dim),\n            nn.GELU(),\n            nn.Dropout(dropout),\n            nn.Linear(hidden_dim, dim),\n            nn.Dropout(dropout),\n        )\n    def forward(self, x):\n        x = x + self.attn(self.norm1(x))\n        x = x + self.mlp(self.norm2(x))\n        return x\n\nclass TinyTransformer1D(nn.Module):\n    def __init__(self, in_ch: int = 2, seq_len: int = 1000, num_classes: int = 5, embed_dim: int = 32, num_layers: int = 2, num_heads: int = 2, mlp_ratio: float = 2.0, dropout: float = 0.1):\n        super().__init__()\n        self.seq_len = seq_len\n        self.embed_dim = embed_dim\n        # Lightweight conv/embedding stem\n        self.stem = nn.Sequential(\n            nn.Conv1d(in_ch, embed_dim, kernel_size=5, padding=2, bias=True),\n            nn.GELU(),\n            nn.Dropout(dropout),\n        )\n        self.posenc = SinusoidalPositionalEncoding(embed_dim, max_len=seq_len)\n        blocks = []\n        for _ in range(max(1, num_layers)):\n            blocks.append(TransformerBlock(embed_dim, num_heads, mlp_ratio=mlp_ratio, dropout=dropout, attn_dropout=0.0))\n        self.blocks = nn.Sequential(*blocks)\n        self.norm = nn.LayerNorm(embed_dim)\n        self.head = nn.Sequential(\n            nn.Dropout(dropout),\n            nn.Linear(embed_dim, num_classes)\n        )\n    def forward(self, x):\n        # x: (B, L=1000, C=2)\n        if x.dim() != 3:\n            raise ValueError(f\"Expected input of shape (B, L, C); got {x.shape}\")\n        x = x.transpose(1, 2)  # (B, C, L)\n        x = self.stem(x)      # (B, D, L)\n        x = x.transpose(1, 2) # (B, L, D)\n        x = self.posenc(x)\n        x = self.blocks(x)\n        x = self.norm(x)\n        x = x.mean(dim=1)     # Global average pooling over time\n        logits = self.head(x)\n        return logits\n\n# ----------------------------\n# Utilities\n# ----------------------------\n\ndef _count_params(model: nn.Module) -> int:\n    return sum(p.numel() for p in model.parameters())\n\nclass FocalLoss(nn.Module):\n    def __init__(self, gamma: float = 2.0, weight=None, reduction: str = 'mean'):\n        super().__init__()\n        self.gamma = gamma\n        self.weight = weight\n        self.reduction = reduction\n    def forward(self, logits, target):\n        logpt = F.log_softmax(logits, dim=-1)\n        pt = logpt.exp()\n        logpt = (logpt * F.one_hot(target, num_classes=logits.size(-1)).float()).sum(dim=-1)\n        pt = (pt * F.one_hot(target, num_classes=logits.size(-1)).float()).sum(dim=-1)\n        loss = -((1 - pt) ** self.gamma) * logpt\n        if self.weight is not None:\n            w = self.weight.to(logits.device)\n            loss = loss * w[target]\n        if self.reduction == 'mean':\n            return loss.mean()\n        elif self.reduction == 'sum':\n            return loss.sum()\n        return loss\n\n# ----------------------------\n# Training entry point\n# ----------------------------\n\ndef train_model(X_train: torch.Tensor,\n                y_train: torch.Tensor,\n                X_val: torch.Tensor,\n                y_val: torch.Tensor,\n                device: torch.device,\n                **hparams: Any) -> Tuple[nn.Module, Dict[str, Any]]:\n    \"\"\"\n    Train a TinyTransformer-1D on ECG (MIT-BIH) data.\n    Inputs:\n      - X_*: torch.Tensor of shape (N, 1000, 2), dtype float32/float16\n      - y_*: torch.Tensor of shape (N,), dtype long\n      - device: torch.device('cuda') or torch.device('cpu')\n      - hparams: hyperparameters and quantization params (see bo_config)\n    Returns:\n      - quantized_model (nn.Module)\n      - metrics (dict)\n    \"\"\"\n    # ---------------- Hyperparameters with defaults ----------------\n    num_classes = int(hparams.get('num_classes', 5))\n    seq_len = int(hparams.get('seq_len', 1000))\n    in_ch = int(hparams.get('in_ch', 2))\n    embed_dim = int(hparams.get('embed_dim', 32))\n    num_heads = int(hparams.get('num_heads', 2))\n    num_layers = int(hparams.get('num_layers', 2))\n    mlp_ratio = float(hparams.get('mlp_ratio', 2.0))\n    dropout = float(hparams.get('dropout', 0.1))\n\n    lr = float(hparams.get('lr', 1e-3))\n    weight_decay = float(hparams.get('weight_decay', 1e-4))\n    batch_size = int(hparams.get('batch_size', 128))\n    epochs = int(hparams.get('epochs', 15))\n    grad_clip = float(hparams.get('grad_clip', 0.5))\n    amp = bool(hparams.get('amp', True)) and device.type == 'cuda'\n    label_smoothing = float(hparams.get('label_smoothing', 0.05))\n\n    loss_type = str(hparams.get('loss_type', 'ce'))  # 'ce' or 'focal'\n    focal_gamma = float(hparams.get('focal_gamma', 2.0))\n\n    # Augmentation\n    jitter_std = float(hparams.get('jitter_std', 0.005))\n    scale_min = float(hparams.get('scale_min', 0.95))\n    scale_max = float(hparams.get('scale_max', 1.05))\n\n    # Quantization hyperparams\n    quantization_bits = int(hparams.get('quantization_bits', 8))  # {8, 16, 32}\n    quantize_weights = bool(hparams.get('quantize_weights', True))\n    quantize_activations = bool(hparams.get('quantize_activations', True))\n    calibration_size = int(hparams.get('calibration_size', 1024))\n    per_channel_weights = bool(hparams.get('per_channel_weights', True))\n    quant_backend = str(hparams.get('quant_backend', 'fbgemm'))  # 'fbgemm' or 'qnnpack'\n\n    # Seed for reproducibility (optional)\n    seed = int(hparams.get('seed', 42))\n    torch.manual_seed(seed)\n    if device.type == 'cuda':\n        torch.cuda.manual_seed_all(seed)\n\n    # ---------------- Data preparation ----------------\n    X_train = X_train.float()\n    X_val = X_val.float()\n    y_train = y_train.long()\n    y_val = y_val.long()\n\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=False, num_workers=0)\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=0)\n\n    # Compute class-balanced weights for CE/Focal\n    with torch.no_grad():\n        classes, counts = torch.unique(y_train, return_counts=True)\n        freq = torch.zeros(num_classes, dtype=torch.float)\n        for c, cnt in zip(classes, counts):\n            if c.item() < num_classes:\n                freq[c] = cnt.float()\n        # Inverse frequency\n        eps = 1e-6\n        inv_freq = 1.0 / (freq + eps)\n        class_weights = inv_freq * (num_classes / inv_freq.sum())\n\n    # ---------------- Model ----------------\n    model = TinyTransformer1D(in_ch=in_ch, seq_len=seq_len, num_classes=num_classes,\n                              embed_dim=embed_dim, num_layers=num_layers, num_heads=num_heads,\n                              mlp_ratio=mlp_ratio, dropout=dropout)\n\n    total_params = _count_params(model)\n    if total_params > 256_000:\n        raise RuntimeError(f\"Model has {total_params} parameters which exceeds 256K limit. Reduce embed_dim or layers.\")\n\n    model.to(device)\n\n    # Loss\n    if loss_type.lower() == 'focal':\n        criterion = FocalLoss(gamma=focal_gamma, weight=class_weights.to(device))\n    else:\n        def ce_loss(logits, targets):\n            # PyTorch's label_smoothing arg is supported in modern versions\n            return F.cross_entropy(logits, targets, weight=class_weights.to(device), label_smoothing=label_smoothing)\n        criterion = ce_loss\n\n    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)\n\n    scaler = torch.cuda.amp.GradScaler(enabled=amp)\n\n    # ---------------- Training loop ----------------\n    model.train()\n    for epoch in range(epochs):\n        running_loss = 0.0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=False)\n            yb = yb.to(device, non_blocking=False)\n\n            # Data augmentation (train only)\n            if jitter_std > 0.0:\n                noise = torch.randn_like(xb) * jitter_std\n                xb = xb + noise\n            if scale_max > 0 and scale_min > 0 and scale_max >= scale_min:\n                scales = torch.empty((xb.size(0), 1, 1), device=xb.device).uniform_(scale_min, scale_max)\n                xb = xb * scales\n\n            optimizer.zero_grad(set_to_none=True)\n            if amp:\n                with torch.cuda.amp.autocast():\n                    logits = model(xb)\n                    loss = criterion(logits, yb)\n                scaler.scale(loss).backward()\n                if grad_clip and grad_clip > 0:\n                    scaler.unscale_(optimizer)\n                    nn.utils.clip_grad_norm_(model.parameters(), grad_clip)\n                scaler.step(optimizer)\n                scaler.update()\n            else:\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                loss.backward()\n                if grad_clip and grad_clip > 0:\n                    nn.utils.clip_grad_norm_(model.parameters(), grad_clip)\n                optimizer.step()\n            running_loss += loss.item() * xb.size(0)\n\n    train_loss = running_loss / max(1, len(train_ds))\n\n    # ---------------- Validation ----------------\n    model.eval()\n    val_loss_sum = 0.0\n    correct = 0\n    total = 0\n    with torch.no_grad():\n        for xb, yb in val_loader:\n            xb = xb.to(device)\n            yb = yb.to(device)\n            logits = model(xb)\n            loss = criterion(logits, yb) if loss_type.lower() == 'focal' else criterion(logits, yb)\n            val_loss_sum += loss.item() * xb.size(0)\n            preds = torch.argmax(logits, dim=-1)\n            correct += (preds == yb).sum().item()\n            total += xb.size(0)\n    val_loss = val_loss_sum / max(1, len(val_ds))\n    val_acc = correct / max(1, total)\n\n    # ---------------- Post-Training Quantization ----------------\n    quantized_model = model\n    quantized_params_count = total_params\n    quant_info = {\n        'quantization_bits': quantization_bits,\n        'quantize_weights': quantize_weights,\n        'quantize_activations': quantize_activations,\n        'backend': quant_backend,\n        'per_channel_weights': per_channel_weights\n    }\n\n    # Always perform quantization on CPU for int8\n    if quantization_bits == 32:\n        quantized_model = model.eval()\n        # keep on current device\n    elif quantization_bits == 16:\n        # FP16 weight/activation casting (works best on CUDA)\n        quantized_model = model.eval().to(device)\n        quantized_model.half()\n    elif quantization_bits == 8:\n        # Move to CPU for int8 quantization\n        cpu_device = torch.device('cpu')\n        float_model_cpu = model.eval().to(cpu_device)\n        try:\n            import torch.ao.quantization as aoq\n            from torch.ao.quantization.quantize_fx import prepare_fx, convert_fx\n            torch.backends.quantized.engine = quant_backend\n            if quantize_activations:\n                # Static PTQ with FX for activations + weights (Conv/Linear)\n                if per_channel_weights:\n                    qconfig = aoq.get_default_qconfig(quant_backend)\n                    # default per-channel for conv/linear is applied by FX backend when available\n                else:\n                    # Force per-tensor\n                    qconfig = aoq.QConfig(activation=aoq.MinMaxObserver.with_args(dtype=torch.quint8, qscheme=torch.per_tensor_affine),\n                                          weight=aoq.MinMaxObserver.with_args(dtype=torch.qint8, qscheme=torch.per_tensor_symmetric))\n                qconfig_dict = {\"\": qconfig}\n                prepared = prepare_fx(float_model_cpu, qconfig_dict)\n                # Calibration: run a few batches through the model\n                prepared.eval()\n                calib_seen = 0\n                with torch.no_grad():\n                    for xb, _ in train_loader:\n                        xb = xb.to(cpu_device)\n                        prepared(xb)\n                        calib_seen += xb.size(0)\n                        if calib_seen >= calibration_size:\n                            break\n                converted = convert_fx(prepared)\n                quantized_model = converted\n            else:\n                # Dynamic quantization (weights only) for Linear layers\n                if quantize_weights:\n                    quantized_model = aoq.quantize_dynamic(float_model_cpu, {nn.Linear}, dtype=torch.qint8)\n                else:\n                    quantized_model = float_model_cpu  # no quantization\n        except Exception as e:\n            # Fallback to dynamic quantization of Linear layers\n            try:\n                import torch.ao.quantization as aoq\n                quantized_model = aoq.quantize_dynamic(float_model_cpu, {nn.Linear}, dtype=torch.qint8)\n            except Exception:\n                quantized_model = float_model_cpu\n    else:\n        # Unsupported bit-width; return FP32 model\n        quantized_model = model.eval()\n\n    # Count params of quantized model (approx using .parameters())\n    try:\n        quantized_params_count = _count_params(quantized_model)\n    except Exception:\n        quantized_params_count = total_params\n\n    metrics = {\n        'train_loss': float(train_loss),\n        'val_loss': float(val_loss),\n        'val_accuracy': float(val_acc),\n        'num_params': int(total_params),\n        'quantized_num_params': int(quantized_params_count),\n        'quantization': quant_info\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "num_classes": {
+      "default": 5,
+      "type": "Integer",
+      "low": 5,
+      "high": 5
+    },
+    "seq_len": {
+      "default": 1000,
+      "type": "Integer",
+      "low": 1000,
+      "high": 1000
+    },
+    "in_ch": {
+      "default": 2,
+      "type": "Integer",
+      "low": 2,
+      "high": 2
+    },
+    "embed_dim": {
+      "default": 32,
+      "type": "Integer",
+      "low": 16,
+      "high": 64
+    },
+    "num_heads": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 4
+    },
+    "num_layers": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 2
+    },
+    "mlp_ratio": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.5,
+      "high": 4.0,
+      "prior": "uniform"
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.3,
+      "prior": "uniform"
+    },
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 15,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "grad_clip": {
+      "default": 0.5,
+      "type": "Real",
+      "low": 0.0,
+      "high": 1.0,
+      "prior": "uniform"
+    },
+    "amp": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "label_smoothing": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2,
+      "prior": "uniform"
+    },
+    "loss_type": {
+      "default": "ce",
+      "type": "Categorical",
+      "categories": [
+        "ce",
+        "focal"
+      ]
+    },
+    "focal_gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 3.0,
+      "prior": "uniform"
+    },
+    "jitter_std": {
+      "default": 0.005,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.02,
+      "prior": "uniform"
+    },
+    "scale_min": {
+      "default": 0.95,
+      "type": "Real",
+      "low": 0.9,
+      "high": 1.0,
+      "prior": "uniform"
+    },
+    "scale_max": {
+      "default": 1.05,
+      "type": "Real",
+      "low": 1.0,
+      "high": 1.1,
+      "prior": "uniform"
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "calibration_size": {
+      "default": 1024,
+      "type": "Integer",
+      "low": 128,
+      "high": 4096
+    },
+    "per_channel_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quant_backend": {
+      "default": "fbgemm",
+      "type": "Categorical",
+      "categories": [
+        "fbgemm",
+        "qnnpack"
+      ]
+    },
+    "seed": {
+      "default": 42,
+      "type": "Integer",
+      "low": 0,
+      "high": 1000000
+    }
+  },
+  "confidence": 0.87,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758302156,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem: multiclass (5-class AAMI N/S/V/F/Q) ECG beat/rhythm classification on the MIT-BIH Arrhythmia Database, using short 2‑lead windows (torch tensor shape ~ (1000, 2)). Recent literature converges on hybrid 1D CNN + self‑attention/Transformer encoders to capture local morphology and long-range temporal context, with careful handling of class imbalance and inter‑patient evaluation. A 2024 peer-reviewed hybrid, CAT‑Net, reports 99.14% accuracy and 94.69% macro‑F1 on 5‑class MIT‑BIH, combining a convolutional stem, channel attention, and Transformer encoder; the authors also evaluate SMOTE‑Tomek for minority classes and release PyTorch notebooks, making it directly implementable and reproducible. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai)) Beyond accuracy, efficiency-centric work shows that very small Transformers can approach SOTA: a 6k‑parameter “Tiny Transformer” attains 98.97% (5‑class MIT‑BIH) with 8‑bit inference and 4.28 ms / 0.09 mJ per inference on a GAP9 MCU, demonstrating strong performance‑per‑watt for embedded use. ([arxiv.org](https://arxiv.org/abs/2402.10748)) For two‑lead inputs matching (1000, 2), a 2025 Sensors study using a lightweight CNN + channel‑attention achieved 99.18% accuracy and 99.18% F1 on 5‑class MIT‑BIH; its comparison table also lists a two‑lead CNN+Transformer (STCT) baseline at 98.96% accuracy and 99.31% F1—evidence that 2‑lead models can meet or exceed one‑lead hybrids. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC12431083/)) Methodologically, adaptive beat segmentation using RR‑dependent windows and incorporating relative heart‑rate context improves sensitivity, especially for PAC vs normal—reporting 99.81% (N), 99.08% (PVC), and 97.83% (PAC) sensitivities across datasets including MIT‑BIH. These techniques can be added to CNN/Transformer pipelines to boost minority‑class recall. ([sciencedirect.com](https://www.sciencedirect.com/science/article/abs/pii/S0010482524011478?utm_source=openai)) Interpretability and model size are also advancing: a 2025 Hierarchical Attention Network (HAN) achieves 98.55% on MIT‑BIH while being 15.6× smaller than CAT‑Net, offering clearer attention maps, useful when clinical explanations are required. ([arxiv.org](https://arxiv.org/abs/2504.03703)) Finally, a 2025 systematic review emphasizes rigorous, inter‑patient splits, AAMI grouping, and embedded feasibility; these criteria (E3C) should guide evaluation to ensure fair, clinically relevant comparisons. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai)) Overall, evidence supports a CNN + attention + Transformer hybrid as the best balance of accuracy, robustness to class imbalance, and PyTorch implementability for 2‑lead, ~1k‑sample sequences, with optional efficiency adaptations and preprocessing (adaptive segmentation, relative HR) to further improve generalization and minority‑class metrics.",
+  "key_findings": [
+    "Hybrid CNN + attention + Transformer architectures are currently state-of-the-art on 5-class MIT-BIH: CAT-Net reports 99.14% accuracy and 94.69% macro-F1, with SMOTE-Tomek to address imbalance and public PyTorch notebooks for reproducibility. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "Ultra-compact models can approach SOTA: a 6k-parameter Tiny Transformer attains 98.97% (5-class) on MIT-BIH with 8-bit inference, running at 4.28 ms and 0.09 mJ per inference on GAP9—useful when compute/energy are constrained. ([arxiv.org](https://arxiv.org/abs/2402.10748))",
+    "Two-lead designs match your data shape and perform strongly: a lightweight CNN + channel-attention achieved 99.18% accuracy and 99.18% F1 on 5-class MIT-BIH; a 2-lead CNN+Transformer baseline (STCT) reached 98.96% accuracy and 99.31% F1. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC12431083/))",
+    "Segmentation and contextual features matter: adaptive beat-length windows (RR-dependent) plus relative heart-rate context substantially improved PAC detection (sensitivities: N 99.81%, PVC 99.08%, PAC 97.83%) and can be integrated into deep models. ([sciencedirect.com](https://www.sciencedirect.com/science/article/abs/pii/S0010482524011478?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "CAT-Net–style 1D CNN + attention + Transformer hybrid adapted to (1000, 2): (a) 1D conv stem with channel attention to encode two leads; (b) patch/stride or conv tokenization into a short token sequence; (c) 2–4 Transformer encoder blocks (MHSA + FFN) for long-range rhythm context; (d) global pooling + 5-way head. Train with inter-patient splits (AAMI N/S/V/F/Q), class-balanced loss (e.g., class-weighted cross-entropy or focal loss) and/or SMOTE-Tomek as in the original paper; optionally add auxiliary inputs for relative heart-rate and use adaptive RR-based segmentation around R-peaks. This choice is justified by top peer-reviewed performance on 5-class MIT-BIH, proven PyTorch availability, and strong minority-class results with class balancing. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+  ],
+  "recent_papers": [
+    {
+      "title": "CAT-Net: Convolution, attention, and transformer based network for single-lead ECG arrhythmia classification (2024, Elsevier)",
+      "contribution": "Hybrid CNN + attention + Transformer; reports 99.14% accuracy and 94.69% macro-F1 on 5-class MIT-BIH; evaluates SMOTE-Tomek; includes a public PyTorch implementation. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (2024, IEEE TBioCAS)",
+      "contribution": "6k parameters, 98.97% (5-class MIT-BIH) with 8-bit inference; 4.28 ms and 0.09 mJ per inference on GAP9; strong option for embedded deployment. ([arxiv.org](https://arxiv.org/abs/2402.10748))"
+    },
+    {
+      "title": "Lightweight Deep Learning Architecture for Multi-Lead ECG Arrhythmia Detection (2025, Sensors)",
+      "contribution": "Two-lead CNN + channel-attention achieves 99.18% accuracy and 99.18% F1 on 5-class MIT-BIH; compares against two-lead CNN+Transformer (STCT: 98.96% accuracy, 99.31% F1) and CAT-Net. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC12431083/))"
+    },
+    {
+      "title": "ECG classification via integration of adaptive beat segmentation and relative heart rate with deep learning networks (2024, Computers in Biology and Medicine)",
+      "contribution": "Introduces RR-adaptive beat windows and relative heart-rate context; improves PAC detection with high per-class sensitivities across datasets including MIT-BIH. ([sciencedirect.com](https://www.sciencedirect.com/science/article/abs/pii/S0010482524011478?utm_source=openai))"
+    },
+    {
+      "title": "Hierarchical Attention Network for Interpretable ECG-based Heart Disease Classification (2025, arXiv)",
+      "contribution": "HAN achieves 98.55% on MIT-BIH with 15.6× fewer parameters than CAT-Net; provides clearer attention-based interpretability. ([arxiv.org](https://arxiv.org/abs/2504.03703))"
+    },
+    {
+      "title": "A Systematic Review of ECG Arrhythmia Classification: Adherence to Standards, Fair Evaluation, and Embedded Feasibility (2025, arXiv)",
+      "contribution": "Synthesizes 2017–2024 studies; stresses inter-patient splits, AAMI grouping, and embedded feasibility (E3C) for fair, clinically meaningful evaluation. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))"
+    },
+    {
+      "title": "Unraveling Arrhythmias with Graph-Based Analysis: A Survey of the MIT-BIH Database (2024, MDPI Computation)",
+      "contribution": "Broad survey of computational methods applied to MIT-BIH, useful context for problem framing and evaluation practices. ([mdpi.com](https://www.mdpi.com/2079-3197/12/2/21?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.74,
+  "timestamp": 1758307057,
+  "generated_time": "2025-09-19 13:37:37",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

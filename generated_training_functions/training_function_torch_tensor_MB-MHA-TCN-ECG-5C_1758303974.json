@@ -1,0 +1,161 @@
+{
+  "model_name": "MB-MHA-TCN-ECG-5C",
+  "training_code": "import math\\nimport torch\\nimport torch.nn as nn\\nimport torch.nn.functional as F\\nfrom torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler\\nfrom typing import Dict, Tuple\\n\\n# ---- Focal Loss ----\\nclass FocalLoss(nn.Module):\\n    def __init__(self, alpha=0.25, gamma=2.0, reduction='mean'):\\n        super().__init__()\\n        self.alpha = alpha\\n        self.gamma = gamma\\n        self.reduction = reduction\\n    def forward(self, logits, targets):\\n        # logits: (N, C), targets: (N,)\\n        ce = F.cross_entropy(logits, targets, reduction='none')\\n        pt = torch.exp(-ce)\\n        loss = self.alpha * (1 - pt) ** self.gamma * ce\\n        if self.reduction == 'mean':\\n            return loss.mean()\\n        elif self.reduction == 'sum':\\n            return loss.sum()\\n        return loss\\n\\n# ---- Macro F1 ----\\ndef macro_f1(y_true, y_pred, num_classes=5):\\n    # y_true, y_pred: tensors on CPU of shape (N,) with int64 labels\\n    eps = 1e-9\\n    f1s = []\\n    for c in range(num_classes):\\n        tp = torch.sum((y_pred == c) & (y_true == c)).item()\\n        fp = torch.sum((y_pred == c) & (y_true != c)).item()\\n        fn = torch.sum((y_pred != c) & (y_true == c)).item()\\n        precision = tp / (tp + fp + eps)\\n        recall = tp / (tp + fn + eps)\\n        f1 = 2 * precision * recall / (precision + recall + eps)\\n        f1s.append(f1)\\n    return float(sum(f1s) / len(f1s))\\n\\n# ---- Model: MB-MHA-TCN ----\\nclass MB_MHA_TCN(nn.Module):\\n    def __init__(self,\\n                 in_channels=2,\\n                 branch_channels=24,\\n                 d_model=64,\\n                 mha_heads=4,\\n                 tcn_channels=64,\\n                 tcn_layers=3,\\n                 dilation_base=2,\\n                 dropout=0.1,\\n                 num_classes=5):\\n        super().__init__()\\n        self.in_channels = in_channels\\n        self.num_classes = num_classes\\n        ks_list = [5, 9, 17]\\n        dil_list = [1, 2, 4]\\n        # Quantization stubs: allow selective static quantization around MHA\\n        from torch.ao.quantization import QuantStub, DeQuantStub\\n        self.quant_in = QuantStub()\\n        self.dequant_for_mha = DeQuantStub()\\n        self.quant_after_mha = QuantStub()\\n        self.dequant_out = DeQuantStub()\\n\\n        # Multi-branch conv feature extractors\\n        branches = []\\n        for ks, dil in zip(ks_list, dil_list):\\n            pad = ((ks - 1) // 2) * dil\\n            branches.append(nn.Sequential(\\n                nn.Conv1d(in_channels, branch_channels, kernel_size=ks, dilation=dil, padding=pad, bias=True),\\n                nn.ReLU(inplace=True)\\n            ))\\n        self.branches = nn.ModuleList(branches)\\n        self.branch_dropout = nn.Dropout(dropout)\\n\\n        # Fuse/Project to d_model\\n        self.proj = nn.Conv1d(branch_channels * len(ks_list), d_model, kernel_size=1)\\n\\n        # Multi-Head Self-Attention (time-wise)\\n        self.mha = nn.MultiheadAttention(embed_dim=d_model, num_heads=mha_heads, batch_first=True, dropout=dropout)\\n        self.mha_ln = nn.LayerNorm(d_model)\\n        self.mha_dropout = nn.Dropout(dropout)\\n\\n        # TCN blocks\\n        tcn_blocks = []\\n        in_ch = d_model\\n        for i in range(tcn_layers):\\n            dil = dilation_base ** i\\n            tcn_blocks.append(TCNBlock(in_ch, tcn_channels, kernel_size=3, dilation=dil, dropout=dropout))\\n            in_ch = tcn_channels\\n        self.tcn = nn.Sequential(*tcn_blocks)\\n\\n        # Classifier\\n        self.cls = nn.Sequential(\\n            nn.Conv1d(tcn_channels, tcn_channels, kernel_size=1),\\n            nn.ReLU(inplace=True),\\n            nn.Dropout(dropout),\\n            nn.Conv1d(tcn_channels, num_classes, kernel_size=1)\\n        )\\n\\n    def forward(self, x):\\n        # x: (B, T, C) expected\\n        if x.dim() != 3:\\n            raise ValueError('Input must be (batch, time, channels)')\\n        x = x.transpose(1, 2).contiguous()  # (B, C, T) for conv1d\\n        # Quantize activations in conv path if enabled by qconfig\\n        x = self.quant_in(x)\\n        feats = []\\n        for br in self.branches:\\n            feats.append(br(x))\\n        x_cat = torch.cat(feats, dim=1)  # (B, C*, T)\\n        x_cat = self.branch_dropout(x_cat)\\n        x_proj = self.proj(x_cat)  # (B, d_model, T)\\n\\n        # Dequantize before attention (attention kept in float)\\n        x_proj = self.dequant_for_mha(x_proj)\\n        x_seq = x_proj.transpose(1, 2)  # (B, T, d_model)\\n        attn_out, _ = self.mha(x_seq, x_seq, x_seq, need_weights=False)\\n        x_seq = self.mha_ln(x_seq + self.mha_dropout(attn_out))\\n\\n        # Re-quantize after attention to continue static quant path\\n        x_seq = self.quant_after_mha(x_seq)\\n        x_tcn_in = x_seq.transpose(1, 2).contiguous()  # (B, d_model, T)\\n        x_tcn = self.tcn(x_tcn_in)\\n        logits_seq = self.cls(x_tcn)  # (B, num_classes, T)\\n\\n        # Global average pooling over time\\n        logits = logits_seq.mean(dim=-1)  # (B, num_classes)\\n        # Dequantize before returning (useful when evaluating on float ops)\\n        logits = self.dequant_out(logits)\\n        return logits\\n\\nclass TCNBlock(nn.Module):\\n    def __init__(self, in_ch, out_ch, kernel_size=3, dilation=1, dropout=0.1):\\n        super().__init__()\\n        pad = ((kernel_size - 1) // 2) * dilation\\n        self.conv1 = nn.Conv1d(in_ch, out_ch, kernel_size=kernel_size, dilation=dilation, padding=pad)\\n        self.relu1 = nn.ReLU(inplace=True)\\n        self.dropout1 = nn.Dropout(dropout)\\n        self.conv2 = nn.Conv1d(out_ch, out_ch, kernel_size=kernel_size, dilation=dilation, padding=pad)\\n        self.relu2 = nn.ReLU(inplace=True)\\n        self.dropout2 = nn.Dropout(dropout)\\n        self.res = nn.Conv1d(in_ch, out_ch, kernel_size=1) if in_ch != out_ch else nn.Identity()\\n    def forward(self, x):\\n        r = self.res(x)\\n        x = self.conv1(x)\\n        x = self.relu1(x)\\n        x = self.dropout1(x)\\n        x = self.conv2(x)\\n        x = self.relu2(x)\\n        x = self.dropout2(x)\\n        return x + r\\n\\n# ---- Utility: parameter count ----\\ndef count_params(model):\\n    return sum(p.numel() for p in model.parameters())\\n\\n# ---- Quantization helpers ----\\ndef post_training_quantize(model: nn.Module, calib_loader: DataLoader, device: torch.device,\\n                           quantization_bits: int = 8,\\n                           quantize_weights: bool = True,\\n                           quantize_activations: bool = False,\\n                           per_channel_q: bool = True) -> Tuple[nn.Module, str]:\\n    \"\"\"Apply post-training quantization based on requested settings.\\n    Returns (quantized_model, quant_dtype_str).\"\"\"\\n    import torch.ao.quantization as tq\\n    model.eval()\\n    # If no quantization requested\\n    if (not quantize_weights) and (not quantize_activations):\\n        return model, 'float32'\\n\\n    # 32-bit -> no quantization\\n    if quantization_bits == 32:\\n        return model, 'float32'\\n\\n    # Dynamic quantization path (works on Linear incl. inside MHA).\\n    if not quantize_activations:\\n        if quantization_bits == 8:\\n            # int8 dynamic quantization (CPU-only)\\n            qdtype = torch.qint8\\n            qmodel = tq.quantize_dynamic(\\n                model, {nn.Linear}, dtype=qdtype\\n            )\\n            return qmodel, 'int8-dynamic(linear)'\\n        elif quantization_bits == 16:\\n            # float16 dynamic quantization (Linear).\\n            qmodel = tq.quantize_dynamic(\\n                model, {nn.Linear}, dtype=torch.float16\\n            )\\n            return qmodel, 'float16-dynamic(linear)'\\n        else:\\n            return model, 'float32'\\n\\n    # Static quantization for activations + weights (int8), CPU only.\\n    if quantization_bits == 8:\\n        # Move model to CPU for fbgemm backend\\n        model_cpu = model.to('cpu')\\n        backend = 'fbgemm' if torch.backends.quantized.engine in ['fbgemm', 'qnnpack'] else 'fbgemm'\\n        torch.backends.quantized.engine = backend\\n        qconfig = tq.get_default_qconfig(backend)\\n        # Optionally switch to per-tensor weight quant if requested\\n        if not per_channel_q:\\n            # Build a per-tensor-wt qconfig\\n            qconfig = tq.QConfig(\\n                activation=tq.default_observer,\\n                weight=tq.default_weight_observer\\n            )\\n        # Exclude MHA from static quant\\n        model_cpu.qconfig = qconfig\\n        if hasattr(model_cpu, 'mha'):\\n            model_cpu.mha.qconfig = None\\n        # Prepare\\n        tq.prepare(model_cpu, inplace=True)\\n        # Calibration: run a few batches\\n        with torch.inference_mode():\\n            ncal = 0\\n            for xb, yb in calib_loader:\\n                xb = xb.to('cpu')\\n                _ = model_cpu(xb)\\n                ncal += 1\\n                if ncal >= 64:  # limit calibration steps\\n                    break\\n        # Convert\\n        tq.convert(model_cpu, inplace=True)\\n        return model_cpu, 'int8-static(conv+linear, MHA=float)'\\n\\n    # If 16-bit requested with activations=True, fall back to dynamic float16\\n    if quantization_bits == 16:\\n        qmodel = torch.ao.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.float16)\\n        return qmodel, 'float16-dynamic(linear)'\\n\\n    return model, 'float32'\\n\\n# ---- Training function ----\\ndef train_model(X_train: torch.Tensor, y_train: torch.Tensor,\\n                X_val: torch.Tensor, y_val: torch.Tensor,\\n                device: torch.device,\\n                # Hyperparameters\\n                epochs: int = 20,\\n                lr: float = 1e-3,\\n                batch_size: int = 64,\\n                branch_channels: int = 24,\\n                d_model: int = 64,\\n                mha_heads: int = 4,\\n                tcn_channels: int = 64,\\n                tcn_layers: int = 3,\\n                dilation_base: int = 2,\\n                dropout: float = 0.1,\\n                focal_alpha: float = 0.25,\\n                focal_gamma: float = 2.0,\\n                weight_decay: float = 1e-4,\\n                use_weighted_sampler: bool = True,\\n                # Quantization parameters\\n                quantization_bits: int = 8,\\n                quantize_weights: bool = True,\\n                quantize_activations: bool = False,\\n                per_channel_q: bool = True\\n                ) -> Tuple[nn.Module, Dict]:\\n    \"\"\"\\n    Train MB-MHA-TCN on (window_len=1000, channels=2) ECG windows for 5-class classification.\\n    - Inputs are torch tensors: X_* shape (N, 1000, 2), y_* shape (N,) int64 labels.\\n    - Uses focal loss and minority oversampling via WeightedRandomSampler.\\n    - Returns quantized model and metrics.\\n    \"\"\"\\n    # Sanity on input shapes\\n    assert X_train.dim() == 3 and X_train.shape[-1] == 2, 'X_train must be (N, 1000, 2)'\\n    assert X_val.dim() == 3 and X_val.shape[-1] == 2, 'X_val must be (N, 1000, 2)'\\n    num_classes = int(torch.max(y_train).item() + 1)\\n    if num_classes < 5:\\n        num_classes = 5\\n\\n    # Datasets and loaders\\n    train_ds = TensorDataset(X_train, y_train)\\n    val_ds = TensorDataset(X_val, y_val)\\n\\n    if use_weighted_sampler:\\n        # Inverse-frequency sampling to oversample rare classes\\n        with torch.no_grad():\\n            class_counts = torch.bincount(y_train.cpu(), minlength=num_classes).float()\\n            weights_per_class = 1.0 / (class_counts + 1e-6)\\n            sample_weights = weights_per_class[y_train.cpu()]\\n        sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)\\n        train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=sampler, drop_last=False)\\n    else:\\n        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=False)\\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, drop_last=False)\\n\\n    # Model\\n    model = MB_MHA_TCN(\\n        in_channels=2, branch_channels=branch_channels, d_model=d_model, mha_heads=mha_heads,\\n        tcn_channels=tcn_channels, tcn_layers=tcn_layers, dilation_base=dilation_base,\\n        dropout=dropout, num_classes=num_classes\\n    )\\n\\n    # Parameter count check (must be <= 256k)\\n    total_params = count_params(model)\\n    if total_params > 256_000:\\n        raise ValueError(f'Model has {total_params} parameters, exceeds 256k limit. Reduce channels/layers.')\\n\\n    model.to(device)\\n\\n    # Optimizer & loss\\n    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\\n    criterion = FocalLoss(alpha=focal_alpha, gamma=focal_gamma)\\n\\n    def evaluate(eval_model: nn.Module):\\n        eval_model.eval()\\n        total, correct = 0, 0\\n        y_true_all, y_pred_all = [], []\\n        val_loss = 0.0\\n        with torch.no_grad():\\n            for xb, yb in val_loader:\\n                xb = xb.to(device)\\n                yb = yb.to(device)\\n                logits = eval_model(xb)\\n                loss = criterion(logits, yb)\\n                val_loss += loss.item() * yb.size(0)\\n                preds = torch.argmax(logits, dim=1)\\n                correct += (preds == yb).sum().item()\\n                total += yb.size(0)\\n                y_true_all.append(yb.cpu())\\n                y_pred_all.append(preds.cpu())\\n        y_true_all = torch.cat(y_true_all)\\n        y_pred_all = torch.cat(y_pred_all)\\n        acc = correct / max(1, total)\\n        f1 = macro_f1(y_true_all, y_pred_all, num_classes=num_classes)\\n        return val_loss / max(1, total), acc, f1\\n\\n    # Training loop\\n    for epoch in range(epochs):\\n        model.train()\\n        running_loss = 0.0\\n        total_batches = 0\\n        for xb, yb in train_loader:\\n            xb = xb.to(device)\\n            yb = yb.to(device)\\n            optimizer.zero_grad(set_to_none=True)\\n            logits = model(xb)\\n            loss = criterion(logits, yb)\\n            loss.backward()\\n            optimizer.step()\\n            running_loss += loss.item()\\n            total_batches += 1\\n        # Optional: you can print or log training loss per epoch if needed\\n        _ = running_loss / max(1, total_batches)\\n\\n    # Evaluate FP32 model first\\n    val_loss_fp32, val_acc_fp32, val_f1_fp32 = evaluate(model)\\n\\n    # Post-training quantization\\n    # For static quant calibration, we need a CPU loader\\n    calib_loader = DataLoader(train_ds, batch_size=min(64, batch_size), shuffle=False)\\n    quant_model, qdtype = post_training_quantize(model, calib_loader, device,\\n                                                 quantization_bits=quantization_bits,\\n                                                 quantize_weights=quantize_weights,\\n                                                 quantize_activations=quantize_activations,\\n                                                 per_channel_q=per_channel_q)\\n\\n    # Ensure quantized model on appropriate device for inference\\n    # Static/int8 works best on CPU; dynamic fp16/int8 is CPU-focused for Linear; keep on CPU.\\n    if 'int8' in qdtype or 'float16-dynamic' in qdtype:\\n        q_device = torch.device('cpu')\\n    else:\\n        q_device = device\\n    quant_model.to(q_device)\\n\\n    # Evaluate quantized model on validation set\\n    def evaluate_on_device(eval_model: nn.Module, tgt_device: torch.device):\\n        eval_model.eval()\\n        total, correct = 0, 0\\n        y_true_all, y_pred_all = [], []\\n        val_loss = 0.0\\n        with torch.no_grad():\\n            for xb, yb in val_loader:\\n                xb = xb.to(tgt_device)\\n                yb = yb.to(tgt_device)\\n                logits = eval_model(xb)\\n                loss = criterion(logits, yb)\\n                val_loss += loss.item() * yb.size(0)\\n                preds = torch.argmax(logits, dim=1)\\n                correct += (preds == yb).sum().item()\\n                total += yb.size(0)\\n                y_true_all.append(yb.cpu())\\n                y_pred_all.append(preds.cpu())\\n        y_true_all = torch.cat(y_true_all)\\n        y_pred_all = torch.cat(y_pred_all)\\n        acc = correct / max(1, total)\\n        f1 = macro_f1(y_true_all, y_pred_all, num_classes=num_classes)\\n        return val_loss / max(1, total), acc, f1\\n\\n    q_val_loss, q_val_acc, q_val_f1 = evaluate_on_device(quant_model, q_device)\\n\\n    metrics = {\\n        'params': total_params,\\n        'val_loss_fp32': val_loss_fp32,\\n        'val_acc_fp32': val_acc_fp32,\\n        'val_macro_f1_fp32': val_f1_fp32,\\n        'val_loss_quant': q_val_loss,\\n        'val_acc_quant': q_val_acc,\\n        'val_macro_f1_quant': q_val_f1,\\n        'quantized_dtype': qdtype\\n    }\\n\\n    return quant_model, metrics\\n",
+  "bo_config": {
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 100
+    },
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 64,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128
+      ]
+    },
+    "branch_channels": {
+      "default": 24,
+      "type": "Integer",
+      "low": 8,
+      "high": 48
+    },
+    "d_model": {
+      "default": 64,
+      "type": "Integer",
+      "low": 32,
+      "high": 128
+    },
+    "mha_heads": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        2,
+        4,
+        8
+      ]
+    },
+    "tcn_channels": {
+      "default": 64,
+      "type": "Integer",
+      "low": 32,
+      "high": 128
+    },
+    "tcn_layers": {
+      "default": 3,
+      "type": "Integer",
+      "low": 1,
+      "high": 5
+    },
+    "dilation_base": {
+      "default": 2,
+      "type": "Integer",
+      "low": 2,
+      "high": 4
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "focal_alpha": {
+      "default": 0.25,
+      "type": "Real",
+      "low": 0.05,
+      "high": 0.75
+    },
+    "focal_gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 5.0
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "use_weighted_sampler": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "per_channel_q": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    }
+  },
+  "confidence": 0.83,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758303974,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

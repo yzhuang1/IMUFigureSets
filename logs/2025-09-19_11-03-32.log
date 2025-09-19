@@ -1,0 +1,321 @@
+2025-09-19 11:03:34,173 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 11:03:34,506 - INFO - __main__ - Logging system initialized successfully
+2025-09-19 11:03:34,507 - INFO - __main__ - Starting AI-Enhanced Machine Learning Pipeline
+2025-09-19 11:03:34,507 - INFO - __main__ - Starting real data processing from data/ directory
+2025-09-19 11:03:34,509 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'X.npy', 'y.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-19 11:03:34,509 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-19 11:03:34,510 - INFO - __main__ - Attempting to load: X.npy
+2025-09-19 11:03:34,634 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-19 11:03:34,722 - INFO - __main__ - Data loaded successfully: X.npy + y.npy, shape: (62352, 1000, 2), device: cuda
+2025-09-19 11:03:34,722 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-19 11:03:34,723 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-19 11:03:34,723 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-19 11:03:34,725 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 11:03:34,725 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-19 11:03:34,725 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-19 11:03:34,725 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-19 11:03:34,725 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-19 11:03:34,725 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-19 11:03:34,725 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-19 11:03:34,725 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-19 11:03:34,726 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-19 11:03:34,934 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-19 11:03:34,934 - INFO - class_balancing - Class imbalance analysis:
+2025-09-19 11:03:34,934 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-19 11:03:34,934 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-19 11:03:34,934 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-19 11:03:34,934 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-19 11:03:34,934 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-19 11:03:34,934 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-19 11:03:34,934 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-19 11:03:34,934 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-19 11:03:35,614 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-19 11:03:35,622 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-19 11:03:35,623 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-19 11:03:35,623 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-19 11:03:35,623 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-19 11:03:35,623 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-19 11:03:35,623 - INFO - _models.ai_code_generator - Conducting literature review before code generation...
+2025-09-19 11:06:44,913 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-19 11:06:45,025 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-19 11:06:45,025 - INFO - _models.ai_code_generator - Prompt length: 3126 characters
+2025-09-19 11:06:45,025 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-19 11:06:45,025 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-19 11:06:45,026 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-19 11:09:48,539 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-19 11:09:48,567 - INFO - _models.ai_code_generator - Successfully extracted response content
+2025-09-19 11:09:48,567 - INFO - _models.ai_code_generator - AI generated training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:48,567 - INFO - _models.ai_code_generator - Confidence: 0.83
+2025-09-19 11:09:48,567 - INFO - _models.ai_code_generator - Literature review informed code generation (confidence: 0.77)
+2025-09-19 11:09:48,567 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:48,567 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['lr', 'batch_size', 'epochs', 'weight_decay', 'seed', 'd_model', 'n_heads', 'n_layers', 'mlp_ratio', 'dropout', 'base_stem_channels', 'k1', 'k2', 'k3', 'use_focal_loss', 'focal_gamma', 'label_smoothing', 'class_weighting', 'aug_prob', 'aug_jitter_std', 'aug_scale_range', 'aug_time_mask_ratio', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'calibrate_batches']
+2025-09-19 11:09:48,567 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.83
+2025-09-19 11:09:48,567 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-19 11:09:48,569 - INFO - _models.ai_code_generator - Training function saved to: generated_training_functions\training_function_torch_tensor_CATNet1D-Tiny-Quant_1758298188.json
+2025-09-19 11:09:48,569 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions\training_function_torch_tensor_CATNet1D-Tiny-Quant_1758298188.json
+2025-09-19 11:09:48,572 - INFO - _models.training_function_executor - Training function validation passed
+2025-09-19 11:09:48,572 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-19 11:09:48,572 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:48,572 - INFO - evaluation.code_generation_pipeline_orchestrator - 📦 Installing dependencies for GPT-generated training code...
+2025-09-19 11:09:48,573 - INFO - package_installer - 🔍 Analyzing GPT-generated code for package dependencies...
+2025-09-19 11:09:48,578 - INFO - package_installer - Extracted imports from code: {'torch'}
+2025-09-19 11:09:48,578 - INFO - package_installer - Available packages: {'torch'}
+2025-09-19 11:09:48,579 - INFO - package_installer - Missing packages: set()
+2025-09-19 11:09:48,579 - INFO - package_installer - ✅ All required packages are already available
+2025-09-19 11:09:48,579 - INFO - evaluation.code_generation_pipeline_orchestrator - ✅ All dependencies installed successfully
+2025-09-19 11:09:48,579 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 62352 samples (using full dataset)
+2025-09-19 11:09:48,579 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['lr', 'batch_size', 'epochs', 'weight_decay', 'seed', 'd_model', 'n_heads', 'n_layers', 'mlp_ratio', 'dropout', 'base_stem_channels', 'k1', 'k2', 'k3', 'use_focal_loss', 'focal_gamma', 'label_smoothing', 'class_weighting', 'aug_prob', 'aug_jitter_std', 'aug_scale_range', 'aug_time_mask_ratio', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'calibrate_batches']
+2025-09-19 11:09:48,579 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 11:09:48,579 - INFO - _models.training_function_executor - Using centralized data splits for BO objective
+2025-09-19 11:09:48,908 - INFO - bo.run_bo - Converted GPT search space: 26 parameters
+2025-09-19 11:09:48,908 - INFO - bo.run_bo - Using GPT-generated search space
+2025-09-19 11:09:48,908 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-19 11:09:48,910 - INFO - bo.run_bo - 🔍BO Trial 1: Initial random exploration
+2025-09-19 11:09:48,910 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 11:09:48,910 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:48,911 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:48,911 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': 12, 'weight_decay': 0.0002481040974867812, 'seed': 54886, 'd_model': 96, 'n_heads': 2, 'n_layers': 1, 'mlp_ratio': 3.6654403644373383, 'dropout': 0.30055750587160446, 'base_stem_channels': 39, 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.0015575316820287, 'label_smoothing': 0.09922115592912177, 'class_weighting': False, 'aug_prob': 0.611653160488281, 'aug_jitter_std': 0.0003533152609858704, 'aug_scale_range': 0.004612485008283152, 'aug_time_mask_ratio': 0.10495493205167784, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': 22}
+2025-09-19 11:09:48,913 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': 12, 'weight_decay': 0.0002481040974867812, 'seed': 54886, 'd_model': 96, 'n_heads': 2, 'n_layers': 1, 'mlp_ratio': 3.6654403644373383, 'dropout': 0.30055750587160446, 'base_stem_channels': 39, 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.0015575316820287, 'label_smoothing': 0.09922115592912177, 'class_weighting': False, 'aug_prob': 0.611653160488281, 'aug_jitter_std': 0.0003533152609858704, 'aug_scale_range': 0.004612485008283152, 'aug_time_mask_ratio': 0.10495493205167784, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': 22}
+2025-09-19 11:09:50,378 - ERROR - _models.training_function_executor - Training execution failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:50,378 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:50,378 - ERROR - _models.training_function_executor - BO training objective failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:50,378 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 1.468s
+2025-09-19 11:09:50,378 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:50,378 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-19 11:09:50,378 - INFO - bo.run_bo - Recorded observation #1: hparams={'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'seed': np.int64(54886), 'd_model': 96, 'n_heads': 2, 'n_layers': np.int64(1), 'mlp_ratio': 3.6654403644373383, 'dropout': 0.30055750587160446, 'base_stem_channels': np.int64(39), 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.0015575316820287, 'label_smoothing': 0.09922115592912177, 'class_weighting': False, 'aug_prob': 0.611653160488281, 'aug_jitter_std': 0.0003533152609858704, 'aug_scale_range': 0.004612485008283152, 'aug_time_mask_ratio': 0.10495493205167784, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': np.int64(22)}, value=0.0000
+2025-09-19 11:09:50,378 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'seed': np.int64(54886), 'd_model': 96, 'n_heads': 2, 'n_layers': np.int64(1), 'mlp_ratio': 3.6654403644373383, 'dropout': 0.30055750587160446, 'base_stem_channels': np.int64(39), 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.0015575316820287, 'label_smoothing': 0.09922115592912177, 'class_weighting': False, 'aug_prob': 0.611653160488281, 'aug_jitter_std': 0.0003533152609858704, 'aug_scale_range': 0.004612485008283152, 'aug_time_mask_ratio': 0.10495493205167784, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': np.int64(22)} -> 0.0000
+2025-09-19 11:09:50,379 - INFO - bo.run_bo - 🔍BO Trial 2: Initial random exploration
+2025-09-19 11:09:50,379 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 11:09:50,379 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:50,380 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:50,380 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0002334586407601624, 'batch_size': 256, 'epochs': 55, 'weight_decay': 3.387255565852147e-05, 'seed': 328947, 'd_model': 96, 'n_heads': 2, 'n_layers': 1, 'mlp_ratio': 3.2007688464694493, 'dropout': 0.22524962598477155, 'base_stem_channels': 33, 'k1': 9, 'k2': 7, 'k3': 5, 'use_focal_loss': True, 'focal_gamma': 1.1953442280127677, 'label_smoothing': 0.0684233026512157, 'class_weighting': True, 'aug_prob': 0.12203823484477885, 'aug_jitter_std': 0.024758845505563513, 'aug_scale_range': 0.006877704223043681, 'aug_time_mask_ratio': 0.18186408041575644, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': True, 'calibrate_batches': 13}
+2025-09-19 11:09:50,382 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0002334586407601624, 'batch_size': 256, 'epochs': 55, 'weight_decay': 3.387255565852147e-05, 'seed': 328947, 'd_model': 96, 'n_heads': 2, 'n_layers': 1, 'mlp_ratio': 3.2007688464694493, 'dropout': 0.22524962598477155, 'base_stem_channels': 33, 'k1': 9, 'k2': 7, 'k3': 5, 'use_focal_loss': True, 'focal_gamma': 1.1953442280127677, 'label_smoothing': 0.0684233026512157, 'class_weighting': True, 'aug_prob': 0.12203823484477885, 'aug_jitter_std': 0.024758845505563513, 'aug_scale_range': 0.006877704223043681, 'aug_time_mask_ratio': 0.18186408041575644, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': True, 'calibrate_batches': 13}
+2025-09-19 11:09:50,410 - ERROR - _models.training_function_executor - Training execution failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:50,410 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:50,410 - ERROR - _models.training_function_executor - BO training objective failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:50,410 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.031s
+2025-09-19 11:09:50,411 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:50,411 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-19 11:09:50,411 - INFO - bo.run_bo - Recorded observation #2: hparams={'lr': 0.0002334586407601624, 'batch_size': 256, 'epochs': np.int64(55), 'weight_decay': 3.387255565852147e-05, 'seed': np.int64(328947), 'd_model': 96, 'n_heads': 2, 'n_layers': np.int64(1), 'mlp_ratio': 3.2007688464694493, 'dropout': 0.22524962598477155, 'base_stem_channels': np.int64(33), 'k1': 9, 'k2': 7, 'k3': 5, 'use_focal_loss': True, 'focal_gamma': 1.1953442280127677, 'label_smoothing': 0.0684233026512157, 'class_weighting': True, 'aug_prob': 0.12203823484477885, 'aug_jitter_std': 0.024758845505563513, 'aug_scale_range': 0.006877704223043681, 'aug_time_mask_ratio': 0.18186408041575644, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': True, 'calibrate_batches': np.int64(13)}, value=0.0000
+2025-09-19 11:09:50,411 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 2: {'lr': 0.0002334586407601624, 'batch_size': 256, 'epochs': np.int64(55), 'weight_decay': 3.387255565852147e-05, 'seed': np.int64(328947), 'd_model': 96, 'n_heads': 2, 'n_layers': np.int64(1), 'mlp_ratio': 3.2007688464694493, 'dropout': 0.22524962598477155, 'base_stem_channels': np.int64(33), 'k1': 9, 'k2': 7, 'k3': 5, 'use_focal_loss': True, 'focal_gamma': 1.1953442280127677, 'label_smoothing': 0.0684233026512157, 'class_weighting': True, 'aug_prob': 0.12203823484477885, 'aug_jitter_std': 0.024758845505563513, 'aug_scale_range': 0.006877704223043681, 'aug_time_mask_ratio': 0.18186408041575644, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': True, 'calibrate_batches': np.int64(13)} -> 0.0000
+2025-09-19 11:09:50,412 - INFO - bo.run_bo - 🔍BO Trial 3: Initial random exploration
+2025-09-19 11:09:50,412 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 11:09:50,412 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:50,412 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:50,412 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 4.205571187007204e-05, 'batch_size': 128, 'epochs': 33, 'weight_decay': 0.007556810141274438, 'seed': 989913, 'd_model': 96, 'n_heads': 3, 'n_layers': 2, 'mlp_ratio': 2.994749947027713, 'dropout': 0.4609371175115585, 'base_stem_channels': 23, 'k1': 7, 'k2': 5, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 2.494640220274762, 'label_smoothing': 0.053969213238907986, 'class_weighting': False, 'aug_prob': 0.9652553072641382, 'aug_jitter_std': 0.03035171238433424, 'aug_scale_range': 0.055199836404508686, 'aug_time_mask_ratio': 0.05925470114081649, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibrate_batches': 8}
+2025-09-19 11:09:50,415 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 4.205571187007204e-05, 'batch_size': 128, 'epochs': 33, 'weight_decay': 0.007556810141274438, 'seed': 989913, 'd_model': 96, 'n_heads': 3, 'n_layers': 2, 'mlp_ratio': 2.994749947027713, 'dropout': 0.4609371175115585, 'base_stem_channels': 23, 'k1': 7, 'k2': 5, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 2.494640220274762, 'label_smoothing': 0.053969213238907986, 'class_weighting': False, 'aug_prob': 0.9652553072641382, 'aug_jitter_std': 0.03035171238433424, 'aug_scale_range': 0.055199836404508686, 'aug_time_mask_ratio': 0.05925470114081649, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibrate_batches': 8}
+2025-09-19 11:09:50,422 - ERROR - _models.training_function_executor - Training execution failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:50,422 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:50,422 - ERROR - _models.training_function_executor - BO training objective failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:50,422 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.010s
+2025-09-19 11:09:50,674 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:50,674 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.252s
+2025-09-19 11:09:50,674 - INFO - bo.run_bo - Recorded observation #3: hparams={'lr': 4.205571187007204e-05, 'batch_size': 128, 'epochs': np.int64(33), 'weight_decay': 0.007556810141274438, 'seed': np.int64(989913), 'd_model': 96, 'n_heads': 3, 'n_layers': np.int64(2), 'mlp_ratio': 2.994749947027713, 'dropout': 0.4609371175115585, 'base_stem_channels': np.int64(23), 'k1': 7, 'k2': 5, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 2.494640220274762, 'label_smoothing': 0.053969213238907986, 'class_weighting': False, 'aug_prob': 0.9652553072641382, 'aug_jitter_std': 0.03035171238433424, 'aug_scale_range': 0.055199836404508686, 'aug_time_mask_ratio': 0.05925470114081649, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibrate_batches': np.int64(8)}, value=0.0000
+2025-09-19 11:09:50,674 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 3: {'lr': 4.205571187007204e-05, 'batch_size': 128, 'epochs': np.int64(33), 'weight_decay': 0.007556810141274438, 'seed': np.int64(989913), 'd_model': 96, 'n_heads': 3, 'n_layers': np.int64(2), 'mlp_ratio': 2.994749947027713, 'dropout': 0.4609371175115585, 'base_stem_channels': np.int64(23), 'k1': 7, 'k2': 5, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 2.494640220274762, 'label_smoothing': 0.053969213238907986, 'class_weighting': False, 'aug_prob': 0.9652553072641382, 'aug_jitter_std': 0.03035171238433424, 'aug_scale_range': 0.055199836404508686, 'aug_time_mask_ratio': 0.05925470114081649, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibrate_batches': np.int64(8)} -> 0.0000
+2025-09-19 11:09:50,674 - INFO - bo.run_bo - 🔍BO Trial 4: Using RF surrogate + Expected Improvement
+2025-09-19 11:09:50,674 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 11:09:50,674 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:50,674 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:50,674 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 3.945908811100001e-05, 'batch_size': 256, 'epochs': 6, 'weight_decay': 2.2148222686396838e-05, 'seed': 707918, 'd_model': 64, 'n_heads': 2, 'n_layers': 1, 'mlp_ratio': 1.7213024038826128, 'dropout': 0.06306535249509844, 'base_stem_channels': 46, 'k1': 3, 'k2': 7, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 2.156586711814687, 'label_smoothing': 0.00229739413974458, 'class_weighting': True, 'aug_prob': 0.1399731122241236, 'aug_jitter_std': 0.004908228038973834, 'aug_scale_range': 0.1945697227972986, 'aug_time_mask_ratio': 0.1238449199794506, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': False, 'calibrate_batches': 36}
+2025-09-19 11:09:50,676 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 3.945908811100001e-05, 'batch_size': 256, 'epochs': 6, 'weight_decay': 2.2148222686396838e-05, 'seed': 707918, 'd_model': 64, 'n_heads': 2, 'n_layers': 1, 'mlp_ratio': 1.7213024038826128, 'dropout': 0.06306535249509844, 'base_stem_channels': 46, 'k1': 3, 'k2': 7, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 2.156586711814687, 'label_smoothing': 0.00229739413974458, 'class_weighting': True, 'aug_prob': 0.1399731122241236, 'aug_jitter_std': 0.004908228038973834, 'aug_scale_range': 0.1945697227972986, 'aug_time_mask_ratio': 0.1238449199794506, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': False, 'calibrate_batches': 36}
+2025-09-19 11:09:50,686 - ERROR - _models.training_function_executor - Training execution failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:50,686 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:50,686 - ERROR - _models.training_function_executor - BO training objective failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:50,686 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.012s
+2025-09-19 11:09:50,929 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:50,930 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.244s
+2025-09-19 11:09:50,930 - INFO - bo.run_bo - Recorded observation #4: hparams={'lr': 3.945908811100001e-05, 'batch_size': np.int64(256), 'epochs': np.int64(6), 'weight_decay': 2.2148222686396838e-05, 'seed': np.int64(707918), 'd_model': np.int64(64), 'n_heads': np.int64(2), 'n_layers': np.int64(1), 'mlp_ratio': 1.7213024038826128, 'dropout': 0.06306535249509844, 'base_stem_channels': np.int64(46), 'k1': np.int64(3), 'k2': np.int64(7), 'k3': np.int64(5), 'use_focal_loss': np.False_, 'focal_gamma': 2.156586711814687, 'label_smoothing': 0.00229739413974458, 'class_weighting': np.True_, 'aug_prob': 0.1399731122241236, 'aug_jitter_std': 0.004908228038973834, 'aug_scale_range': 0.1945697227972986, 'aug_time_mask_ratio': 0.1238449199794506, 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(36)}, value=0.0000
+2025-09-19 11:09:50,930 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 4: {'lr': 3.945908811100001e-05, 'batch_size': np.int64(256), 'epochs': np.int64(6), 'weight_decay': 2.2148222686396838e-05, 'seed': np.int64(707918), 'd_model': np.int64(64), 'n_heads': np.int64(2), 'n_layers': np.int64(1), 'mlp_ratio': 1.7213024038826128, 'dropout': 0.06306535249509844, 'base_stem_channels': np.int64(46), 'k1': np.int64(3), 'k2': np.int64(7), 'k3': np.int64(5), 'use_focal_loss': np.False_, 'focal_gamma': 2.156586711814687, 'label_smoothing': 0.00229739413974458, 'class_weighting': np.True_, 'aug_prob': 0.1399731122241236, 'aug_jitter_std': 0.004908228038973834, 'aug_scale_range': 0.1945697227972986, 'aug_time_mask_ratio': 0.1238449199794506, 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(36)} -> 0.0000
+2025-09-19 11:09:50,930 - INFO - bo.run_bo - 🔍BO Trial 5: Using RF surrogate + Expected Improvement
+2025-09-19 11:09:50,930 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 11:09:50,930 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:50,930 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:50,930 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.004394810706992333, 'batch_size': 64, 'epochs': 8, 'weight_decay': 0.0003320780339450439, 'seed': 286575, 'd_model': 128, 'n_heads': 6, 'n_layers': 2, 'mlp_ratio': 2.404253908378735, 'dropout': 0.3731255893333223, 'base_stem_channels': 27, 'k1': 9, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.4887638239305203, 'label_smoothing': 0.021011005463195356, 'class_weighting': True, 'aug_prob': 0.3847862372804457, 'aug_jitter_std': 0.04562087940505366, 'aug_scale_range': 0.13839466136896167, 'aug_time_mask_ratio': 0.061412133547585755, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibrate_batches': 61}
+2025-09-19 11:09:50,932 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.004394810706992333, 'batch_size': 64, 'epochs': 8, 'weight_decay': 0.0003320780339450439, 'seed': 286575, 'd_model': 128, 'n_heads': 6, 'n_layers': 2, 'mlp_ratio': 2.404253908378735, 'dropout': 0.3731255893333223, 'base_stem_channels': 27, 'k1': 9, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.4887638239305203, 'label_smoothing': 0.021011005463195356, 'class_weighting': True, 'aug_prob': 0.3847862372804457, 'aug_jitter_std': 0.04562087940505366, 'aug_scale_range': 0.13839466136896167, 'aug_time_mask_ratio': 0.061412133547585755, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibrate_batches': 61}
+2025-09-19 11:09:50,942 - ERROR - _models.training_function_executor - Training execution failed: Model has 347208 parameters, exceeds 256K limit. Reduce d_model/n_layers/base_stem_channels.
+2025-09-19 11:09:50,942 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:50,942 - ERROR - _models.training_function_executor - BO training objective failed: Model has 347208 parameters, exceeds 256K limit. Reduce d_model/n_layers/base_stem_channels.
+2025-09-19 11:09:50,942 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.013s
+2025-09-19 11:09:51,194 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:51,194 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.252s
+2025-09-19 11:09:51,194 - INFO - bo.run_bo - Recorded observation #5: hparams={'lr': 0.004394810706992333, 'batch_size': np.int64(64), 'epochs': np.int64(8), 'weight_decay': 0.0003320780339450439, 'seed': np.int64(286575), 'd_model': np.int64(128), 'n_heads': np.int64(6), 'n_layers': np.int64(2), 'mlp_ratio': 2.404253908378735, 'dropout': 0.3731255893333223, 'base_stem_channels': np.int64(27), 'k1': np.int64(9), 'k2': np.int64(3), 'k3': np.int64(5), 'use_focal_loss': np.False_, 'focal_gamma': 1.4887638239305203, 'label_smoothing': 0.021011005463195356, 'class_weighting': np.True_, 'aug_prob': 0.3847862372804457, 'aug_jitter_std': 0.04562087940505366, 'aug_scale_range': 0.13839466136896167, 'aug_time_mask_ratio': 0.061412133547585755, 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibrate_batches': np.int64(61)}, value=0.0000
+2025-09-19 11:09:51,194 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 5: {'lr': 0.004394810706992333, 'batch_size': np.int64(64), 'epochs': np.int64(8), 'weight_decay': 0.0003320780339450439, 'seed': np.int64(286575), 'd_model': np.int64(128), 'n_heads': np.int64(6), 'n_layers': np.int64(2), 'mlp_ratio': 2.404253908378735, 'dropout': 0.3731255893333223, 'base_stem_channels': np.int64(27), 'k1': np.int64(9), 'k2': np.int64(3), 'k3': np.int64(5), 'use_focal_loss': np.False_, 'focal_gamma': 1.4887638239305203, 'label_smoothing': 0.021011005463195356, 'class_weighting': np.True_, 'aug_prob': 0.3847862372804457, 'aug_jitter_std': 0.04562087940505366, 'aug_scale_range': 0.13839466136896167, 'aug_time_mask_ratio': 0.061412133547585755, 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibrate_batches': np.int64(61)} -> 0.0000
+2025-09-19 11:09:51,194 - INFO - bo.run_bo - 🔍BO Trial 6: Using RF surrogate + Expected Improvement
+2025-09-19 11:09:51,194 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 11:09:51,195 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:51,195 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:51,195 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.007890272367281011, 'batch_size': 128, 'epochs': 34, 'weight_decay': 0.00021134554026821451, 'seed': 939970, 'd_model': 128, 'n_heads': 6, 'n_layers': 1, 'mlp_ratio': 2.370724257794975, 'dropout': 0.38637922039218403, 'base_stem_channels': 52, 'k1': 3, 'k2': 7, 'k3': 5, 'use_focal_loss': True, 'focal_gamma': 1.1635611451920504, 'label_smoothing': 0.03606374179687755, 'class_weighting': False, 'aug_prob': 0.5875627370393012, 'aug_jitter_std': 0.04814125101950262, 'aug_scale_range': 0.06340879913444343, 'aug_time_mask_ratio': 0.08148047048517026, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibrate_batches': 118}
+2025-09-19 11:09:51,197 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.007890272367281011, 'batch_size': 128, 'epochs': 34, 'weight_decay': 0.00021134554026821451, 'seed': 939970, 'd_model': 128, 'n_heads': 6, 'n_layers': 1, 'mlp_ratio': 2.370724257794975, 'dropout': 0.38637922039218403, 'base_stem_channels': 52, 'k1': 3, 'k2': 7, 'k3': 5, 'use_focal_loss': True, 'focal_gamma': 1.1635611451920504, 'label_smoothing': 0.03606374179687755, 'class_weighting': False, 'aug_prob': 0.5875627370393012, 'aug_jitter_std': 0.04814125101950262, 'aug_scale_range': 0.06340879913444343, 'aug_time_mask_ratio': 0.08148047048517026, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibrate_batches': 118}
+2025-09-19 11:09:51,204 - ERROR - _models.training_function_executor - Training execution failed: Model has 258821 parameters, exceeds 256K limit. Reduce d_model/n_layers/base_stem_channels.
+2025-09-19 11:09:51,204 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:51,204 - ERROR - _models.training_function_executor - BO training objective failed: Model has 258821 parameters, exceeds 256K limit. Reduce d_model/n_layers/base_stem_channels.
+2025-09-19 11:09:51,204 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.009s
+2025-09-19 11:09:51,448 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:51,448 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.243s
+2025-09-19 11:09:51,449 - INFO - bo.run_bo - Recorded observation #6: hparams={'lr': 0.007890272367281011, 'batch_size': np.int64(128), 'epochs': np.int64(34), 'weight_decay': 0.00021134554026821451, 'seed': np.int64(939970), 'd_model': np.int64(128), 'n_heads': np.int64(6), 'n_layers': np.int64(1), 'mlp_ratio': 2.370724257794975, 'dropout': 0.38637922039218403, 'base_stem_channels': np.int64(52), 'k1': np.int64(3), 'k2': np.int64(7), 'k3': np.int64(5), 'use_focal_loss': np.True_, 'focal_gamma': 1.1635611451920504, 'label_smoothing': 0.03606374179687755, 'class_weighting': np.False_, 'aug_prob': 0.5875627370393012, 'aug_jitter_std': 0.04814125101950262, 'aug_scale_range': 0.06340879913444343, 'aug_time_mask_ratio': 0.08148047048517026, 'quantization_bits': np.int64(8), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(118)}, value=0.0000
+2025-09-19 11:09:51,449 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 6: {'lr': 0.007890272367281011, 'batch_size': np.int64(128), 'epochs': np.int64(34), 'weight_decay': 0.00021134554026821451, 'seed': np.int64(939970), 'd_model': np.int64(128), 'n_heads': np.int64(6), 'n_layers': np.int64(1), 'mlp_ratio': 2.370724257794975, 'dropout': 0.38637922039218403, 'base_stem_channels': np.int64(52), 'k1': np.int64(3), 'k2': np.int64(7), 'k3': np.int64(5), 'use_focal_loss': np.True_, 'focal_gamma': 1.1635611451920504, 'label_smoothing': 0.03606374179687755, 'class_weighting': np.False_, 'aug_prob': 0.5875627370393012, 'aug_jitter_std': 0.04814125101950262, 'aug_scale_range': 0.06340879913444343, 'aug_time_mask_ratio': 0.08148047048517026, 'quantization_bits': np.int64(8), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(118)} -> 0.0000
+2025-09-19 11:09:51,449 - INFO - bo.run_bo - 🔍BO Trial 7: Using RF surrogate + Expected Improvement
+2025-09-19 11:09:51,449 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 11:09:51,449 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:51,449 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:51,449 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0070817848683899075, 'batch_size': 128, 'epochs': 7, 'weight_decay': 0.006440506563230084, 'seed': 64375, 'd_model': 96, 'n_heads': 2, 'n_layers': 1, 'mlp_ratio': 2.0196771331788375, 'dropout': 0.03343940303529481, 'base_stem_channels': 43, 'k1': 9, 'k2': 5, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 2.4798880745283443, 'label_smoothing': 0.05782787234677421, 'class_weighting': True, 'aug_prob': 0.29882453605742915, 'aug_jitter_std': 0.02241981532057972, 'aug_scale_range': 0.01695717264269281, 'aug_time_mask_ratio': 0.0448883150372683, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': 119}
+2025-09-19 11:09:51,451 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0070817848683899075, 'batch_size': 128, 'epochs': 7, 'weight_decay': 0.006440506563230084, 'seed': 64375, 'd_model': 96, 'n_heads': 2, 'n_layers': 1, 'mlp_ratio': 2.0196771331788375, 'dropout': 0.03343940303529481, 'base_stem_channels': 43, 'k1': 9, 'k2': 5, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 2.4798880745283443, 'label_smoothing': 0.05782787234677421, 'class_weighting': True, 'aug_prob': 0.29882453605742915, 'aug_jitter_std': 0.02241981532057972, 'aug_scale_range': 0.01695717264269281, 'aug_time_mask_ratio': 0.0448883150372683, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': 119}
+2025-09-19 11:09:51,462 - ERROR - _models.training_function_executor - Training execution failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:51,462 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:51,462 - ERROR - _models.training_function_executor - BO training objective failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:51,462 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.013s
+2025-09-19 11:09:51,702 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:51,702 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.241s
+2025-09-19 11:09:51,702 - INFO - bo.run_bo - Recorded observation #7: hparams={'lr': 0.0070817848683899075, 'batch_size': np.int64(128), 'epochs': np.int64(7), 'weight_decay': 0.006440506563230084, 'seed': np.int64(64375), 'd_model': np.int64(96), 'n_heads': np.int64(2), 'n_layers': np.int64(1), 'mlp_ratio': 2.0196771331788375, 'dropout': 0.03343940303529481, 'base_stem_channels': np.int64(43), 'k1': np.int64(9), 'k2': np.int64(5), 'k3': np.int64(5), 'use_focal_loss': np.False_, 'focal_gamma': 2.4798880745283443, 'label_smoothing': 0.05782787234677421, 'class_weighting': np.True_, 'aug_prob': 0.29882453605742915, 'aug_jitter_std': 0.02241981532057972, 'aug_scale_range': 0.01695717264269281, 'aug_time_mask_ratio': 0.0448883150372683, 'quantization_bits': np.int64(32), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(119)}, value=0.0000
+2025-09-19 11:09:51,702 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 7: {'lr': 0.0070817848683899075, 'batch_size': np.int64(128), 'epochs': np.int64(7), 'weight_decay': 0.006440506563230084, 'seed': np.int64(64375), 'd_model': np.int64(96), 'n_heads': np.int64(2), 'n_layers': np.int64(1), 'mlp_ratio': 2.0196771331788375, 'dropout': 0.03343940303529481, 'base_stem_channels': np.int64(43), 'k1': np.int64(9), 'k2': np.int64(5), 'k3': np.int64(5), 'use_focal_loss': np.False_, 'focal_gamma': 2.4798880745283443, 'label_smoothing': 0.05782787234677421, 'class_weighting': np.True_, 'aug_prob': 0.29882453605742915, 'aug_jitter_std': 0.02241981532057972, 'aug_scale_range': 0.01695717264269281, 'aug_time_mask_ratio': 0.0448883150372683, 'quantization_bits': np.int64(32), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(119)} -> 0.0000
+2025-09-19 11:09:51,703 - INFO - bo.run_bo - 🔍BO Trial 8: Using RF surrogate + Expected Improvement
+2025-09-19 11:09:51,703 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 11:09:51,703 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:51,703 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:51,703 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0013996264127457219, 'batch_size': 128, 'epochs': 21, 'weight_decay': 2.001678076452324e-05, 'seed': 733321, 'd_model': 64, 'n_heads': 4, 'n_layers': 2, 'mlp_ratio': 2.3060120710866108, 'dropout': 0.37719426401279954, 'base_stem_channels': 23, 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': True, 'focal_gamma': 2.9639076617494124, 'label_smoothing': 0.060972249037356555, 'class_weighting': True, 'aug_prob': 0.4404490847431044, 'aug_jitter_std': 0.04273522176237707, 'aug_scale_range': 0.007839209637482882, 'aug_time_mask_ratio': 0.1892081738015175, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': 88}
+2025-09-19 11:09:51,705 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0013996264127457219, 'batch_size': 128, 'epochs': 21, 'weight_decay': 2.001678076452324e-05, 'seed': 733321, 'd_model': 64, 'n_heads': 4, 'n_layers': 2, 'mlp_ratio': 2.3060120710866108, 'dropout': 0.37719426401279954, 'base_stem_channels': 23, 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': True, 'focal_gamma': 2.9639076617494124, 'label_smoothing': 0.060972249037356555, 'class_weighting': True, 'aug_prob': 0.4404490847431044, 'aug_jitter_std': 0.04273522176237707, 'aug_scale_range': 0.007839209637482882, 'aug_time_mask_ratio': 0.1892081738015175, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': 88}
+2025-09-19 11:09:51,716 - ERROR - _models.training_function_executor - Training execution failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:51,716 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:51,716 - ERROR - _models.training_function_executor - BO training objective failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:51,716 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.013s
+2025-09-19 11:09:51,964 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:51,964 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.248s
+2025-09-19 11:09:51,964 - INFO - bo.run_bo - Recorded observation #8: hparams={'lr': 0.0013996264127457219, 'batch_size': np.int64(128), 'epochs': np.int64(21), 'weight_decay': 2.001678076452324e-05, 'seed': np.int64(733321), 'd_model': np.int64(64), 'n_heads': np.int64(4), 'n_layers': np.int64(2), 'mlp_ratio': 2.3060120710866108, 'dropout': 0.37719426401279954, 'base_stem_channels': np.int64(23), 'k1': np.int64(7), 'k2': np.int64(3), 'k3': np.int64(5), 'use_focal_loss': np.True_, 'focal_gamma': 2.9639076617494124, 'label_smoothing': 0.060972249037356555, 'class_weighting': np.True_, 'aug_prob': 0.4404490847431044, 'aug_jitter_std': 0.04273522176237707, 'aug_scale_range': 0.007839209637482882, 'aug_time_mask_ratio': 0.1892081738015175, 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(88)}, value=0.0000
+2025-09-19 11:09:51,964 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 8: {'lr': 0.0013996264127457219, 'batch_size': np.int64(128), 'epochs': np.int64(21), 'weight_decay': 2.001678076452324e-05, 'seed': np.int64(733321), 'd_model': np.int64(64), 'n_heads': np.int64(4), 'n_layers': np.int64(2), 'mlp_ratio': 2.3060120710866108, 'dropout': 0.37719426401279954, 'base_stem_channels': np.int64(23), 'k1': np.int64(7), 'k2': np.int64(3), 'k3': np.int64(5), 'use_focal_loss': np.True_, 'focal_gamma': 2.9639076617494124, 'label_smoothing': 0.060972249037356555, 'class_weighting': np.True_, 'aug_prob': 0.4404490847431044, 'aug_jitter_std': 0.04273522176237707, 'aug_scale_range': 0.007839209637482882, 'aug_time_mask_ratio': 0.1892081738015175, 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(88)} -> 0.0000
+2025-09-19 11:09:51,964 - INFO - bo.run_bo - 🔍BO Trial 9: Using RF surrogate + Expected Improvement
+2025-09-19 11:09:51,964 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 11:09:51,965 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:51,965 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:51,965 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.004986450123868851, 'batch_size': 256, 'epochs': 31, 'weight_decay': 2.503418941928056e-05, 'seed': 820714, 'd_model': 96, 'n_heads': 4, 'n_layers': 1, 'mlp_ratio': 2.496796544711374, 'dropout': 0.47799652471677173, 'base_stem_channels': 30, 'k1': 3, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.8176927747999305, 'label_smoothing': 0.09842999847932148, 'class_weighting': False, 'aug_prob': 0.9142371409351578, 'aug_jitter_std': 0.00454364860323806, 'aug_scale_range': 0.09538643867633886, 'aug_time_mask_ratio': 0.016111399773370064, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': 46}
+2025-09-19 11:09:51,967 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.004986450123868851, 'batch_size': 256, 'epochs': 31, 'weight_decay': 2.503418941928056e-05, 'seed': 820714, 'd_model': 96, 'n_heads': 4, 'n_layers': 1, 'mlp_ratio': 2.496796544711374, 'dropout': 0.47799652471677173, 'base_stem_channels': 30, 'k1': 3, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.8176927747999305, 'label_smoothing': 0.09842999847932148, 'class_weighting': False, 'aug_prob': 0.9142371409351578, 'aug_jitter_std': 0.00454364860323806, 'aug_scale_range': 0.09538643867633886, 'aug_time_mask_ratio': 0.016111399773370064, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': 46}
+2025-09-19 11:09:51,975 - ERROR - _models.training_function_executor - Training execution failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:51,975 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:51,975 - ERROR - _models.training_function_executor - BO training objective failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:51,975 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.010s
+2025-09-19 11:09:52,218 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:52,219 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.245s
+2025-09-19 11:09:52,219 - INFO - bo.run_bo - Recorded observation #9: hparams={'lr': 0.004986450123868851, 'batch_size': np.int64(256), 'epochs': np.int64(31), 'weight_decay': 2.503418941928056e-05, 'seed': np.int64(820714), 'd_model': np.int64(96), 'n_heads': np.int64(4), 'n_layers': np.int64(1), 'mlp_ratio': 2.496796544711374, 'dropout': 0.47799652471677173, 'base_stem_channels': np.int64(30), 'k1': np.int64(3), 'k2': np.int64(3), 'k3': np.int64(5), 'use_focal_loss': np.False_, 'focal_gamma': 1.8176927747999305, 'label_smoothing': 0.09842999847932148, 'class_weighting': np.False_, 'aug_prob': 0.9142371409351578, 'aug_jitter_std': 0.00454364860323806, 'aug_scale_range': 0.09538643867633886, 'aug_time_mask_ratio': 0.016111399773370064, 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(46)}, value=0.0000
+2025-09-19 11:09:52,219 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 9: {'lr': 0.004986450123868851, 'batch_size': np.int64(256), 'epochs': np.int64(31), 'weight_decay': 2.503418941928056e-05, 'seed': np.int64(820714), 'd_model': np.int64(96), 'n_heads': np.int64(4), 'n_layers': np.int64(1), 'mlp_ratio': 2.496796544711374, 'dropout': 0.47799652471677173, 'base_stem_channels': np.int64(30), 'k1': np.int64(3), 'k2': np.int64(3), 'k3': np.int64(5), 'use_focal_loss': np.False_, 'focal_gamma': 1.8176927747999305, 'label_smoothing': 0.09842999847932148, 'class_weighting': np.False_, 'aug_prob': 0.9142371409351578, 'aug_jitter_std': 0.00454364860323806, 'aug_scale_range': 0.09538643867633886, 'aug_time_mask_ratio': 0.016111399773370064, 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibrate_batches': np.int64(46)} -> 0.0000
+2025-09-19 11:09:52,219 - INFO - bo.run_bo - 🔍BO Trial 10: Using RF surrogate + Expected Improvement
+2025-09-19 11:09:52,219 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 11:09:52,219 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:52,219 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:52,219 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 2.023372994153309e-05, 'batch_size': 256, 'epochs': 48, 'weight_decay': 1.115049297054077e-06, 'seed': 849398, 'd_model': 96, 'n_heads': 6, 'n_layers': 1, 'mlp_ratio': 1.6403007644665224, 'dropout': 0.36926353295323056, 'base_stem_channels': 47, 'k1': 3, 'k2': 3, 'k3': 3, 'use_focal_loss': True, 'focal_gamma': 1.62244417370459, 'label_smoothing': 0.014026402284905374, 'class_weighting': False, 'aug_prob': 0.6398616376316283, 'aug_jitter_std': 0.04023903969420217, 'aug_scale_range': 0.18771085467369156, 'aug_time_mask_ratio': 0.14262582409053357, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibrate_batches': 21}
+2025-09-19 11:09:52,221 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 2.023372994153309e-05, 'batch_size': 256, 'epochs': 48, 'weight_decay': 1.115049297054077e-06, 'seed': 849398, 'd_model': 96, 'n_heads': 6, 'n_layers': 1, 'mlp_ratio': 1.6403007644665224, 'dropout': 0.36926353295323056, 'base_stem_channels': 47, 'k1': 3, 'k2': 3, 'k3': 3, 'use_focal_loss': True, 'focal_gamma': 1.62244417370459, 'label_smoothing': 0.014026402284905374, 'class_weighting': False, 'aug_prob': 0.6398616376316283, 'aug_jitter_std': 0.04023903969420217, 'aug_scale_range': 0.18771085467369156, 'aug_time_mask_ratio': 0.14262582409053357, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibrate_batches': 21}
+2025-09-19 11:09:52,228 - ERROR - _models.training_function_executor - Training execution failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:52,229 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...
+2025-09-19 11:09:52,229 - ERROR - _models.training_function_executor - BO training objective failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:52,229 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.010s
+2025-09-19 11:09:52,469 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 11:09:52,469 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.240s
+2025-09-19 11:09:52,469 - INFO - bo.run_bo - Recorded observation #10: hparams={'lr': 2.023372994153309e-05, 'batch_size': np.int64(256), 'epochs': np.int64(48), 'weight_decay': 1.115049297054077e-06, 'seed': np.int64(849398), 'd_model': np.int64(96), 'n_heads': np.int64(6), 'n_layers': np.int64(1), 'mlp_ratio': 1.6403007644665224, 'dropout': 0.36926353295323056, 'base_stem_channels': np.int64(47), 'k1': np.int64(3), 'k2': np.int64(3), 'k3': np.int64(3), 'use_focal_loss': np.True_, 'focal_gamma': 1.62244417370459, 'label_smoothing': 0.014026402284905374, 'class_weighting': np.False_, 'aug_prob': 0.6398616376316283, 'aug_jitter_std': 0.04023903969420217, 'aug_scale_range': 0.18771085467369156, 'aug_time_mask_ratio': 0.14262582409053357, 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calibrate_batches': np.int64(21)}, value=0.0000
+2025-09-19 11:09:52,469 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 10: {'lr': 2.023372994153309e-05, 'batch_size': np.int64(256), 'epochs': np.int64(48), 'weight_decay': 1.115049297054077e-06, 'seed': np.int64(849398), 'd_model': np.int64(96), 'n_heads': np.int64(6), 'n_layers': np.int64(1), 'mlp_ratio': 1.6403007644665224, 'dropout': 0.36926353295323056, 'base_stem_channels': np.int64(47), 'k1': np.int64(3), 'k2': np.int64(3), 'k3': np.int64(3), 'use_focal_loss': np.True_, 'focal_gamma': 1.62244417370459, 'label_smoothing': 0.014026402284905374, 'class_weighting': np.False_, 'aug_prob': 0.6398616376316283, 'aug_jitter_std': 0.04023903969420217, 'aug_scale_range': 0.18771085467369156, 'aug_time_mask_ratio': 0.14262582409053357, 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calibrate_batches': np.int64(21)} -> 0.0000
+2025-09-19 11:09:52,469 - INFO - evaluation.code_generation_pipeline_orchestrator - BO completed - Best score: 0.0000
+2025-09-19 11:09:52,469 - INFO - evaluation.code_generation_pipeline_orchestrator - Best params: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'seed': np.int64(54886), 'd_model': 96, 'n_heads': 2, 'n_layers': np.int64(1), 'mlp_ratio': 3.6654403644373383, 'dropout': 0.30055750587160446, 'base_stem_channels': np.int64(39), 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.0015575316820287, 'label_smoothing': 0.09922115592912177, 'class_weighting': False, 'aug_prob': 0.611653160488281, 'aug_jitter_std': 0.0003533152609858704, 'aug_scale_range': 0.004612485008283152, 'aug_time_mask_ratio': 0.10495493205167784, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': np.int64(22)}
+2025-09-19 11:09:52,470 - INFO - visualization - Generating BO visualization charts with 10 trials...
+2025-09-19 11:09:54,232 - INFO - visualization - BO summary saved to: charts\BO_CATNet1D-Tiny-Quant_20250919_110952\bo_summary.txt
+2025-09-19 11:09:54,232 - INFO - visualization - BO charts saved to: charts\BO_CATNet1D-Tiny-Quant_20250919_110952
+2025-09-19 11:09:54,232 - INFO - evaluation.code_generation_pipeline_orchestrator - 📊 BO charts saved to: charts\BO_CATNet1D-Tiny-Quant_20250919_110952
+2025-09-19 11:09:54,232 - INFO - evaluation.code_generation_pipeline_orchestrator - 🚀 STEP 4: Final Training Execution
+2025-09-19 11:09:54,233 - INFO - evaluation.code_generation_pipeline_orchestrator - Using centralized splits - Train: (39904, 1000, 2), Val: (9977, 1000, 2), Test: (12471, 1000, 2)
+2025-09-19 11:09:54,423 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 11:09:54,434 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 11:09:54,447 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 11:09:54,456 - INFO - _models.training_function_executor - Loaded training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:54,456 - INFO - _models.training_function_executor - Reasoning: No reasoning provided
+2025-09-19 11:09:54,456 - INFO - evaluation.code_generation_pipeline_orchestrator - Executing final training with optimized params: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'seed': np.int64(54886), 'd_model': 96, 'n_heads': 2, 'n_layers': np.int64(1), 'mlp_ratio': 3.6654403644373383, 'dropout': 0.30055750587160446, 'base_stem_channels': np.int64(39), 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.0015575316820287, 'label_smoothing': 0.09922115592912177, 'class_weighting': False, 'aug_prob': 0.611653160488281, 'aug_jitter_std': 0.0003533152609858704, 'aug_scale_range': 0.004612485008283152, 'aug_time_mask_ratio': 0.10495493205167784, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': np.int64(22)}
+2025-09-19 11:09:54,456 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 11:09:54,485 - INFO - _models.training_function_executor - Executing training function: CATNet1D-Tiny-Quant
+2025-09-19 11:09:54,486 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'seed': np.int64(54886), 'd_model': 96, 'n_heads': 2, 'n_layers': np.int64(1), 'mlp_ratio': 3.6654403644373383, 'dropout': 0.30055750587160446, 'base_stem_channels': np.int64(39), 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.0015575316820287, 'label_smoothing': 0.09922115592912177, 'class_weighting': False, 'aug_prob': 0.611653160488281, 'aug_jitter_std': 0.0003533152609858704, 'aug_scale_range': 0.004612485008283152, 'aug_time_mask_ratio': 0.10495493205167784, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': np.int64(22)}
+2025-09-19 11:09:54,488 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': 12, 'weight_decay': 0.0002481040974867812, 'seed': 54886, 'd_model': 96, 'n_heads': 2, 'n_layers': 1, 'mlp_ratio': 3.6654403644373383, 'dropout': 0.30055750587160446, 'base_stem_channels': 39, 'k1': 7, 'k2': 3, 'k3': 5, 'use_focal_loss': False, 'focal_gamma': 1.0015575316820287, 'label_smoothing': 0.09922115592912177, 'class_weighting': False, 'aug_prob': 0.611653160488281, 'aug_jitter_std': 0.0003533152609858704, 'aug_scale_range': 0.004612485008283152, 'aug_time_mask_ratio': 0.10495493205167784, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibrate_batches': 22}
+2025-09-19 11:09:54,506 - ERROR - _models.training_function_executor - Training execution failed: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+2025-09-19 11:09:54,506 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from collections import OrderedDict
+
+# -----------------------------
+# U...

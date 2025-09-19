@@ -1,0 +1,296 @@
+2025-09-19 10:16:20,866 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 10:16:21,475 - INFO - __main__ - Logging system initialized successfully
+2025-09-19 10:16:21,476 - INFO - __main__ - Starting AI-Enhanced Machine Learning Pipeline
+2025-09-19 10:16:21,476 - INFO - __main__ - Starting real data processing from data/ directory
+2025-09-19 10:16:21,477 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'X.npy', 'y.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-19 10:16:21,477 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-19 10:16:21,477 - INFO - __main__ - Attempting to load: X.npy
+2025-09-19 10:16:21,708 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-19 10:16:21,794 - INFO - __main__ - Data loaded successfully: X.npy + y.npy, shape: (62352, 1000, 2), device: cuda
+2025-09-19 10:16:21,794 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-19 10:16:21,794 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-19 10:16:21,794 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-19 10:16:21,800 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 10:16:21,800 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-19 10:16:21,800 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-19 10:16:21,800 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-19 10:16:21,800 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-19 10:16:21,800 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-19 10:16:21,801 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-19 10:16:21,801 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-19 10:16:21,801 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-19 10:16:22,011 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-19 10:16:22,012 - INFO - class_balancing - Class imbalance analysis:
+2025-09-19 10:16:22,012 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-19 10:16:22,012 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-19 10:16:22,012 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-19 10:16:22,012 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-19 10:16:22,012 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-19 10:16:22,012 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-19 10:16:22,012 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-19 10:16:22,012 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-19 10:16:22,725 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-19 10:16:22,733 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-19 10:16:22,733 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-19 10:16:22,733 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-19 10:16:22,733 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-19 10:16:22,733 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-19 10:16:22,733 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-19 10:16:22,733 - INFO - _models.ai_code_generator - Prompt length: 2252 characters
+2025-09-19 10:16:22,733 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-19 10:16:22,733 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-19 10:16:22,733 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-19 10:19:17,992 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-19 10:19:18,067 - INFO - _models.ai_code_generator - Successfully extracted response content
+2025-09-19 10:19:18,067 - INFO - _models.ai_code_generator - AI generated training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:18,068 - INFO - _models.ai_code_generator - Confidence: 0.86
+2025-09-19 10:19:18,068 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:18,068 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['lr', 'batch_size', 'epochs', 'weight_decay', 'optimizer', 'momentum', 'base_channels', 'dropout', 'ks1', 'ks2', 'ks3', 'linear_hidden', 'label_smoothing', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'calibration_batches', 'quant_backend']
+2025-09-19 10:19:18,068 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.86
+2025-09-19 10:19:18,068 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-19 10:19:18,071 - INFO - _models.ai_code_generator - Training function saved to: generated_training_functions\training_function_torch_tensor_TinyECG1DCNN-PTQ_1758295158.json
+2025-09-19 10:19:18,071 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions\training_function_torch_tensor_TinyECG1DCNN-PTQ_1758295158.json
+2025-09-19 10:19:18,072 - INFO - _models.training_function_executor - Training function validation passed
+2025-09-19 10:19:18,072 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-19 10:19:18,073 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:18,073 - INFO - evaluation.code_generation_pipeline_orchestrator - 📦 Installing dependencies for GPT-generated training code...
+2025-09-19 10:19:18,074 - INFO - package_installer - 🔍 Analyzing GPT-generated code for package dependencies...
+2025-09-19 10:19:18,078 - INFO - package_installer - Extracted imports from code: {'torch'}
+2025-09-19 10:19:18,078 - INFO - package_installer - Available packages: {'torch'}
+2025-09-19 10:19:18,078 - INFO - package_installer - Missing packages: set()
+2025-09-19 10:19:18,078 - INFO - package_installer - ✅ All required packages are already available
+2025-09-19 10:19:18,078 - INFO - evaluation.code_generation_pipeline_orchestrator - ✅ All dependencies installed successfully
+2025-09-19 10:19:18,078 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 62352 samples (using full dataset)
+2025-09-19 10:19:18,078 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['lr', 'batch_size', 'epochs', 'weight_decay', 'optimizer', 'momentum', 'base_channels', 'dropout', 'ks1', 'ks2', 'ks3', 'linear_hidden', 'label_smoothing', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'calibration_batches', 'quant_backend']
+2025-09-19 10:19:18,079 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 10:19:18,079 - INFO - _models.training_function_executor - Using centralized data splits for BO objective
+2025-09-19 10:19:18,918 - INFO - bo.run_bo - Converted GPT search space: 18 parameters
+2025-09-19 10:19:18,918 - INFO - bo.run_bo - Using GPT-generated search space
+2025-09-19 10:19:18,919 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-19 10:19:18,921 - INFO - bo.run_bo - 🔍BO Trial 1: Initial random exploration
+2025-09-19 10:19:18,921 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 10:19:18,921 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:18,921 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:18,921 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': 12, 'weight_decay': 3.90796715682288e-05, 'optimizer': 'adam', 'momentum': 0.14819479431939253, 'base_channels': 26, 'dropout': 0.22962444598293363, 'ks1': 7, 'ks2': 6, 'ks3': 10, 'linear_hidden': 183, 'label_smoothing': 0.1301776945897706, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': 9, 'quant_backend': 'fbgemm'}
+2025-09-19 10:19:18,923 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': 12, 'weight_decay': 3.90796715682288e-05, 'optimizer': 'adam', 'momentum': 0.14819479431939253, 'base_channels': 26, 'dropout': 0.22962444598293363, 'ks1': 7, 'ks2': 6, 'ks3': 10, 'linear_hidden': 183, 'label_smoothing': 0.1301776945897706, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': 9, 'quant_backend': 'fbgemm'}
+2025-09-19 10:19:20,649 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:20,649 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:20,649 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:20,649 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 1.728s
+2025-09-19 10:19:20,649 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:20,649 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-19 10:19:20,649 - INFO - bo.run_bo - Recorded observation #1: hparams={'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 3.90796715682288e-05, 'optimizer': 'adam', 'momentum': 0.14819479431939253, 'base_channels': np.int64(26), 'dropout': 0.22962444598293363, 'ks1': np.int64(7), 'ks2': np.int64(6), 'ks3': np.int64(10), 'linear_hidden': np.int64(183), 'label_smoothing': 0.1301776945897706, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': np.int64(9), 'quant_backend': 'fbgemm'}, value=0.0000
+2025-09-19 10:19:20,649 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 3.90796715682288e-05, 'optimizer': 'adam', 'momentum': 0.14819479431939253, 'base_channels': np.int64(26), 'dropout': 0.22962444598293363, 'ks1': np.int64(7), 'ks2': np.int64(6), 'ks3': np.int64(10), 'linear_hidden': np.int64(183), 'label_smoothing': 0.1301776945897706, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': np.int64(9), 'quant_backend': 'fbgemm'} -> 0.0000
+2025-09-19 10:19:20,650 - INFO - bo.run_bo - 🔍BO Trial 2: Initial random exploration
+2025-09-19 10:19:20,650 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 10:19:20,650 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:20,650 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:20,650 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 3.5498788321965036e-05, 'batch_size': 128, 'epochs': 26, 'weight_decay': 1.1025488264291645e-08, 'optimizer': 'adam', 'momentum': 0.49853592724546975, 'base_channels': 57, 'dropout': 0.023332831606807717, 'ks1': 5, 'ks2': 9, 'ks3': 6, 'linear_hidden': 95, 'label_smoothing': 0.09335257864959601, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 25, 'quant_backend': 'qnnpack'}
+2025-09-19 10:19:20,652 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 3.5498788321965036e-05, 'batch_size': 128, 'epochs': 26, 'weight_decay': 1.1025488264291645e-08, 'optimizer': 'adam', 'momentum': 0.49853592724546975, 'base_channels': 57, 'dropout': 0.023332831606807717, 'ks1': 5, 'ks2': 9, 'ks3': 6, 'linear_hidden': 95, 'label_smoothing': 0.09335257864959601, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 25, 'quant_backend': 'qnnpack'}
+2025-09-19 10:19:20,657 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:20,657 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:20,657 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:20,657 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.007s
+2025-09-19 10:19:20,658 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:20,658 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.001s
+2025-09-19 10:19:20,658 - INFO - bo.run_bo - Recorded observation #2: hparams={'lr': 3.5498788321965036e-05, 'batch_size': 128, 'epochs': np.int64(26), 'weight_decay': 1.1025488264291645e-08, 'optimizer': 'adam', 'momentum': 0.49853592724546975, 'base_channels': np.int64(57), 'dropout': 0.023332831606807717, 'ks1': np.int64(5), 'ks2': np.int64(9), 'ks3': np.int64(6), 'linear_hidden': np.int64(95), 'label_smoothing': 0.09335257864959601, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': np.int64(25), 'quant_backend': 'qnnpack'}, value=0.0000
+2025-09-19 10:19:20,658 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 2: {'lr': 3.5498788321965036e-05, 'batch_size': 128, 'epochs': np.int64(26), 'weight_decay': 1.1025488264291645e-08, 'optimizer': 'adam', 'momentum': 0.49853592724546975, 'base_channels': np.int64(57), 'dropout': 0.023332831606807717, 'ks1': np.int64(5), 'ks2': np.int64(9), 'ks3': np.int64(6), 'linear_hidden': np.int64(95), 'label_smoothing': 0.09335257864959601, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': np.int64(25), 'quant_backend': 'qnnpack'} -> 0.0000
+2025-09-19 10:19:20,658 - INFO - bo.run_bo - 🔍BO Trial 3: Initial random exploration
+2025-09-19 10:19:20,659 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 10:19:20,659 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:20,659 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:20,659 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.007886714129990499, 'batch_size': 512, 'epochs': 13, 'weight_decay': 1.246802066209201e-08, 'optimizer': 'adam', 'momentum': 0.22897419272471115, 'base_channels': 22, 'dropout': 0.3049983288913105, 'ks1': 10, 'ks2': 5, 'ks3': 3, 'linear_hidden': 195, 'label_smoothing': 0.036447217557612474, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': 11, 'quant_backend': 'fbgemm'}
+2025-09-19 10:19:20,660 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.007886714129990499, 'batch_size': 512, 'epochs': 13, 'weight_decay': 1.246802066209201e-08, 'optimizer': 'adam', 'momentum': 0.22897419272471115, 'base_channels': 22, 'dropout': 0.3049983288913105, 'ks1': 10, 'ks2': 5, 'ks3': 3, 'linear_hidden': 195, 'label_smoothing': 0.036447217557612474, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': 11, 'quant_backend': 'fbgemm'}
+2025-09-19 10:19:20,667 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:20,667 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:20,667 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:20,667 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.008s
+2025-09-19 10:19:20,889 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:20,889 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.221s
+2025-09-19 10:19:20,889 - INFO - bo.run_bo - Recorded observation #3: hparams={'lr': 0.007886714129990499, 'batch_size': 512, 'epochs': np.int64(13), 'weight_decay': 1.246802066209201e-08, 'optimizer': 'adam', 'momentum': 0.22897419272471115, 'base_channels': np.int64(22), 'dropout': 0.3049983288913105, 'ks1': np.int64(10), 'ks2': np.int64(5), 'ks3': np.int64(3), 'linear_hidden': np.int64(195), 'label_smoothing': 0.036447217557612474, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': np.int64(11), 'quant_backend': 'fbgemm'}, value=0.0000
+2025-09-19 10:19:20,889 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 3: {'lr': 0.007886714129990499, 'batch_size': 512, 'epochs': np.int64(13), 'weight_decay': 1.246802066209201e-08, 'optimizer': 'adam', 'momentum': 0.22897419272471115, 'base_channels': np.int64(22), 'dropout': 0.3049983288913105, 'ks1': np.int64(10), 'ks2': np.int64(5), 'ks3': np.int64(3), 'linear_hidden': np.int64(195), 'label_smoothing': 0.036447217557612474, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': np.int64(11), 'quant_backend': 'fbgemm'} -> 0.0000
+2025-09-19 10:19:20,890 - INFO - bo.run_bo - 🔍BO Trial 4: Using RF surrogate + Expected Improvement
+2025-09-19 10:19:20,890 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 10:19:20,890 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:20,890 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:20,890 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.008105016126411586, 'batch_size': 512, 'epochs': 25, 'weight_decay': 7.07297328802166e-07, 'optimizer': np.str_('adam'), 'momentum': 0.004670600621838389, 'base_channels': 61, 'dropout': 0.03277529719171313, 'ks1': 8, 'ks2': 3, 'ks3': 7, 'linear_hidden': 201, 'label_smoothing': 0.1256688235494799, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibration_batches': 97, 'quant_backend': np.str_('qnnpack')}
+2025-09-19 10:19:20,891 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.008105016126411586, 'batch_size': 512, 'epochs': 25, 'weight_decay': 7.07297328802166e-07, 'optimizer': np.str_('adam'), 'momentum': 0.004670600621838389, 'base_channels': 61, 'dropout': 0.03277529719171313, 'ks1': 8, 'ks2': 3, 'ks3': 7, 'linear_hidden': 201, 'label_smoothing': 0.1256688235494799, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': False, 'calibration_batches': 97, 'quant_backend': np.str_('qnnpack')}
+2025-09-19 10:19:20,898 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:20,898 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:20,898 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:20,898 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.008s
+2025-09-19 10:19:21,038 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:21,038 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.140s
+2025-09-19 10:19:21,038 - INFO - bo.run_bo - Recorded observation #4: hparams={'lr': 0.008105016126411586, 'batch_size': np.int64(512), 'epochs': np.int64(25), 'weight_decay': 7.07297328802166e-07, 'optimizer': np.str_('adam'), 'momentum': 0.004670600621838389, 'base_channels': np.int64(61), 'dropout': 0.03277529719171313, 'ks1': np.int64(8), 'ks2': np.int64(3), 'ks3': np.int64(7), 'linear_hidden': np.int64(201), 'label_smoothing': 0.1256688235494799, 'quantization_bits': np.int64(16), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(97), 'quant_backend': np.str_('qnnpack')}, value=0.0000
+2025-09-19 10:19:21,038 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 4: {'lr': 0.008105016126411586, 'batch_size': np.int64(512), 'epochs': np.int64(25), 'weight_decay': 7.07297328802166e-07, 'optimizer': np.str_('adam'), 'momentum': 0.004670600621838389, 'base_channels': np.int64(61), 'dropout': 0.03277529719171313, 'ks1': np.int64(8), 'ks2': np.int64(3), 'ks3': np.int64(7), 'linear_hidden': np.int64(201), 'label_smoothing': 0.1256688235494799, 'quantization_bits': np.int64(16), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(97), 'quant_backend': np.str_('qnnpack')} -> 0.0000
+2025-09-19 10:19:21,039 - INFO - bo.run_bo - 🔍BO Trial 5: Using RF surrogate + Expected Improvement
+2025-09-19 10:19:21,039 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 10:19:21,039 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:21,039 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:21,039 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 4.030015201319297e-05, 'batch_size': 512, 'epochs': 25, 'weight_decay': 1.518235947452343e-06, 'optimizer': np.str_('sgd'), 'momentum': 0.8305440173107436, 'base_channels': 17, 'dropout': 0.318983310222969, 'ks1': 6, 'ks2': 7, 'ks3': 8, 'linear_hidden': 92, 'label_smoothing': 0.07433001491577153, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 11, 'quant_backend': np.str_('qnnpack')}
+2025-09-19 10:19:21,040 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 4.030015201319297e-05, 'batch_size': 512, 'epochs': 25, 'weight_decay': 1.518235947452343e-06, 'optimizer': np.str_('sgd'), 'momentum': 0.8305440173107436, 'base_channels': 17, 'dropout': 0.318983310222969, 'ks1': 6, 'ks2': 7, 'ks3': 8, 'linear_hidden': 92, 'label_smoothing': 0.07433001491577153, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 11, 'quant_backend': np.str_('qnnpack')}
+2025-09-19 10:19:21,047 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,047 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:21,047 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,047 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.008s
+2025-09-19 10:19:21,187 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:21,187 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.140s
+2025-09-19 10:19:21,187 - INFO - bo.run_bo - Recorded observation #5: hparams={'lr': 4.030015201319297e-05, 'batch_size': np.int64(512), 'epochs': np.int64(25), 'weight_decay': 1.518235947452343e-06, 'optimizer': np.str_('sgd'), 'momentum': 0.8305440173107436, 'base_channels': np.int64(17), 'dropout': 0.318983310222969, 'ks1': np.int64(6), 'ks2': np.int64(7), 'ks3': np.int64(8), 'linear_hidden': np.int64(92), 'label_smoothing': 0.07433001491577153, 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(11), 'quant_backend': np.str_('qnnpack')}, value=0.0000
+2025-09-19 10:19:21,187 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 5: {'lr': 4.030015201319297e-05, 'batch_size': np.int64(512), 'epochs': np.int64(25), 'weight_decay': 1.518235947452343e-06, 'optimizer': np.str_('sgd'), 'momentum': 0.8305440173107436, 'base_channels': np.int64(17), 'dropout': 0.318983310222969, 'ks1': np.int64(6), 'ks2': np.int64(7), 'ks3': np.int64(8), 'linear_hidden': np.int64(92), 'label_smoothing': 0.07433001491577153, 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(11), 'quant_backend': np.str_('qnnpack')} -> 0.0000
+2025-09-19 10:19:21,187 - INFO - bo.run_bo - 🔍BO Trial 6: Using RF surrogate + Expected Improvement
+2025-09-19 10:19:21,187 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 10:19:21,187 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:21,187 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:21,187 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0009996345783004892, 'batch_size': 256, 'epochs': 25, 'weight_decay': 0.00014099224590999814, 'optimizer': np.str_('adam'), 'momentum': 0.6036934694314083, 'base_channels': 44, 'dropout': 0.16387393403314113, 'ks1': 10, 'ks2': 11, 'ks3': 8, 'linear_hidden': 173, 'label_smoothing': 0.041259145125118885, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': 102, 'quant_backend': np.str_('fbgemm')}
+2025-09-19 10:19:21,189 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0009996345783004892, 'batch_size': 256, 'epochs': 25, 'weight_decay': 0.00014099224590999814, 'optimizer': np.str_('adam'), 'momentum': 0.6036934694314083, 'base_channels': 44, 'dropout': 0.16387393403314113, 'ks1': 10, 'ks2': 11, 'ks3': 8, 'linear_hidden': 173, 'label_smoothing': 0.041259145125118885, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': 102, 'quant_backend': np.str_('fbgemm')}
+2025-09-19 10:19:21,195 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,195 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:21,195 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,195 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.009s
+2025-09-19 10:19:21,336 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:21,336 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.141s
+2025-09-19 10:19:21,336 - INFO - bo.run_bo - Recorded observation #6: hparams={'lr': 0.0009996345783004892, 'batch_size': np.int64(256), 'epochs': np.int64(25), 'weight_decay': 0.00014099224590999814, 'optimizer': np.str_('adam'), 'momentum': 0.6036934694314083, 'base_channels': np.int64(44), 'dropout': 0.16387393403314113, 'ks1': np.int64(10), 'ks2': np.int64(11), 'ks3': np.int64(8), 'linear_hidden': np.int64(173), 'label_smoothing': 0.041259145125118885, 'quantization_bits': np.int64(8), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(102), 'quant_backend': np.str_('fbgemm')}, value=0.0000
+2025-09-19 10:19:21,336 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 6: {'lr': 0.0009996345783004892, 'batch_size': np.int64(256), 'epochs': np.int64(25), 'weight_decay': 0.00014099224590999814, 'optimizer': np.str_('adam'), 'momentum': 0.6036934694314083, 'base_channels': np.int64(44), 'dropout': 0.16387393403314113, 'ks1': np.int64(10), 'ks2': np.int64(11), 'ks3': np.int64(8), 'linear_hidden': np.int64(173), 'label_smoothing': 0.041259145125118885, 'quantization_bits': np.int64(8), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(102), 'quant_backend': np.str_('fbgemm')} -> 0.0000
+2025-09-19 10:19:21,336 - INFO - bo.run_bo - 🔍BO Trial 7: Using RF surrogate + Expected Improvement
+2025-09-19 10:19:21,336 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 10:19:21,336 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:21,336 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:21,336 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.00016804171188444084, 'batch_size': 256, 'epochs': 10, 'weight_decay': 7.213417428229893e-07, 'optimizer': np.str_('sgd'), 'momentum': 0.8538405734168764, 'base_channels': 37, 'dropout': 0.4401449590332356, 'ks1': 11, 'ks2': 11, 'ks3': 3, 'linear_hidden': 174, 'label_smoothing': 0.10335247423444051, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': 50, 'quant_backend': np.str_('fbgemm')}
+2025-09-19 10:19:21,338 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.00016804171188444084, 'batch_size': 256, 'epochs': 10, 'weight_decay': 7.213417428229893e-07, 'optimizer': np.str_('sgd'), 'momentum': 0.8538405734168764, 'base_channels': 37, 'dropout': 0.4401449590332356, 'ks1': 11, 'ks2': 11, 'ks3': 3, 'linear_hidden': 174, 'label_smoothing': 0.10335247423444051, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': 50, 'quant_backend': np.str_('fbgemm')}
+2025-09-19 10:19:21,344 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,344 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:21,345 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,345 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.009s
+2025-09-19 10:19:21,483 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:21,483 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.137s
+2025-09-19 10:19:21,483 - INFO - bo.run_bo - Recorded observation #7: hparams={'lr': 0.00016804171188444084, 'batch_size': np.int64(256), 'epochs': np.int64(10), 'weight_decay': 7.213417428229893e-07, 'optimizer': np.str_('sgd'), 'momentum': 0.8538405734168764, 'base_channels': np.int64(37), 'dropout': 0.4401449590332356, 'ks1': np.int64(11), 'ks2': np.int64(11), 'ks3': np.int64(3), 'linear_hidden': np.int64(174), 'label_smoothing': 0.10335247423444051, 'quantization_bits': np.int64(8), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(50), 'quant_backend': np.str_('fbgemm')}, value=0.0000
+2025-09-19 10:19:21,483 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 7: {'lr': 0.00016804171188444084, 'batch_size': np.int64(256), 'epochs': np.int64(10), 'weight_decay': 7.213417428229893e-07, 'optimizer': np.str_('sgd'), 'momentum': 0.8538405734168764, 'base_channels': np.int64(37), 'dropout': 0.4401449590332356, 'ks1': np.int64(11), 'ks2': np.int64(11), 'ks3': np.int64(3), 'linear_hidden': np.int64(174), 'label_smoothing': 0.10335247423444051, 'quantization_bits': np.int64(8), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(50), 'quant_backend': np.str_('fbgemm')} -> 0.0000
+2025-09-19 10:19:21,483 - INFO - bo.run_bo - 🔍BO Trial 8: Using RF surrogate + Expected Improvement
+2025-09-19 10:19:21,484 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 10:19:21,484 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:21,484 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:21,484 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 7.293826433798898e-05, 'batch_size': 512, 'epochs': 20, 'weight_decay': 1.210016650046048e-07, 'optimizer': np.str_('adam'), 'momentum': 0.2035121025403549, 'base_channels': 37, 'dropout': 0.4345833754722631, 'ks1': 4, 'ks2': 7, 'ks3': 7, 'linear_hidden': 69, 'label_smoothing': 0.19834072791297963, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 16, 'quant_backend': np.str_('fbgemm')}
+2025-09-19 10:19:21,485 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 7.293826433798898e-05, 'batch_size': 512, 'epochs': 20, 'weight_decay': 1.210016650046048e-07, 'optimizer': np.str_('adam'), 'momentum': 0.2035121025403549, 'base_channels': 37, 'dropout': 0.4345833754722631, 'ks1': 4, 'ks2': 7, 'ks3': 7, 'linear_hidden': 69, 'label_smoothing': 0.19834072791297963, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 16, 'quant_backend': np.str_('fbgemm')}
+2025-09-19 10:19:21,492 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,492 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:21,492 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,492 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.008s
+2025-09-19 10:19:21,630 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:21,630 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.138s
+2025-09-19 10:19:21,630 - INFO - bo.run_bo - Recorded observation #8: hparams={'lr': 7.293826433798898e-05, 'batch_size': np.int64(512), 'epochs': np.int64(20), 'weight_decay': 1.210016650046048e-07, 'optimizer': np.str_('adam'), 'momentum': 0.2035121025403549, 'base_channels': np.int64(37), 'dropout': 0.4345833754722631, 'ks1': np.int64(4), 'ks2': np.int64(7), 'ks3': np.int64(7), 'linear_hidden': np.int64(69), 'label_smoothing': 0.19834072791297963, 'quantization_bits': np.int64(8), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(16), 'quant_backend': np.str_('fbgemm')}, value=0.0000
+2025-09-19 10:19:21,630 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 8: {'lr': 7.293826433798898e-05, 'batch_size': np.int64(512), 'epochs': np.int64(20), 'weight_decay': 1.210016650046048e-07, 'optimizer': np.str_('adam'), 'momentum': 0.2035121025403549, 'base_channels': np.int64(37), 'dropout': 0.4345833754722631, 'ks1': np.int64(4), 'ks2': np.int64(7), 'ks3': np.int64(7), 'linear_hidden': np.int64(69), 'label_smoothing': 0.19834072791297963, 'quantization_bits': np.int64(8), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(16), 'quant_backend': np.str_('fbgemm')} -> 0.0000
+2025-09-19 10:19:21,630 - INFO - bo.run_bo - 🔍BO Trial 9: Using RF surrogate + Expected Improvement
+2025-09-19 10:19:21,630 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 10:19:21,631 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:21,631 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:21,631 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0022744668338401768, 'batch_size': 256, 'epochs': 45, 'weight_decay': 4.075580875033003e-08, 'optimizer': np.str_('adam'), 'momentum': 0.25933095548207347, 'base_channels': 27, 'dropout': 0.46216721138537575, 'ks1': 10, 'ks2': 5, 'ks3': 5, 'linear_hidden': 70, 'label_smoothing': 0.16510654249745008, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 61, 'quant_backend': np.str_('qnnpack')}
+2025-09-19 10:19:21,632 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0022744668338401768, 'batch_size': 256, 'epochs': 45, 'weight_decay': 4.075580875033003e-08, 'optimizer': np.str_('adam'), 'momentum': 0.25933095548207347, 'base_channels': 27, 'dropout': 0.46216721138537575, 'ks1': 10, 'ks2': 5, 'ks3': 5, 'linear_hidden': 70, 'label_smoothing': 0.16510654249745008, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 61, 'quant_backend': np.str_('qnnpack')}
+2025-09-19 10:19:21,638 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,638 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:21,638 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,638 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.007s
+2025-09-19 10:19:21,779 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:21,779 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.140s
+2025-09-19 10:19:21,779 - INFO - bo.run_bo - Recorded observation #9: hparams={'lr': 0.0022744668338401768, 'batch_size': np.int64(256), 'epochs': np.int64(45), 'weight_decay': 4.075580875033003e-08, 'optimizer': np.str_('adam'), 'momentum': 0.25933095548207347, 'base_channels': np.int64(27), 'dropout': 0.46216721138537575, 'ks1': np.int64(10), 'ks2': np.int64(5), 'ks3': np.int64(5), 'linear_hidden': np.int64(70), 'label_smoothing': 0.16510654249745008, 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(61), 'quant_backend': np.str_('qnnpack')}, value=0.0000
+2025-09-19 10:19:21,779 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 9: {'lr': 0.0022744668338401768, 'batch_size': np.int64(256), 'epochs': np.int64(45), 'weight_decay': 4.075580875033003e-08, 'optimizer': np.str_('adam'), 'momentum': 0.25933095548207347, 'base_channels': np.int64(27), 'dropout': 0.46216721138537575, 'ks1': np.int64(10), 'ks2': np.int64(5), 'ks3': np.int64(5), 'linear_hidden': np.int64(70), 'label_smoothing': 0.16510654249745008, 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(61), 'quant_backend': np.str_('qnnpack')} -> 0.0000
+2025-09-19 10:19:21,779 - INFO - bo.run_bo - 🔍BO Trial 10: Using RF surrogate + Expected Improvement
+2025-09-19 10:19:21,779 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 10:19:21,780 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:21,780 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:21,780 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 9.497119550408877e-05, 'batch_size': 64, 'epochs': 22, 'weight_decay': 0.0038783975549256614, 'optimizer': np.str_('sgd'), 'momentum': 0.7025623599175115, 'base_channels': 16, 'dropout': 0.11071091588176621, 'ks1': 3, 'ks2': 6, 'ks3': 11, 'linear_hidden': 145, 'label_smoothing': 0.007072405989648802, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': 38, 'quant_backend': np.str_('fbgemm')}
+2025-09-19 10:19:21,781 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 9.497119550408877e-05, 'batch_size': 64, 'epochs': 22, 'weight_decay': 0.0038783975549256614, 'optimizer': np.str_('sgd'), 'momentum': 0.7025623599175115, 'base_channels': 16, 'dropout': 0.11071091588176621, 'ks1': 3, 'ks2': 6, 'ks3': 11, 'linear_hidden': 145, 'label_smoothing': 0.007072405989648802, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': 38, 'quant_backend': np.str_('fbgemm')}
+2025-09-19 10:19:21,786 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,786 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....
+2025-09-19 10:19:21,786 - ERROR - _models.training_function_executor - BO training objective failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:21,786 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.006s
+2025-09-19 10:19:21,925 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 10:19:21,925 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.139s
+2025-09-19 10:19:21,925 - INFO - bo.run_bo - Recorded observation #10: hparams={'lr': 9.497119550408877e-05, 'batch_size': np.int64(64), 'epochs': np.int64(22), 'weight_decay': 0.0038783975549256614, 'optimizer': np.str_('sgd'), 'momentum': 0.7025623599175115, 'base_channels': np.int64(16), 'dropout': 0.11071091588176621, 'ks1': np.int64(3), 'ks2': np.int64(6), 'ks3': np.int64(11), 'linear_hidden': np.int64(145), 'label_smoothing': 0.007072405989648802, 'quantization_bits': np.int64(16), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(38), 'quant_backend': np.str_('fbgemm')}, value=0.0000
+2025-09-19 10:19:21,925 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 10: {'lr': 9.497119550408877e-05, 'batch_size': np.int64(64), 'epochs': np.int64(22), 'weight_decay': 0.0038783975549256614, 'optimizer': np.str_('sgd'), 'momentum': 0.7025623599175115, 'base_channels': np.int64(16), 'dropout': 0.11071091588176621, 'ks1': np.int64(3), 'ks2': np.int64(6), 'ks3': np.int64(11), 'linear_hidden': np.int64(145), 'label_smoothing': 0.007072405989648802, 'quantization_bits': np.int64(16), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(38), 'quant_backend': np.str_('fbgemm')} -> 0.0000
+2025-09-19 10:19:21,926 - INFO - evaluation.code_generation_pipeline_orchestrator - BO completed - Best score: 0.0000
+2025-09-19 10:19:21,926 - INFO - evaluation.code_generation_pipeline_orchestrator - Best params: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 3.90796715682288e-05, 'optimizer': 'adam', 'momentum': 0.14819479431939253, 'base_channels': np.int64(26), 'dropout': 0.22962444598293363, 'ks1': np.int64(7), 'ks2': np.int64(6), 'ks3': np.int64(10), 'linear_hidden': np.int64(183), 'label_smoothing': 0.1301776945897706, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': np.int64(9), 'quant_backend': 'fbgemm'}
+2025-09-19 10:19:21,926 - INFO - visualization - Generating BO visualization charts with 10 trials...
+2025-09-19 10:19:24,142 - INFO - visualization - BO summary saved to: charts\BO_TinyECG1DCNN-PTQ_20250919_101921\bo_summary.txt
+2025-09-19 10:19:24,142 - INFO - visualization - BO charts saved to: charts\BO_TinyECG1DCNN-PTQ_20250919_101921
+2025-09-19 10:19:24,142 - INFO - evaluation.code_generation_pipeline_orchestrator - 📊 BO charts saved to: charts\BO_TinyECG1DCNN-PTQ_20250919_101921
+2025-09-19 10:19:24,142 - INFO - evaluation.code_generation_pipeline_orchestrator - 🚀 STEP 4: Final Training Execution
+2025-09-19 10:19:24,143 - INFO - evaluation.code_generation_pipeline_orchestrator - Using centralized splits - Train: (39904, 1000, 2), Val: (9977, 1000, 2), Test: (12471, 1000, 2)
+2025-09-19 10:19:24,339 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 10:19:24,350 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 10:19:24,364 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 10:19:24,374 - INFO - _models.training_function_executor - Loaded training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:24,374 - INFO - _models.training_function_executor - Reasoning: No reasoning provided
+2025-09-19 10:19:24,374 - INFO - evaluation.code_generation_pipeline_orchestrator - Executing final training with optimized params: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 3.90796715682288e-05, 'optimizer': 'adam', 'momentum': 0.14819479431939253, 'base_channels': np.int64(26), 'dropout': 0.22962444598293363, 'ks1': np.int64(7), 'ks2': np.int64(6), 'ks3': np.int64(10), 'linear_hidden': np.int64(183), 'label_smoothing': 0.1301776945897706, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': np.int64(9), 'quant_backend': 'fbgemm'}
+2025-09-19 10:19:24,374 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 10:19:24,406 - INFO - _models.training_function_executor - Executing training function: TinyECG1DCNN-PTQ
+2025-09-19 10:19:24,407 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': np.int64(12), 'weight_decay': 3.90796715682288e-05, 'optimizer': 'adam', 'momentum': 0.14819479431939253, 'base_channels': np.int64(26), 'dropout': 0.22962444598293363, 'ks1': np.int64(7), 'ks2': np.int64(6), 'ks3': np.int64(10), 'linear_hidden': np.int64(183), 'label_smoothing': 0.1301776945897706, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': np.int64(9), 'quant_backend': 'fbgemm'}
+2025-09-19 10:19:24,408 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 64, 'epochs': 12, 'weight_decay': 3.90796715682288e-05, 'optimizer': 'adam', 'momentum': 0.14819479431939253, 'base_channels': 26, 'dropout': 0.22962444598293363, 'ks1': 7, 'ks2': 6, 'ks3': 10, 'linear_hidden': 183, 'label_smoothing': 0.1301776945897706, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': 9, 'quant_backend': 'fbgemm'}
+2025-09-19 10:19:24,426 - ERROR - _models.training_function_executor - Training execution failed: cannot pin 'torch.cuda.FloatTensor' only dense CPU tensors can be pinned
+2025-09-19 10:19:24,426 - ERROR - _models.training_function_executor - Training code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import copy
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils....

@@ -1,0 +1,58 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "STEP 1 – Problem analysis: You need multiclass sequence classification on ECG with AAMI-EC57 5-class labels (N, S, V, F, Q) using MIT-BIH Arrhythmia (2 leads, 360 Hz; 48 half-hour records; ~110k annotated beats). Your tensors are windows of shape (1000, 2); this can be handled either as window-level classification or converted to beat-centered segments via R-peak detection (common in recent SOTA). Dataset facts: 2 channels, 360 samples/s, dual-lead, 48 records; widely used for benchmarking. ([physionet.org](https://physionet.org/content/mitdb/1.0.0/))\n\nSTEP 2 – Research methodology followed: We searched 2024–2025 peer‑reviewed articles, recent arXiv/IEEE items with journal DOIs, and surveys focused on MIT‑BIH, prioritizing methods reporting AAMI 5-class results and giving computational details or code-friendly descriptions, including Transformer/TCN hybrids, compact models for embedded inference, and surveys/meta-analyses. Key standard evaluation guidance (inter‑patient DS1/DS2 split) from De Chazal et al. was included to interpret reported numbers. ([mdpi.com](https://www.mdpi.com/2079-3197/12/2/21?utm_source=openai))\n\nSTEP 3 – Information extraction (highly relevant recent works):\n• Tiny Transformer for Low‑Power Arrhythmia Classification (Busia et al., IEEE TBCAS 2024): ViT‑style 1D Transformer with beat‑centered tokenization (±198 samples around R‑peak) plus pre/post‑RR intervals; 6k parameters; 0.97 MOP/inference; 8‑bit model size ~49 kB; on GAP9 MCU: 4.28 ms/inference, ~0.09 mJ. On MIT‑BIH 5‑class, accuracy 98.97% (intra‑patient); robustness to motion artifacts also reported (98.36% post‑deployment). Architecture and compute are clearly specified and readily reproducible in PyTorch. ([arxiv.org](https://arxiv.org/abs/2402.10748))\n• MB‑MHA‑TCN (Sensors, Dec 2024): Multi‑Branch Multi‑Head Attention Temporal Convolutional Network with focal loss and SMOTE‑Tomek to address imbalance; AAMI 5‑class on MIT‑BIH with 5‑fold CV: overall accuracy 98.75%, F1 96.89%. Provides a modern CNN/TCN‑attention hybrid baseline; patient‑level splitting is not explicitly confirmed (likely record‑wise CV). ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))\n• 2024 survey in Sensors summarizing MIT‑BIH results across ML/DL families; cites an LSTM‑based pipeline on 5‑class MIT‑BIH at 99.64% accuracy and 98.18% F1, and multiple CNN/transfer setups; helpful context but heterogeneous evaluation protocols (many intra‑patient) warrant caution for deployment. ([mdpi.com](https://www.mdpi.com/1424-8220/24/8/2484))\n• Inter‑patient emphasis: De Chazal et al. (IEEE TBME 2004) define the DS1/DS2 inter‑patient split for fair evaluation; many recent ultra‑high accuracies use intra‑patient splits. Using DS1/DS2 (or patient‑wise 10‑fold) is recommended to avoid leakage; community tools and repos reproduce these partitions. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/15248536/?utm_source=openai))\n• Additional recent directions worth noting:\n   – Self‑supervised ECG pretraining (e.g., NERULA, 2024) improves downstream arrhythmia classification and robustness when labeled data are limited; applicable as a pretrain‑then‑fine‑tune step for your pipeline. ([arxiv.org](https://arxiv.org/abs/2405.19348?utm_source=openai))\n   – Resource‑efficient recurrent models (compressed Bi‑LSTM with multi‑feature fusion) target class balance across difficult subclasses, though label sets sometimes differ from AAMI 5‑class. ([arxiv.org](https://arxiv.org/abs/2405.15312?utm_source=openai))\n\nSTEP 4 – Synthesis: For your (1000, 2) sequence inputs, the strongest balance of accuracy, robustness, and deployability comes from beat‑centric Transformers or TCN‑attention hybrids trained under inter‑patient protocols. Among these, the Tiny Transformer of Busia et al. offers state‑of‑the‑art accuracy close to heavier models, but with orders‑of‑magnitude lower compute and explicit robustness testing, making it easy to implement and scale in PyTorch. To match your data: (a) detect R‑peaks (e.g., Pan–Tompkins) and extract ±0.5 s windows (adaptable to 198–256 samples) from each lead, (b) encode two‑lead segments as 2‑channel tokens (or concatenate channel embeddings), optionally fuse RR intervals as auxiliary features, (c) train with patient‑wise splits (DS1/DS2 or leave‑one‑record‑out), focal loss or class‑balanced loss, and minority‑class augmentation (noise, time‑warping). Aggregate beat‑level predictions to window‑level via majority vote or attention pooling over beats if you must output labels per 1000‑sample window. If you prefer a pure window model, extend the same Tiny‑Transformer backbone with 1D patching over the full 1000×2 input; MB‑MHA‑TCN provides a strong alternative if you favor convolutional temporal receptives with attention. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))\n\nImplementation notes and resources: TorchECG provides PyTorch components (preprocessing, CNN/CRNN backbones, R‑peak detection) to accelerate implementation. Use AAMI mapping for labels and report per‑class F1 for S and F classes, which are minority and hardest to learn. ([github.com](https://github.com/DeepPSP/torch_ecg?utm_source=openai))",
+  "key_findings": [
+    "A compact beat-centered Transformer (≈6k parameters) achieved 98.97% accuracy on AAMI 5-class MIT-BIH with 0.97 MOP/inference, quantized to 8-bit (~49 kB), and ran in 4.28 ms at ~0.09 mJ on GAP9—showing near–state-of-the-art accuracy with extreme efficiency. ([arxiv.org](https://arxiv.org/abs/2402.10748))",
+    "A multi-branch, multi-head attention TCN achieved 98.75% accuracy and 96.89% F1 on MIT-BIH AAMI 5-class using SMOTE–Tomek and focal loss, indicating TCN+attention hybrids remain highly competitive under class imbalance. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))",
+    "Evaluation protocol strongly affects reported performance: many 99%+ results are intra-patient; using the De Chazal DS1/DS2 inter-patient split is recommended to avoid leakage and to reflect clinical generalization. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/15248536/?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Tiny 1D Vision-Transformer-style model with beat-centered tokenization + two-lead channel embedding + RR-interval fusion (as in Busia et al. 2024), trained with inter-patient splits (DS1/DS2), focal/class-balanced loss, and minority-class augmentation; aggregate beat predictions to window labels when needed. This matches your (1000,2) data via R-peak segmentation, has proven 5-class MIT-BIH accuracy (~98.97%), and is extremely compute-efficient with straightforward PyTorch implementation. ([arxiv.org](https://arxiv.org/abs/2402.10748))"
+  ],
+  "recent_papers": [
+    {
+      "title": "A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (IEEE TBCAS, 2024)",
+      "contribution": "Beat-centered 1D ViT with RR features; 6k params; 0.97 MOP; 8-bit ~49 kB; 98.97% accuracy on MIT-BIH 5-class; 4.28 ms, 0.09 mJ on GAP9; robustness to motion artifacts. ([arxiv.org](https://arxiv.org/abs/2402.10748))"
+    },
+    {
+      "title": "Accurate Arrhythmia Classification with Multi-Branch, Multi-Head Attention TCN (Sensors, 2024)",
+      "contribution": "MB-MHA-TCN with imbalance handling (SMOTE–Tomek, focal loss); 5-fold CV on MIT-BIH AAMI 5-class: 98.75% ACC, 96.89% F1; strong CNN/TCN-attention hybrid baseline. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))"
+    },
+    {
+      "title": "Cardiac Arrhythmia Classification Using Advanced Deep Learning Techniques on Digitized ECG Datasets (Sensors, 2024)",
+      "contribution": "Survey/comparative review; compiles MIT-BIH results (e.g., LSTM-based 5-class up to 99.64% ACC, 98.18% F1) and highlights protocol variability; useful benchmark context. ([mdpi.com](https://www.mdpi.com/1424-8220/24/8/2484))"
+    },
+    {
+      "title": "Automated inter-patient arrhythmia classification with dual attention neural network (CMPB, 2023)",
+      "contribution": "Reports 99.98% ACC on inter-patient MIT-BIH 5-class without augmentation; unusually high and merits cautious replication; underscores the need for rigorous splits. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/37116424/))"
+    },
+    {
+      "title": "NERULA: Dual-pathway self-supervised learning for ECG (arXiv, 2024)",
+      "contribution": "Masks/reconstructs ECG segments and uses non-contrastive alignment; improves downstream ECG classification; applicable as pretraining for MIT-BIH fine-tuning. ([arxiv.org](https://arxiv.org/abs/2405.19348?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.76,
+  "timestamp": 1758305697,
+  "generated_time": "2025-09-19 13:14:57",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}
