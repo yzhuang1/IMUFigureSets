@@ -1,0 +1,11 @@
+2025-09-19 14:38:44,459 - ERROR - test_training_executor - Training execution failed: 'str' object has no attribute 'type'
+2025-09-19 14:38:44,660 - ERROR - test_training_executor - Training code: import torch
+import torch.nn as nn
+2025-09-19 14:38:44,860 - ERROR - test_training_executor - Training execution failed: 'function' object has no attribute 'device'
+2025-09-19 14:38:45,060 - ERROR - test_training_executor - Training code: model = MyModel().to(device)
+2025-09-19 14:38:45,544 - INFO - _models.ai_code_generator - Calling GPT to debug training error and suggest hyperparameter corrections
+2025-09-19 14:38:45,545 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-19 14:38:45,545 - INFO - _models.ai_code_generator - Prompt length: 786 characters
+2025-09-19 14:38:45,545 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-19 14:38:45,545 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-19 14:38:45,545 - INFO - _models.ai_code_generator - Model parameter: gpt-5

@@ -8,7 +8,67 @@ import logging
 import threading
 import io
 import atexit
-from typing import Set, List, Callable
+import time
+import os
+from pathlib import Path
+from typing import Set, List, Callable, Optional
+
+
+class LogFileMonitor:
+    """Monitor log files for ERROR messages"""
+
+    def __init__(self, error_terminator):
+        self.error_terminator = error_terminator
+        self.monitoring = False
+        self.monitor_thread = None
+        self.log_file_path = None
+
+    def start_monitoring(self, log_file_path: str):
+        """Start monitoring the specified log file"""
+        if self.monitoring:
+            return
+
+        self.log_file_path = log_file_path
+        self.monitoring = True
+
+        # Start monitoring thread
+        self.monitor_thread = threading.Thread(
+            target=self._monitor_log_file,
+            daemon=True,
+            name="LogFileMonitor"
+        )
+        self.monitor_thread.start()
+        print(f"[DEBUG] Started log file monitoring: {log_file_path}")
+
+    def stop_monitoring(self):
+        """Stop monitoring the log file"""
+        self.monitoring = False
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            self.monitor_thread.join(timeout=1.0)
+        print("[DEBUG] Stopped log file monitoring")
+
+    def _monitor_log_file(self):
+        """Monitor log file for new ERROR entries"""
+        if not self.log_file_path or not os.path.exists(self.log_file_path):
+            return
+
+        try:
+            # Start from end of file
+            with open(self.log_file_path, 'r', encoding='utf-8') as f:
+                f.seek(0, 2)  # Seek to end
+
+                while self.monitoring:
+                    line = f.readline()
+                    if line:
+                        # Check for ERROR messages
+                        if ' - ERROR - ' in line:
+                            self.error_terminator._check_for_error(line.strip(), "LOG_FILE")
+                    else:
+                        # No new data, wait briefly
+                        time.sleep(0.1)
+
+        except Exception as e:
+            print(f"[DEBUG] Log file monitoring error: {e}")
 
 
 class LoggingErrorHandler(logging.Handler):
@@ -50,9 +110,12 @@ class ErrorTerminator:
         
         # Custom logging handler
         self.log_handler = None
+
+        # Log file monitor
+        self.log_file_monitor = LogFileMonitor(self)
         
-    def start_monitoring(self):
-        """Start monitoring stdout, stderr, and logging for ERROR messages"""
+    def start_monitoring(self, log_file_path: Optional[str] = None):
+        """Start monitoring stdout, stderr, logging, and log files for ERROR messages"""
         if self.is_monitoring:
             return
 
@@ -65,6 +128,10 @@ class ErrorTerminator:
         # Add logging handler to monitor log messages
         self.log_handler = LoggingErrorHandler(self)
         logging.getLogger().addHandler(self.log_handler)
+
+        # Start log file monitoring if path provided
+        if log_file_path and os.path.exists(log_file_path):
+            self.log_file_monitor.start_monitoring(log_file_path)
 
         # Register cleanup on exit
         atexit.register(self.stop_monitoring)
@@ -86,6 +153,9 @@ class ErrorTerminator:
         if self.log_handler:
             logging.getLogger().removeHandler(self.log_handler)
             self.log_handler = None
+
+        # Stop log file monitoring
+        self.log_file_monitor.stop_monitoring()
 
             
     def _create_monitoring_stream(self, original_stream, stream_name):
@@ -249,21 +319,22 @@ _global_terminator = None
 # Global flag to track if we're in BO process
 _in_bo_process = False
 
-def enable_error_termination(error_keywords: List[str] = None):
+def enable_error_termination(error_keywords: List[str] = None, log_file_path: Optional[str] = None):
     """
     Enable global error termination monitoring.
-    
+
     Args:
         error_keywords: List of keywords that trigger termination (default: ["ERROR"])
+        log_file_path: Path to log file to monitor (optional)
     """
     global _global_terminator
-    
+
     if _global_terminator is None:
         _global_terminator = ErrorTerminator(
             terminate_on_error=True,
             error_keywords=error_keywords,
         )
-        _global_terminator.start_monitoring()
+        _global_terminator.start_monitoring(log_file_path)
     
 def disable_error_termination():
     """Disable global error termination monitoring"""
@@ -292,7 +363,7 @@ def re_enable_error_monitoring():
         _global_terminator.terminate_on_error = True
         print("🔍 Error monitoring re-enabled after debug cycles")
 
-def set_bo_process_mode(enabled: bool):
+def set_bo_process_mode(enabled: bool, log_file_path: Optional[str] = None):
     """Set whether we're currently in BO process (for error handling)"""
     global _in_bo_process, _global_terminator
     _in_bo_process = enabled
@@ -301,7 +372,7 @@ def set_bo_process_mode(enabled: bool):
         # Start error monitoring if not already active
         if not _global_terminator or not _global_terminator.is_monitoring:
             _global_terminator = ErrorTerminator()
-            _global_terminator.start_monitoring()
+            _global_terminator.start_monitoring(log_file_path)
             print("[DEBUG] Error monitoring started for BO process")
     else:
         print("[DEBUG] BO process mode disabled - errors will terminate program")

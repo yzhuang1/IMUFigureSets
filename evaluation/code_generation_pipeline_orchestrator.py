@@ -77,7 +77,10 @@ class CodeGenerationPipelineOrchestrator:
         code_rec = self._generate_training_code(input_shape, num_classes)
         
         # Enable BO process mode for error handling
-        set_bo_process_mode(True)
+        # Get current log file path for error monitoring
+        from logging_config import get_log_file_path
+        log_file_path = get_log_file_path()
+        set_bo_process_mode(True, log_file_path)
 
         # STEP 2: Save to JSON
         logger.info("💾 STEP 2: Save Training Function to JSON")
