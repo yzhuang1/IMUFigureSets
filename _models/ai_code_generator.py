@@ -74,6 +74,7 @@ Requirements:
   * core train loop only (no fancy schedulers/early stopping)
   * return quantized model + metrics
   * fill in the real input you need for hyperparams and quantization parameters
+  * IMPORTANT: For DataLoader, use pin_memory=False to avoid CUDA tensor pinning errors
 - Final model (after quantization) MUST have ≤ 256K parameters.
 - Implement post-training quantization using torch.quantization / torch.ao.quantization.
   * Include hyperparams: quantization_bits ∈ {8, 16, 32}, quantize_weights ∈ {true,false}, quantize_activations ∈ {true,false}.
@@ -175,6 +176,7 @@ This error occurred during Bayesian Optimization. Provide ONLY a JSON object wit
 - If "Model has X parameters, exceeds 256k limit" → reduce model size parameters like d_model, hidden_size, channels, layers, etc.
 - If "embed_dim must be divisible by num_heads" → adjust d_model or mha_heads to be compatible
 - If "Expected all tensors to be on the same device" → this is a code issue, return empty JSON
+- If "cannot pin 'torch.cuda.FloatTensor'" → this is a DataLoader pin_memory issue, return empty JSON (code fix needed)
 - If parameter count error → return smaller architecture parameters
 
 Return only JSON with the specific parameter corrections needed:"""

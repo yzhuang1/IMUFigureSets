@@ -1,0 +1,58 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem analysis: You have 1D, two-lead ECG beat sequences shaped (T=1000, C=2) for 5-way arrhythmia classification on the MIT-BIH Arrhythmia Database (AAMI N/S/V/F/Q). Most state-of-the-art (SOTA) ECG heartbeat models segment around R-peaks and commonly operate on single-lead inputs but readily extend to two channels by stacking leads as input channels to 1D conv/attention backbones. Inter-patient evaluation (train/test on disjoint subjects) is the clinically relevant protocol; many high results reported with intra-patient splits are inflated and not directly comparable. A recent iScience paper explicitly reports both protocols on MIT-BIH, making it a solid reference for generalization. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/))\n\nRecent state-of-the-art methods and empirical results on MIT-BIH (5-class or closely aligned AAMI groupings):\n- CNN + Transformer hybrids. CAT-Net (CNN + attention + Transformer) targets single-lead MIT-BIH and reports 99.14% overall accuracy and 94.69% macro-F1 for 5-class classification; it also uses SMOTE-Tomek to address class imbalance. An accompanying open-source implementation demonstrates practical feasibility. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))\n- Multi-branch CNN + Transformer (iScience 2024). This hybrid reports 99.5% accuracy in an intra-patient protocol and, crucially, 98.8% and 97.2% accuracy under two inter-patient splits, with detailed sensitivity/specificity for SVEB/VEB, underscoring strong cross-patient generalization. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/))\n- Attention-augmented TCNs. A Sensors 2024 study (MB-MHA-TCN) combines multi-branch temporal convolutions with multi-head attention and focal loss; 5-fold CV on MIT-BIH yields 98.75% accuracy, Precision 96.60%, Sensitivity 97.21%, F1 96.89% across the five AAMI classes, highlighting robust minority-class handling. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))\n- Lightweight/efficient transformers. A 2024 “Tiny Transformer” achieves 98.97% 5-class accuracy on MIT-BIH with just ~6k parameters and demonstrates 8-bit deployment: 4.28 ms and ~0.09 mJ per inference on a GAP9 MCU—useful if edge efficiency is critical. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))\n- Fusion and compact designs. rECGnition_v2.0 (2025) introduces a Dual Pathway Network with Self-Attentive Canonical Correlation fusion; on MIT-BIH (10-class setting) it reports ~98.07% accuracy and ~98.05% F1 with only ~82.7M FLOPs/sample, illustrating good accuracy/compute trade-offs and interpretability ideas that can inform heartbeat classifiers. ([arxiv.org](https://arxiv.org/abs/2502.16255?utm_source=openai))\n\nSurveys/meta-analyses from 2017–2023 emphasize: (i) careful inter-patient evaluation, (ii) explicit handling of severe class imbalance (N ≫ others), and (iii) benefits of hybrid CNN + attention/Transformer backbones over pure RNNs for long-range temporal context. These reviews also recommend standardized preprocessing and reporting for MIT-BIH. ([frontiersin.org](https://www.frontiersin.org/articles/10.3389/fphys.2023.1246746/full?utm_source=openai))\n\nModel architecture patterns that align with your data: For inputs shaped (1000, 2), best-performing designs use a 1D CNN stem (multi-kernel receptive fields) to capture morphology per lead, followed by a lightweight Transformer (2–4 heads, 1–2 encoder blocks) to encode beat-to-beat temporal dependencies inside the 1000-sample window. Class imbalance is mitigated by focal loss or class-weighted cross-entropy, sometimes combined with SMOTE-Tomek during training; these techniques consistently improve S/F/Q sensitivity without large compute costs. Empirically validated configurations (CAT-Net, MB-MHA-TCN, iScience hybrid) fit this recipe and achieve ≥97–99% overall accuracy on MIT-BIH, with improved minority-class F1 compared to earlier CNN/LSTM baselines. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))\n\nComputational considerations: If you must prioritize efficiency (e.g., embedded inference), the Tiny Transformer’s ~6k parameters and sub-5 ms latency show that modern attention models can be extremely compact while retaining ≈99% accuracy on 5-class MIT-BIH. For server/GPU scenarios, CNN+Transformer hybrids with modest d_model (e.g., 128–256) and 1–2 encoder layers strike a favorable accuracy/latency balance, typically staying well under tens of MFLOPs per beat; papers like rECGnition_v2.0 provide FLOPs budgeting examples for planning. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))\n\nBottom line: For two-lead, 1000-sample beat segments and 5 classes on MIT-BIH, a CNN + Transformer hybrid (CAT-Net–style) trained with inter-patient splitting, strong preprocessing/segmentation, and focal or class-weighted loss is the most supported choice by current literature for accuracy and class balance. If deployment constraints are tight, adapt Tiny Transformer ideas (multi-head self-attention with very small d_model) to two channels to retain near-SOTA performance at minimal compute cost. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+  "key_findings": [
+    "Hybrid CNN + Transformer models currently lead on MIT-BIH heartbeat classification: CAT-Net reports 99.14% accuracy and 94.69% macro-F1 (5-class) with SMOTE-Tomek to address imbalance. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "Generalization under inter-patient evaluation remains high: an iScience 2024 multi-branch CNN + Transformer achieves 98.8% and 97.2% overall accuracy across two inter-patient splits (99.5% intra-patient), with strong SVEB/VEB sensitivity/specificity. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/))",
+    "Efficiency need not sacrifice accuracy: a Tiny Transformer attains 98.97% 5-class accuracy on MIT-BIH with ~6k parameters and 8-bit inference (≈4.28 ms, ≈0.09 mJ per sample), indicating feasible near-SOTA performance for edge devices. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Adopt a CAT-Net–style CNN + Transformer hybrid in PyTorch for (1000, 2) inputs: multi-kernel 1D CNN stem (e.g., parallel 3/5/7/9 taps per channel) → 1–2 Transformer encoder blocks (d_model≈128–256, 2–4 heads, GELU, dropout 0.1) → global pooling → linear 5-way head; train with inter-patient splits, class-weighted cross-entropy or focal loss, and optional SMOTE-Tomek on the training set. This choice is directly supported by 2024 MIT-BIH results (99.14% accuracy; 94.69% macro-F1) and balances accuracy with moderate compute; if deployment is resource-constrained, reduce d_model and heads toward a Tiny-Transformer configuration while keeping the same training recipe."
+  ],
+  "recent_papers": [
+    {
+      "title": "CAT-Net: Convolution, attention, and transformer based network for single-lead ECG arrhythmia classification (Biomedical Signal Processing and Control, 2024)",
+      "contribution": "CNN + Transformer hybrid with imbalance handling; 99.14% accuracy and 94.69% macro-F1 on MIT-BIH 5-class; demonstrates effectiveness of local-global features and SMOTE-Tomek. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "Heartbeat classification combining multi-branch CNNs and Transformer (iScience, 2024)",
+      "contribution": "Hybrid architecture evaluated under intra- and inter-patient protocols on MIT-BIH; up to 99.5% intra and 97.2–98.8% inter-patient accuracy, underscoring cross-patient generalization. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/))"
+    },
+    {
+      "title": "Accurate Arrhythmia Classification with Multi-Branch, Multi-Head Attention Temporal Convolutional Networks (Sensors, 2024)",
+      "contribution": "MB-MHA-TCN with focal loss and Bayesian optimization; 98.75% accuracy, F1 96.89% (5-fold CV) on MIT-BIH AAMI 5-class; improved minority-class recognition. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))"
+    },
+    {
+      "title": "A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (arXiv, 2024)",
+      "contribution": "Transformer with ~6k params achieving 98.97% 5-class accuracy on MIT-BIH; demonstrates practical 8-bit, millijoule-level inference for edge devices. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))"
+    },
+    {
+      "title": "rECGnition v2.0: Self-Attentive Canonical Fusion for ECG and patient data (arXiv, 2025)",
+      "contribution": "Dual-path network with SACC fusion; ~98.07% accuracy and ~98.05% F1 on 10-class MIT-BIH with ≈82.7M FLOPs/sample; offers interpretable, compute-aware design insights. ([arxiv.org](https://arxiv.org/abs/2502.16255?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.78,
+  "timestamp": 1758329042,
+  "generated_time": "2025-09-19 19:44:02",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

@@ -177,11 +177,38 @@ class CodeGenerationPipelineOrchestrator:
         return json_filepath
     
     def _run_bayesian_optimization(self, X, y, device: str, code_rec) -> Dict[str, Any]:
-        """Run Bayesian Optimization for hyperparameter tuning"""
+        """Run Bayesian Optimization for hyperparameter tuning with automatic restart on GPT fixes"""
         logger.info(f"Running BO for generated training function: {code_rec.model_name}")
 
-        # Install GPT code dependencies before starting BO
-        logger.info("📦 Installing dependencies for GPT-generated training code...")
+        # Try BO with potential restart on GPT fixes
+        max_restarts = 2  # Limit restarts to avoid infinite loops
+        for restart_attempt in range(max_restarts + 1):
+            if restart_attempt > 0:
+                logger.info(f"🔄 BO Restart attempt {restart_attempt}/{max_restarts}")
+
+            try:
+                return self._run_single_bo_session(X, y, device, code_rec, restart_attempt)
+            except Exception as e:
+                if "GPT_FIXES_AVAILABLE" in str(e) and restart_attempt < max_restarts:
+                    # Apply GPT fixes and try again
+                    fixed_code_rec = self._apply_gpt_fixes_and_regenerate(code_rec)
+                    if fixed_code_rec:
+                        code_rec = fixed_code_rec
+                        logger.info("✅ Applied GPT fixes, restarting BO from trial 0")
+                        continue
+
+                # Re-raise if not a restart case or max restarts exceeded
+                raise
+
+        # Should not reach here, but fallback
+        logger.warning("Max BO restarts exceeded, proceeding with current results")
+        return {"best_value": 0.0, "best_params": {}, "total_trials": 0, "all_results": []}
+
+    def _run_single_bo_session(self, X, y, device: str, code_rec, session_num: int = 0) -> Dict[str, Any]:
+        """Run a single BO session that can be restarted"""
+
+        session_prefix = f"Session {session_num}: " if session_num > 0 else ""
+        logger.info(f"{session_prefix}📦 Installing dependencies for GPT-generated training code...")
         from package_installer import install_gpt_code_dependencies
         try:
             success = install_gpt_code_dependencies(code_rec.training_code, raise_on_failure=True)
@@ -243,6 +270,21 @@ class CodeGenerationPipelineOrchestrator:
                 print(f"🔍 BO Trial {trial + 1}/{config.max_bo_trials}: {hparams}")
             
             value, metrics = objective_func(hparams)
+
+            # Check if we got an error and if GPT provided fixes
+            if value == 0.0 and "error" in metrics:
+                logger.warning(f"BO Trial {trial + 1} failed with error: {metrics['error']}")
+
+                # Check if GPT provided fixes
+                from error_monitor import _global_terminator
+                if _global_terminator and hasattr(_global_terminator, 'last_json_corrections'):
+                    gpt_fixes = getattr(_global_terminator, 'last_json_corrections', None)
+                    if gpt_fixes and gpt_fixes != "{}":
+                        logger.info("🔄 GPT provided fixes - requesting BO restart")
+                        pbar.close()
+                        # Signal that GPT fixes are available and BO should restart
+                        raise Exception("GPT_FIXES_AVAILABLE")
+
             results.append({
                 'trial': trial + 1,
                 'hparams': hparams,
@@ -288,6 +330,55 @@ class CodeGenerationPipelineOrchestrator:
         self._generate_bo_charts(bo_results, code_rec.model_name)
         
         return bo_results
+
+    def _apply_gpt_fixes_and_regenerate(self, original_code_rec):
+        """Reload training function after GPT fixes have been applied to the JSON file"""
+        try:
+            from error_monitor import _global_terminator
+            if not _global_terminator or not hasattr(_global_terminator, 'last_json_corrections'):
+                return None
+
+            gpt_fixes = getattr(_global_terminator, 'last_json_corrections', None)
+            if not gpt_fixes or gpt_fixes == "{}":
+                return None
+
+            logger.info("🔧 GPT has fixed the training function, reloading from JSON file")
+
+            # Find the most recent training function JSON (GPT should have fixed it)
+            from _models.training_function_executor import training_executor
+            functions = training_executor.list_available_training_functions()
+
+            if not functions:
+                logger.error("No training functions available to reload")
+                return None
+
+            # Get the most recent one (should be the fixed version)
+            latest_function = functions[0]  # Already sorted by timestamp
+            json_filepath = latest_function['filepath']
+
+            logger.info(f"Reloading fixed training function from: {json_filepath}")
+
+            # Load the fixed training function
+            training_data = training_executor.load_training_function(json_filepath)
+
+            # Convert back to CodeRecommendation format
+            from _models.ai_code_generator import CodeRecommendation
+            fixed_code_rec = CodeRecommendation(
+                model_name=training_data['model_name'],
+                training_code=training_data['training_code'],
+                bo_config=training_data['bo_config'],
+                confidence=training_data.get('confidence', 0.9)
+            )
+
+            # Clear the GPT corrections to avoid reusing them
+            _global_terminator.last_json_corrections = None
+
+            logger.info(f"✅ Reloaded fixed training function: {fixed_code_rec.model_name}")
+            return fixed_code_rec
+
+        except Exception as e:
+            logger.error(f"Failed to reload fixed training function: {e}")
+            return None
     
     def _execute_final_training(
         self,
