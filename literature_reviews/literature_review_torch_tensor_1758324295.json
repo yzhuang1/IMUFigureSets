@@ -1,0 +1,60 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem and data: We target multiclass ECG arrhythmia sequence classification on MIT-BIH (two-channel ambulatory ECG, 48 half‑hour records at 360 Hz; ~110k annotated beats). Typical practice is either beat‑level windows around R peaks or fixed-length segments; the AAMI 5‑class grouping (N, S, V, F, Q) is widely used. Fair evaluation favors inter‑patient splits (e.g., DS1/DS2), as intra‑patient mixing inflates scores. ([physionet.org](https://physionet.org/content/mitdb/1.0.0/))\nRecent state‑of‑the‑art (2024–2025): (1) A Tiny Transformer (ViT‑style adapted to 1D) achieves 98.97% accuracy on MIT‑BIH (5 classes) with only ~6k parameters; it uses a 198‑sample heartbeat window plus pre/post RR intervals, Pan–Tompkins peak detection, and reports 0.97 MOPs/inference, ~49 kB model, 4.28 ms, 0.09 mJ on GAP9 MCU. Note: evaluation is intra‑patient. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748)) (2) CAT‑Net (CNN + attention + Transformer encoder) on single‑lead ECG reports 99.14% overall accuracy and 94.69% macro‑F1 on 5‑class MIT‑BIH; class imbalance handled with SMOTE‑Tomek. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai)) (3) rECGnition v2.0 (dual‑pathway CNN with Self‑Attentive Canonical Correlation fusion of ECG + patient attributes) reports 98.07% accuracy and 98.05% F1 for 10‑class MIT‑BIH; AAMI F1 also strong on INCART (98.01%) and EDB (96.21%); compute ~82.7M FLOPs/sample. ([arxiv.org](https://arxiv.org/abs/2502.16255?utm_source=openai)) (4) Additional 2024 baselines include lightweight 1D CNNs and 2D spectrogram pipelines; e.g., LDCNN reports ~99.38% accuracy on MIT‑BIH (label set N,L,R,A,V) and spectrogram + transfer learning pipelines demonstrate viability for image‑based ECG features. ([physoc.onlinelibrary.wiley.com](https://physoc.onlinelibrary.wiley.com/doi/full/10.14814/phy2.16182?utm_source=openai))\nMethodological guidance: A 2025 systematic review stresses adherence to standards (AAMI mapping, inter‑patient splits) and embedded feasibility (compute, energy) when comparing models; many studies remain intra‑patient. Thus, reported high accuracies should be read alongside the split protocol and class mapping. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))\nImplications for the given setting (PyTorch, (1000,2), 5 classes): Models that combine multi‑scale 1D convolutions (for local morphology across two leads) with a lightweight Transformer encoder (for temporal context) are consistently competitive and implementable. CAT‑Net‑style hybrids align well with fixed‑length windows and two channels, strike a good accuracy/efficiency balance, and have demonstrated strong 5‑class MIT‑BIH results. Where on‑device or power‑limited deployment is critical, Tiny‑Transformer‑style designs prove that Transformers can be extremely compact, though they typically rely on heartbeat segmentation and intra‑patient splits. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+  "key_findings": [
+    "Tiny Transformer (ViT‑in‑1D) on MIT‑BIH 5‑class achieved 98.97% accuracy with ~6k params, ~0.97 MOP/inference, ~49 kB model, and 4.28 ms / 0.09 mJ per inference on GAP9; uses 198‑sample beat windows + RR intervals (intra‑patient split). ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))",
+    "CAT‑Net (CNN + attention + Transformer) reported 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class, using single‑lead inputs and SMOTE‑Tomek to mitigate class imbalance—evidence that CNN+Transformer hybrids are strong for arrhythmia. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "rECGnition v2.0 (dual‑pathway CNN + SACC fusion of ECG with patient data) reached 98.07% accuracy and 98.05% F1 on 10‑class MIT‑BIH; also AAMI F1 ≈98.01% (INCART) and 96.21% (EDB); compute ≈82.7M FLOPs/sample, indicating competitive accuracy with moderate compute. ([arxiv.org](https://arxiv.org/abs/2502.16255?utm_source=openai))",
+    "Lightweight CNNs and spectrogram‑based pipelines remain viable: LDCNN reported ~99.38% accuracy (N,L,R,A,V label set) and 2D spectrogram transfer‑learning approaches show strong performance, though benchmarking protocols and class mappings vary. ([physoc.onlinelibrary.wiley.com](https://physoc.onlinelibrary.wiley.com/doi/full/10.14814/phy2.16182?utm_source=openai))",
+    "Fair comparison requires inter‑patient evaluation (e.g., DS1/DS2), AAMI mapping, and reporting of compute/memory; many recent works still use intra‑patient splits, inflating metrics. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Adopt a CNN+Transformer hybrid similar to CAT‑Net, implemented in PyTorch: multi‑scale 1D CNN front‑end over the (1000,2) input to capture two‑lead morphology, followed by a lightweight Transformer encoder (2–4 layers, 4–8 heads) with channel attention (e.g., SE) and class‑balanced loss (e.g., focal or weighted cross‑entropy). This design matches fixed‑length two‑channel inputs, has proven 5‑class MIT‑BIH performance (accuracy 99.14%, macro‑F1 94.69%), and balances accuracy with computational efficiency without requiring demographic inputs. If on‑device constraints dominate, consider pruning/quantization and Tiny‑Transformer‑style reductions after establishing a strong PyTorch baseline. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+  ],
+  "recent_papers": [
+    {
+      "title": "A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (IEEE TBCAS, 2024)",
+      "contribution": "ViT‑style 1D classifier using beat windows + RR intervals; 98.97% accuracy (5‑class MIT‑BIH) with ~6k params; 0.09 mJ/inference on GAP9 (intra‑patient). ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))"
+    },
+    {
+      "title": "CAT‑Net: Convolution, Attention, and Transformer based Network for Single‑lead ECG Arrhythmia Classification (2024)",
+      "contribution": "Hybrid CNN+Transformer with SMOTE‑Tomek class balancing; 99.14% accuracy and 94.69% macro‑F1 on 5‑class MIT‑BIH; strong practical template for PyTorch implementation. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "rECGnition v2.0: Self‑Attentive Canonical Fusion of ECG and Patient Data (2025)",
+      "contribution": "Dual‑pathway CNN + SACC multimodal fusion; 98.05% F1 on 10‑class MIT‑BIH; ~82.7M FLOPs/sample; also high AAMI F1 on INCART and EDB. ([arxiv.org](https://arxiv.org/abs/2502.16255?utm_source=openai))"
+    },
+    {
+      "title": "LDCNN: Linear Deep CNN for ECG Arrhythmia (Physiological Reports, 2024)",
+      "contribution": "Lightweight 1D‑CNN baseline; ~99.38% accuracy on MIT‑BIH (N,L,R,A,V set), illustrating strong CNN baselines albeit with differing label protocols. ([physoc.onlinelibrary.wiley.com](https://physoc.onlinelibrary.wiley.com/doi/full/10.14814/phy2.16182?utm_source=openai))"
+    },
+    {
+      "title": "Deep learning‑assisted arrhythmia classification using 2‑D ECG spectrograms (EURASIP J. Adv. Signal Process., 2024)",
+      "contribution": "CWT spectrograms + pretrained CNN transfer learning, showing effective image‑based alternatives for ECG classification. ([asp-eurasipjournals.springeropen.com](https://asp-eurasipjournals.springeropen.com/articles/10.1186/s13634-024-01197-1?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.78,
+  "timestamp": 1758324295,
+  "generated_time": "2025-09-19 18:24:55",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

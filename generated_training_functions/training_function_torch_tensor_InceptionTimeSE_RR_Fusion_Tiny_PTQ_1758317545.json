@@ -1,0 +1,187 @@
+{
+  "model_name": "InceptionTimeSE_RR_Fusion_Tiny_PTQ",
+  "training_code": "import math\\nimport torch\\nimport torch.nn as nn\\nimport torch.nn.functional as F\\nfrom torch.utils.data import Dataset, DataLoader, TensorDataset\\nfrom torch.ao.quantization import get_default_qconfig\\nfrom torch.ao.quantization.qconfig import QConfig\\nfrom torch.ao.quantization.observer import MinMaxObserver, PerChannelMinMaxObserver, PlaceholderObserver\\nfrom torch.ao.quantization.fx import prepare_fx, convert_fx\\n\\n# -----------------------------\\n# InceptionTime-SE tiny backbone (<=256k params) + optional RR fusion\\n# -----------------------------\\nclass SEBlock1D(nn.Module):\\n    def __init__(self, channels, reduction=8):\\n        super().__init__()\\n        hidden = max(1, channels // reduction)\\n        self.fc1 = nn.Conv1d(channels, hidden, kernel_size=1)\\n        self.fc2 = nn.Conv1d(hidden, channels, kernel_size=1)\\n        self.act = nn.ReLU(inplace=True)\\n        self.gate = nn.Sigmoid()\\n    def forward(self, x):\\n        # Squeeze\\n        s = x.mean(dim=-1, keepdim=True)\\n        # Excitation\\n        e = self.fc2(self.act(self.fc1(s)))\\n        g = self.gate(e)\\n        return x * g\\n\\nclass InceptionBlock1D(nn.Module):\\n    def __init__(self, in_ch, nb_filters=16, bottleneck_channels=16, kernel_sizes=(9,19,39), se_reduction=8):\\n        super().__init__()\\n        self.bottleneck = nn.Conv1d(in_ch, bottleneck_channels, kernel_size=1, bias=False)\\n        self.bn_bottleneck = nn.BatchNorm1d(bottleneck_channels)\\n        k1, k2, k3 = kernel_sizes\\n        pad1, pad2, pad3 = k1//2, k2//2, k3//2\\n        self.conv1 = nn.Conv1d(bottleneck_channels, nb_filters, kernel_size=k1, padding=pad1, bias=False)\\n        self.bn1 = nn.BatchNorm1d(nb_filters)\\n        self.conv2 = nn.Conv1d(bottleneck_channels, nb_filters, kernel_size=k2, padding=pad2, bias=False)\\n        self.bn2 = nn.BatchNorm1d(nb_filters)\\n        self.conv3 = nn.Conv1d(bottleneck_channels, nb_filters, kernel_size=k3, padding=pad3, bias=False)\\n        self.bn3 = nn.BatchNorm1d(nb_filters)\\n        self.pool = nn.MaxPool1d(kernel_size=3, stride=1, padding=1)\\n        self.conv_pool = nn.Conv1d(in_ch, nb_filters, kernel_size=1, bias=False)\\n        self.bn_pool = nn.BatchNorm1d(nb_filters)\\n        self.se = SEBlock1D(nb_filters * 4, reduction=se_reduction)\\n        self.out_bn = nn.BatchNorm1d(nb_filters * 4)\\n        self.residual = None\\n        if in_ch != nb_filters * 4:\\n            self.residual = nn.Sequential(\\n                nn.Conv1d(in_ch, nb_filters * 4, kernel_size=1, bias=False),\\n                nn.BatchNorm1d(nb_filters * 4)\\n            )\\n        self.act = nn.ReLU(inplace=True)\\n    def forward(self, x):\\n        z = self.act(self.bn_bottleneck(self.bottleneck(x)))\\n        y1 = self.act(self.bn1(self.conv1(z)))\\n        y2 = self.act(self.bn2(self.conv2(z)))\\n        y3 = self.act(self.bn3(self.conv3(z)))\\n        y4 = self.act(self.bn_pool(self.conv_pool(self.pool(x))))\\n        y = torch.cat([y1, y2, y3, y4], dim=1)\\n        y = self.se(y)\\n        y = self.out_bn(y)\\n        res = x if self.residual is None else self.residual(x)\\n        y = self.act(y + res)\\n        return y\\n\\nclass InceptionTimeSERR(nn.Module):\\n    def __init__(self, in_ch=2, nb_filters=16, bottleneck_channels=16, depth=3, se_reduction=8, seq_head_hidden=32, num_classes=5, use_rr_features=False, rr_hidden1=16, rr_hidden2=8, dropout=0.1):\\n        super().__init__()\\n        blocks = []\\n        ch = in_ch\\n        for _ in range(depth):\\n            blocks.append(InceptionBlock1D(ch, nb_filters=nb_filters, bottleneck_channels=bottleneck_channels, kernel_sizes=(9,19,39), se_reduction=se_reduction))\\n            ch = nb_filters * 4\\n        self.feature_extractor = nn.Sequential(*blocks)\\n        self.gap = nn.AdaptiveAvgPool1d(1)\\n        self.seq_head = nn.Sequential(\\n            nn.Flatten(),\\n            nn.Dropout(dropout),\\n            nn.Linear(ch, seq_head_hidden),\\n            nn.ReLU(inplace=True)\\n        )\\n        self.use_rr_features = use_rr_features\\n        if use_rr_features:\\n            self.rr_mlp = nn.Sequential(\\n                nn.Linear(4, rr_hidden1), nn.ReLU(inplace=True),\\n                nn.Linear(rr_hidden1, rr_hidden2), nn.ReLU(inplace=True)\\n            )\\n            fused_in = seq_head_hidden + rr_hidden2\\n        else:\\n            fused_in = seq_head_hidden\\n        self.classifier = nn.Linear(fused_in, num_classes)\\n    def forward(self, x, rr=None):\\n        # x: [B, C, L]\\n        z = self.feature_extractor(x)\\n        z = self.gap(z)\\n        z = self.seq_head(z)\\n        if self.use_rr_features and rr is not None:\\n            rr_feat = self.rr_mlp(rr)\\n            z = torch.cat([z, rr_feat], dim=1)\\n        logits = self.classifier(z)\\n        return logits\\n\\n# -----------------------------\\n# Utilities\\n# -----------------------------\\nclass ECGDataset(Dataset):\\n    def __init__(self, X, y, rr=None, norm_stats=None):\\n        # X shapes accepted: [N, 2, L] or [N, L, 2]\\n        if X.dim() != 3:\\n            raise ValueError('X must be 3D: [N, C, L] or [N, L, C]')\\n        if X.shape[1] == 2:\\n            self.X = X.float()\\n        elif X.shape[2] == 2:\\n            self.X = X.permute(0, 2, 1).float()\\n        else:\\n            raise ValueError('Expected 2 channels in either dim1 or dim2')\\n        self.y = y.long()\\n        self.rr = rr.float() if rr is not None else None\\n        # compute or use provided normalization stats (per-channel)\\n        if norm_stats is None:\\n            mu = self.X.mean(dim=(0, 2), keepdim=True)\\n            sigma = self.X.std(dim=(0, 2), keepdim=True).clamp_min(1e-6)\\n            self.norm_stats = (mu, sigma)\\n        else:\\n            self.norm_stats = norm_stats\\n        self.X = (self.X - self.norm_stats[0]) / self.norm_stats[1]\\n    def __len__(self):\\n        return self.y.shape[0]\\n    def __getitem__(self, idx):\\n        if self.rr is None:\\n            return self.X[idx], self.y[idx]\\n        return self.X[idx], self.y[idx], self.rr[idx]\\n\\ndef count_parameters(model):\\n    return sum(p.numel() for p in model.parameters())\\n\\ndef focal_loss(logits, targets, alpha=None, gamma=2.0, label_smoothing=0.0):\\n    # logits: [B, C], targets: [B]\\n    ce = F.cross_entropy(logits, targets, reduction='none', weight=alpha, label_smoothing=label_smoothing)\\n    pt = torch.exp(-ce)\\n    loss = ((1 - pt) ** gamma) * ce\\n    return loss.mean()\\n\\n@torch.no_grad()\\ndef evaluate(model, loader, device, num_classes=5, use_rr=False):\\n    model.eval()\\n    total = 0\\n    correct = 0\\n    # confusion matrix\\n    cm = torch.zeros(num_classes, num_classes, dtype=torch.long)\\n    for batch in loader:\\n        if use_rr and len(batch) == 3:\\n            x, y, rr = batch\\n            rr = rr.to(device)\\n        else:\\n            x, y = batch[:2]\\n            rr = None\\n        x = x.to(device)\\n        y = y.to(device)\\n        logits = model(x, rr) if use_rr else model(x)\\n        preds = logits.argmax(dim=1)\\n        total += y.size(0)\\n        correct += (preds == y).sum().item()\\n        for t, p in zip(y.view(-1), preds.view(-1)):\\n            cm[t.long(), p.long()] += 1\\n    acc = correct / max(1, total)\\n    # macro F1\\n    precision = cm.diag() / cm.sum(dim=0).clamp_min(1)\\n    recall = cm.diag() / cm.sum(dim=1).clamp_min(1)\\n    f1_per_class = 2 * precision * recall / (precision + recall).clamp_min(1e-12)\\n    macro_f1 = f1_per_class.mean().item()\\n    return {\\n        'accuracy': acc,\\n        'macro_f1': macro_f1,\\n        'confusion_matrix': cm.cpu().tolist()\\n    }\\n\\n# -----------------------------\\n# Main training function (core loop, PTQ at end)\\n# -----------------------------\\n\\n# Note: X_train/X_val: torch tensors with per-sample shape (1000, 2) or (2, 1000); y_*: int64 labels in [0..4]\\n# Device: 'cuda' or 'cpu'\\n# Hyperparams consumed (BayesOpt-ready):\\n#   lr, batch_size, epochs, weight_decay, dropout, nb_filters, bottleneck_channels, depth, se_reduction,\\n#   seq_head_hidden, use_rr_features, rr_hidden1, rr_hidden2, gamma, mixup_alpha, time_shift_frac, noise_std,\\n#   label_smoothing, num_workers,\\n#   quantization_bits, quantize_weights, quantize_activations, calibration_batches\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\ndef train_model(X_train, y_train, X_val, y_val, device, **h):\\n    # Defaults\\n    defaults = dict(\\n        lr=1e-3, batch_size=128, epochs=15, weight_decay=1e-4, dropout=0.1,\\n        nb_filters=16, bottleneck_channels=16, depth=3, se_reduction=8, seq_head_hidden=32,\\n        use_rr_features=False, rr_hidden1=16, rr_hidden2=8,\\n        gamma=2.0, mixup_alpha=0.2, time_shift_frac=0.05, noise_std=0.005, label_smoothing=0.0,\\n        num_workers=0,\\n        quantization_bits=8, quantize_weights=True, quantize_activations=True, calibration_batches=64,\\n        rr_train=None, rr_val=None\\n    )\\n    for k, v in defaults.items():\\n        h.setdefault(k, v)\\n\\n    use_rr = bool(h['use_rr_features'])\\n    rr_train = h.get('rr_train', None)\\n    rr_val = h.get('rr_val', None)\\n    # Build datasets with normalization from train set\\n    tmp_train_ds = ECGDataset(X_train, y_train, rr=rr_train)\\n    norm_stats = tmp_train_ds.norm_stats\\n    train_ds = tmp_train_ds\\n    val_ds = ECGDataset(X_val, y_val, rr=rr_val, norm_stats=norm_stats)\\n\\n    train_loader = DataLoader(train_ds, batch_size=h['batch_size'], shuffle=True, num_workers=h['num_workers'], drop_last=True)\\n    val_loader = DataLoader(val_ds, batch_size=h['batch_size'], shuffle=False, num_workers=h['num_workers'])\\n\\n    # Model\\n    model = InceptionTimeSERr = InceptionTimeSERR(\\n        in_ch=2, nb_filters=h['nb_filters'], bottleneck_channels=h['bottleneck_channels'],\\n        depth=h['depth'], se_reduction=h['se_reduction'], seq_head_hidden=h['seq_head_hidden'],\\n        num_classes=5, use_rr_features=use_rr, rr_hidden1=h['rr_hidden1'], rr_hidden2=h['rr_hidden2'], dropout=h['dropout']\\n    )\\n    # Ensure param budget\\n    total_params = count_parameters(model)\\n    if total_params > 256_000:\\n        raise RuntimeError(f'Model has {total_params} parameters which exceeds the 256K limit. Lower nb_filters/bottleneck/hidden sizes.')\\n\\n    model.to(device)\\n\\n    # Optimizer\\n    optimizer = torch.optim.Adam(model.parameters(), lr=h['lr'], weight_decay=h['weight_decay'])\\n\\n    # Class-balanced focal loss: alpha weights inversely proportional to class frequency\\n    with torch.no_grad():\\n        num_classes = 5\\n        counts = torch.bincount(y_train.view(-1).long(), minlength=num_classes).float()\\n        inv_freq = 1.0 / counts.clamp_min(1.0)\\n        alpha = (inv_freq / inv_freq.sum()) * num_classes\\n        alpha = alpha.to(device)\\n\\n    def apply_augmentations(x):\\n        # x: [B, C, L]\\n        B, C, L = x.shape\\n        # time shift\\n        if h['time_shift_frac'] > 0:\\n            max_shift = int(L * h['time_shift_frac'])\\n            if max_shift > 0:\\n                shifts = torch.randint(-max_shift, max_shift + 1, (B,), device=x.device)\\n                idx = torch.arange(L, device=x.device).unsqueeze(0).expand(B, -1)\\n                shifted_idx = (idx + shifts.unsqueeze(1)) % L\\n                x = x.gather(dim=2, index=shifted_idx.unsqueeze(1).expand(-1, C, -1))\\n        # gaussian noise\\n        if h['noise_std'] > 0:\\n            x = x + torch.randn_like(x) * h['noise_std']\\n        return x\\n\\n    history = {'train_loss': [], 'val_loss': [], 'val_accuracy': [], 'val_macro_f1': []}\\n\\n    for epoch in range(h['epochs']):\\n        model.train()\\n        running_loss = 0.0\\n        n_batches = 0\\n        for batch in train_loader:\\n            if use_rr and len(batch) == 3:\\n                x, y, rr = batch\\n                rr = rr.to(device)\\n            else:\\n                x, y = batch[:2]\\n                rr = None\\n            x = x.to(device)\\n            y = y.to(device)\\n\\n            # Augmentations\\n            x = apply_augmentations(x)\\n\\n            # Mixup\\n            mix_alpha = float(h['mixup_alpha'])\\n            if mix_alpha > 0.0:\\n                lam = torch.distributions.Beta(mix_alpha, mix_alpha).sample().item()\\n                lam = max(lam, 1.0 - lam)  # symmetric\\n                indices = torch.randperm(x.size(0), device=x.device)\\n                x_mix = lam * x + (1 - lam) * x[indices]\\n                rr_mix = None\\n                if use_rr and rr is not None:\\n                    rr_mix = lam * rr + (1 - lam) * rr[indices]\\n                logits = model(x_mix, rr_mix) if use_rr else model(x_mix)\\n                loss = lam * focal_loss(logits, y, alpha=alpha, gamma=h['gamma'], label_smoothing=h['label_smoothing']) \\\n                     + (1 - lam) * focal_loss(logits, y[indices], alpha=alpha, gamma=h['gamma'], label_smoothing=h['label_smoothing'])\\n            else:\\n                logits = model(x, rr) if use_rr else model(x)\\n                loss = focal_loss(logits, y, alpha=alpha, gamma=h['gamma'], label_smoothing=h['label_smoothing'])\\n\\n            optimizer.zero_grad()\\n            loss.backward()\\n            optimizer.step()\\n\\n            running_loss += loss.item()\\n            n_batches += 1\\n\\n        avg_train_loss = running_loss / max(1, n_batches)\\n        # Validation loss/metrics\\n        model.eval()\\n        val_running_loss = 0.0\\n        val_batches = 0\\n        with torch.no_grad():\\n            for batch in val_loader:\\n                if use_rr and len(batch) == 3:\\n                    x, y, rr = batch\\n                    rr = rr.to(device)\\n                else:\\n                    x, y = batch[:2]\\n                    rr = None\\n                x = x.to(device)\\n                y = y.to(device)\\n                logits = model(x, rr) if use_rr else model(x)\\n                loss = F.cross_entropy(logits, y)  # plain CE just to monitor\\n                val_running_loss += loss.item()\\n                val_batches += 1\\n        val_metrics = evaluate(model, val_loader, device, num_classes=5, use_rr=use_rr)\\n        avg_val_loss = val_running_loss / max(1, val_batches)\\n        history['train_loss'].append(avg_train_loss)\\n        history['val_loss'].append(avg_val_loss)\\n        history['val_accuracy'].append(val_metrics['accuracy'])\\n        history['val_macro_f1'].append(val_metrics['macro_f1'])\\n\\n    # -----------------------------\\n    # Post-Training Quantization (PTQ)\\n    # -----------------------------\\n    q_bits = int(h['quantization_bits'])\\n    q_weights = bool(h['quantize_weights'])\\n    q_acts = bool(h['quantize_activations'])\\n\\n    q_model = model.to('cpu').eval()\\n\\n    if q_bits == 32 or (not q_weights and not q_acts):\\n        # no quantization\\n        pass\\n    elif q_bits == 16:\\n        # Dynamic quantization to float16 for Linear layers (sensible for CNN heads)\\n        q_model = torch.ao.quantization.quantize_dynamic(\\n            q_model, {nn.Linear}, dtype=torch.float16\\n        )\\n    elif q_bits == 8:\\n        # Static FX PTQ for Conv1d/Linear. Allow toggling weights/activations.\\n        torch.backends.quantized.engine = 'fbgemm'\\n        if q_weights and q_acts:\\n            qconfig = get_default_qconfig('fbgemm')\\n        elif q_weights and not q_acts:\\n            qconfig = QConfig(\\n                activation=PlaceholderObserver.with_args(dtype=torch.float),\\n                weight=PerChannelMinMaxObserver.with_args(dtype=torch.qint8, qscheme=torch.per_channel_symmetric)\\n            )\\n        elif (not q_weights) and q_acts:\\n            qconfig = QConfig(\\n                activation=MinMaxObserver.with_args(dtype=torch.quint8),\\n                weight=PlaceholderObserver.with_args(dtype=torch.float)\\n            )\\n        else:\\n            qconfig = None\\n        if qconfig is not None:\\n            from torch.ao.quantization.fx import QConfigMapping\\n            qconfig_mapping = QConfigMapping().set_global(qconfig)\\n            # example input for shape tracing\\n            example_inputs = (torch.randn(1, 2, X_train.shape[-2] if X_train.shape[-1]==2 else X_train.shape[-1]),)\\n            prepared = prepare_fx(q_model, qconfig_mapping, example_inputs)\\n            # Calibrate with a few CPU batches\\n            calib_loader = DataLoader(train_ds, batch_size=h['batch_size'], shuffle=False, num_workers=0)\\n            calib_steps = int(h['calibration_batches'])\\n            with torch.no_grad():\\n                c = 0\\n                for batch in calib_loader:\\n                    x = batch[0]  # [B, C, L]\\n                    rr = batch[2] if (use_rr and len(batch) == 3) else None\\n                    if use_rr and rr is not None:\\n                        prepared(x, rr)\\n                    else:\\n                        prepared(x)\\n                    c += 1\\n                    if c >= calib_steps:\\n                        break\\n            q_model = convert_fx(prepared)\\n    else:\\n        # Unsupported setting, fall back to fp32\\n        pass\\n\\n    # Final metrics on CPU quantized model\\n    cpu_val_loader = DataLoader(val_ds, batch_size=h['batch_size'], shuffle=False, num_workers=0)\\n    final_metrics = evaluate(q_model, cpu_val_loader, device='cpu', num_classes=5, use_rr=use_rr)\\n\\n    return q_model, {\\n        'train_history': history,\\n        'val_final': final_metrics,\\n        'num_parameters': total_params\\n    }\\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 15,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "nb_filters": {
+      "default": 16,
+      "type": "Integer",
+      "low": 8,
+      "high": 32
+    },
+    "bottleneck_channels": {
+      "default": 16,
+      "type": "Integer",
+      "low": 8,
+      "high": 32
+    },
+    "depth": {
+      "default": 3,
+      "type": "Integer",
+      "low": 2,
+      "high": 4
+    },
+    "se_reduction": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "seq_head_hidden": {
+      "default": 32,
+      "type": "Integer",
+      "low": 16,
+      "high": 64
+    },
+    "use_rr_features": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "rr_hidden1": {
+      "default": 16,
+      "type": "Integer",
+      "low": 8,
+      "high": 32
+    },
+    "rr_hidden2": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 3.0
+    },
+    "mixup_alpha": {
+      "default": 0.2,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.4
+    },
+    "time_shift_frac": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "noise_std": {
+      "default": 0.005,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.02
+    },
+    "label_smoothing": {
+      "default": 0.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.1
+    },
+    "num_workers": {
+      "default": 0,
+      "type": "Integer",
+      "low": 0,
+      "high": 4
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "calibration_batches": {
+      "default": 64,
+      "type": "Integer",
+      "low": 10,
+      "high": 200
+    }
+  },
+  "confidence": 0.84,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758317545,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

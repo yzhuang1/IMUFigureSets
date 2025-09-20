@@ -22,6 +22,7 @@ class LogFileMonitor:
         self.monitoring = False
         self.monitor_thread = None
         self.log_file_path = None
+        self.last_processed_line = 0  # Track which lines we've already processed
 
     def start_monitoring(self, log_file_path: str):
         """Start monitoring the specified log file"""
@@ -48,24 +49,37 @@ class LogFileMonitor:
         print("[DEBUG] Stopped log file monitoring")
 
     def _monitor_log_file(self):
-        """Monitor log file for new ERROR entries"""
-        if not self.log_file_path or not os.path.exists(self.log_file_path):
+        """Monitor log file for ERROR entries - reads entire file and tracks processed lines"""
+        if not self.log_file_path:
             return
 
         try:
-            # Start from end of file
-            with open(self.log_file_path, 'r', encoding='utf-8') as f:
-                f.seek(0, 2)  # Seek to end
+            while self.monitoring:
+                # Check if file exists
+                if not os.path.exists(self.log_file_path):
+                    time.sleep(0.5)
+                    continue
 
-                while self.monitoring:
-                    line = f.readline()
-                    if line:
-                        # Check for ERROR messages
-                        if ' - ERROR - ' in line:
-                            self.error_terminator._check_for_error(line.strip(), "LOG_FILE")
-                    else:
-                        # No new data, wait briefly
-                        time.sleep(0.1)
+                # Read entire file and process new lines
+                try:
+                    with open(self.log_file_path, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+
+                    # Process only new lines since last check
+                    for i, line in enumerate(lines):
+                        if i >= self.last_processed_line:
+                            # Check for ERROR messages
+                            if ' - ERROR - ' in line:
+                                self.error_terminator._check_for_error(line.strip(), "LOG_FILE")
+
+                    # Update our position
+                    self.last_processed_line = len(lines)
+
+                except (IOError, OSError) as e:
+                    print(f"[DEBUG] Temporary file read error (will retry): {e}")
+
+                # Wait before next check
+                time.sleep(0.1)
 
         except Exception as e:
             print(f"[DEBUG] Log file monitoring error: {e}")
@@ -184,25 +198,25 @@ class ErrorTerminator:
         
     def _check_for_error(self, text: str, source: str):
         """Check text for ERROR patterns and terminate if found"""
-        if not self.terminate_on_error:
-            return
-
         # Skip monitoring our own debug messages to prevent recursion
-        if "[DEBUG]" in text or "BO Error detected" in text:
+        if "[DEBUG]" in text or "BO Error detected" in text or "ERROR pattern" in text or "Detected:" in text:
             return
 
         # Check for ERROR pattern (case-sensitive)
         for keyword in self.error_keywords:
             if keyword in text:
+                error_msg = f"ERROR pattern '{keyword}' detected in {source}: {text.strip()}"
+                self.detected_errors.append(error_msg)
+
                 # Check if we're in BO process - if so, send to debug GPT instead of terminating
                 global _in_bo_process
                 if _in_bo_process:
                     self._handle_bo_error(text, source)
                     return
 
-                error_msg = f"ERROR pattern '{keyword}' detected in {source}: {text.strip()}"
-                self.detected_errors.append(error_msg)
-                self._terminate_program(error_msg)
+                # Only terminate if termination is enabled
+                if self.terminate_on_error:
+                    self._terminate_program(error_msg)
                 return
                 
     def _handle_bo_error(self, text: str, source: str):

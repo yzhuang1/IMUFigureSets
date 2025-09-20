@@ -1,0 +1,54 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Scope and dataset: We reviewed 2023–2025 work on multiclass ECG arrhythmia classification using MIT-BIH (AAMI 5-class: N, S/SVEB, V/VEB, F, Q), focusing on sequence inputs comparable to 2-lead, ~1000-sample windows and PyTorch feasibility. A key methodological point is to evaluate with the inter-patient (DS1→DS2) split recommended by De Chazal et al., since intra-patient setups consistently inflate results. ([arxiv.org](https://arxiv.org/html/2404.15367v1?utm_source=openai))\nRecent SOTA-style models and findings:\n- Tiny Transformer (ViT-style for 1D): 6k parameters; 8-bit quantized inference 4.28 ms and 0.09 mJ on GAP9 MCU; reports 98.97% accuracy on MIT-BIH 5-class but explicitly uses an intra-patient protocol. Architecture takes a ~0.5 s beat window plus pre/post RR intervals. Excellent for embedded efficiency but not inter-patient. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))\n- CNN + entropy-rate and RR-interval features: beat-level classifier evaluated under both protocols; reports 97.91% average accuracy for 5-class inter-patient and 98.73% (3-class) on MIT-BIH; also generalizes to INCART. Shows the value of fusing morphology with timing (RR). ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39021157/?utm_source=openai))\n- Adversarial Beat-Score-Map (BSM) framework for inter-patient robustness: introduces pretraining with adversarial learning on beat-score maps and improves inter-patient F1 by 14.27% on MIT-BIH; also shows gains in AFib detection where inter-patient variability is large. ([mdpi.com](https://www.mdpi.com/2076-3417/14/16/7227?utm_source=openai))\n- Inter-patient MLP + Weight Capsule + Seq2Seq: reports 99.88% overall accuracy on MIT-BIH (AAMI 5-class) with DS1→DS2; unusually high compared to typical inter-patient results—useful as a reference but warrants caution and replication. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/37841320/))\n- Multi-lead lightweight CNN with channel attention: targets 2-lead and 12-lead settings; reports ~99.18% accuracy (dataset-specific); protocol details (inter- vs intra-patient) vary—illustrates effectiveness of lead-attention for multi-lead inputs. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542?utm_source=openai))\n- InceptionTime variants with attention/SE: Although many results are on PTB-XL or mixed datasets, InceptionTime-based backbones with Squeeze-and-Excitation (SE) regularly outperform plain CNNs for ECG time series, and PyTorch implementations are mature and efficient. ([arxiv.org](https://arxiv.org/abs/2312.09445?utm_source=openai))\nSurveys/meta-analyses emphasize that: (i) CNN-based models dominate, (ii) inter-patient accuracy is much lower than intra-patient, and (iii) many papers lack standardized evaluation and embedded-feasibility reporting—necessitating careful split adherence and reporting. ([mdpi.com](https://www.mdpi.com/2076-3417/13/8/4964?utm_source=openai))\nPractical implications for your setting (torch_tensor, shape [1000, 2], 5 classes): Models that (a) process multivariate 1D sequences directly, (b) integrate RR-interval context, and (c) use class-imbalance-aware training are most aligned. InceptionTime-style multiscale 1D convolutions with SE attention are well-suited to 2-channel, 1000-sample inputs and are compute-efficient; adding a small fusion branch for RR intervals consistently helps SVEB/VEB detection. Tiny-Transformer designs are attractive for edge deployment but should be revalidated under DS1→DS2 for fair comparison. ([williamsdoug.github.io](https://williamsdoug.github.io/tsai/models.InceptionTime.html?utm_source=openai))",
+  "key_findings": [
+    "Evaluation protocol matters: inter-patient (DS1→DS2) performance is typically far lower than intra-patient; standardized splits and reporting are essential for fair comparison. ([mdpi.com](https://www.mdpi.com/2076-3417/13/8/4964?utm_source=openai))",
+    "Lightweight Transformer for ECG (≈6k params) achieves 98.97% accuracy on MIT-BIH 5-class with 8-bit inference and 0.09 mJ per prediction, but results are intra-patient; it also fuses RR intervals with beat windows. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))",
+    "Combining morphology with timing features (RR intervals or beat-score maps) improves inter-patient generalization; e.g., CNN+RR achieves 97.91% inter-patient accuracy (5-class), and adversarial BSM pretraining boosts inter-patient F1 by 14.27%. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39021157/?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Multivariate InceptionTime with Squeeze-and-Excitation (InceptionTime-SE) plus RR-interval fusion: Use a 1D InceptionTime backbone (PyTorch/tsai implementations) on [B, C=2, L=1000] inputs with SE blocks for channel-wise attention; add a small MLP branch for pre-/post-/local/global RR intervals and fuse via concatenation before the classifier. Train with DS1→DS2 inter-patient split (AAMI 5-class), class-balanced focal loss, and mixup/augmentation. This architecture matches your 2-channel sequence shape, has strong empirical backing for ECG time series, balances accuracy and compute (sub-1–2M params typical), and is readily implemented in PyTorch. ([williamsdoug.github.io](https://williamsdoug.github.io/tsai/models.InceptionTime.html?utm_source=openai))"
+  ],
+  "recent_papers": [
+    {
+      "title": "A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (TBCAS 2024)",
+      "contribution": "ViT-like 1D model (≈6k params) with 8-bit inference achieving 98.97% accuracy on MIT-BIH 5-class; 4.28 ms and 0.09 mJ per inference on GAP9; intra-patient evaluation; fuses RR intervals. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))"
+    },
+    {
+      "title": "Arrhythmia detection using entropy-rate features and RR intervals with CNN (2024)",
+      "contribution": "Inter- and intra-patient evaluation; reports 97.91% average accuracy for 5-class inter-patient and 98.73% for 3-class; demonstrates benefit of combining timing (RR) with morphology. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39021157/?utm_source=openai))"
+    },
+    {
+      "title": "Enhancing Inter-Patient Performance with Adversarial Learning Using Beat-Score Maps (Appl. Sci., 2024)",
+      "contribution": "Adversarial pretraining on beat-score maps improves MIT-BIH inter-patient F1 by 14.27% and boosts AFib recognition; focuses on generalization across patients/databases. ([mdpi.com](https://www.mdpi.com/2076-3417/14/16/7227?utm_source=openai))"
+    },
+    {
+      "title": "IncepSE: Leveraging InceptionTime with Squeeze-and-Excitation in ECG analysis (2023)",
+      "contribution": "Shows that SE-augmented InceptionTime improves over vanilla InceptionTime on ECG tasks; supports choosing InceptionTime-SE as a strong, efficient backbone. ([arxiv.org](https://arxiv.org/abs/2312.09445?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.68,
+  "timestamp": 1758317378,
+  "generated_time": "2025-09-19 16:29:38",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

@@ -1,0 +1,314 @@
+2025-09-19 16:27:21,014 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 16:27:21,357 - INFO - __main__ - Logging system initialized successfully
+2025-09-19 16:27:21,358 - INFO - __main__ - Starting AI-Enhanced Machine Learning Pipeline
+2025-09-19 16:27:21,358 - INFO - __main__ - Starting real data processing from data/ directory
+2025-09-19 16:27:21,360 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'X.npy', 'y.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-19 16:27:21,360 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-19 16:27:21,361 - INFO - __main__ - Attempting to load: X.npy
+2025-09-19 16:27:21,489 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-19 16:27:21,578 - INFO - __main__ - Data loaded successfully: X.npy + y.npy, shape: (62352, 1000, 2), device: cuda
+2025-09-19 16:27:21,578 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-19 16:27:21,579 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-19 16:27:21,579 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-19 16:27:21,581 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 16:27:21,581 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-19 16:27:21,581 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-19 16:27:21,581 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-19 16:27:21,581 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-19 16:27:21,581 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-19 16:27:21,581 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-19 16:27:21,581 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-19 16:27:21,582 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-19 16:27:21,794 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-19 16:27:21,794 - INFO - class_balancing - Class imbalance analysis:
+2025-09-19 16:27:21,794 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-19 16:27:21,794 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-19 16:27:21,794 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-19 16:27:21,794 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-19 16:27:21,795 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-19 16:27:21,795 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-19 16:27:21,795 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-19 16:27:21,795 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-19 16:27:22,501 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-19 16:27:22,509 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-19 16:27:22,509 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-19 16:27:22,509 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-19 16:27:22,509 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-19 16:27:22,509 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-19 16:27:22,509 - INFO - _models.ai_code_generator - Conducting literature review before code generation...
+2025-09-19 16:29:38,775 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-19 16:29:38,876 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-19 16:29:38,876 - INFO - _models.ai_code_generator - Prompt length: 3132 characters
+2025-09-19 16:29:38,876 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-19 16:29:38,876 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-19 16:29:38,876 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-19 16:32:25,562 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-19 16:32:25,691 - INFO - _models.ai_code_generator - Successfully extracted response content
+2025-09-19 16:32:25,691 - WARNING - _models.ai_code_generator - Initial JSON parse failed: Expecting ',' delimiter: line 21 column 17 (char 18350), attempting to fix common issues
+2025-09-19 16:32:25,692 - INFO - _models.ai_code_generator - Successfully fixed JSON formatting issues
+2025-09-19 16:32:25,692 - INFO - _models.ai_code_generator - AI generated training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:25,692 - INFO - _models.ai_code_generator - Confidence: 0.84
+2025-09-19 16:32:25,692 - INFO - _models.ai_code_generator - Literature review informed code generation (confidence: 0.68)
+2025-09-19 16:32:25,692 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:25,692 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['lr', 'batch_size', 'epochs', 'weight_decay', 'dropout', 'nb_filters', 'bottleneck_channels', 'depth', 'se_reduction', 'seq_head_hidden', 'use_rr_features', 'rr_hidden1', 'rr_hidden2', 'gamma', 'mixup_alpha', 'time_shift_frac', 'noise_std', 'label_smoothing', 'num_workers', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'calibration_batches']
+2025-09-19 16:32:25,692 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.84
+2025-09-19 16:32:25,694 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-19 16:32:25,697 - INFO - _models.ai_code_generator - Training function saved to: generated_training_functions\training_function_torch_tensor_InceptionTimeSE_RR_Fusion_Tiny_PTQ_1758317545.json
+2025-09-19 16:32:25,697 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions\training_function_torch_tensor_InceptionTimeSE_RR_Fusion_Tiny_PTQ_1758317545.json
+2025-09-19 16:32:25,700 - INFO - _models.training_function_executor - Training function validation passed
+2025-09-19 16:32:25,701 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-19 16:32:25,701 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:25,701 - INFO - evaluation.code_generation_pipeline_orchestrator - 📦 Installing dependencies for GPT-generated training code...
+2025-09-19 16:32:25,702 - INFO - package_installer - 🔍 Analyzing GPT-generated code for package dependencies...
+2025-09-19 16:32:25,703 - WARNING - package_installer - Could not parse code for imports due to syntax error: unexpected character after line continuation character (<unknown>, line 1)
+2025-09-19 16:32:25,703 - INFO - package_installer - Extracted imports from code: set()
+2025-09-19 16:32:25,703 - INFO - package_installer - ✅ No external packages required
+2025-09-19 16:32:25,703 - INFO - evaluation.code_generation_pipeline_orchestrator - ✅ All dependencies installed successfully
+2025-09-19 16:32:25,703 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 62352 samples (using full dataset)
+2025-09-19 16:32:25,703 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['lr', 'batch_size', 'epochs', 'weight_decay', 'dropout', 'nb_filters', 'bottleneck_channels', 'depth', 'se_reduction', 'seq_head_hidden', 'use_rr_features', 'rr_hidden1', 'rr_hidden2', 'gamma', 'mixup_alpha', 'time_shift_frac', 'noise_std', 'label_smoothing', 'num_workers', 'quantization_bits', 'quantize_weights', 'quantize_activations', 'calibration_batches']
+2025-09-19 16:32:25,703 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-19 16:32:25,703 - INFO - _models.training_function_executor - Using centralized data splits for BO objective
+2025-09-19 16:32:26,018 - INFO - bo.run_bo - Converted GPT search space: 23 parameters
+2025-09-19 16:32:26,018 - INFO - bo.run_bo - Using GPT-generated search space
+2025-09-19 16:32:26,019 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-19 16:32:26,021 - INFO - bo.run_bo - 🔍BO Trial 1: Initial random exploration
+2025-09-19 16:32:26,021 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 16:32:26,021 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:26,021 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:26,021 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': 12, 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'nb_filters': 26, 'bottleneck_channels': 30, 'depth': 4, 'se_reduction': 14, 'seq_head_hidden': 39, 'use_rr_features': True, 'rr_hidden1': 15, 'rr_hidden2': 11, 'gamma': 2.301776945897706, 'mixup_alpha': 0.022564631610840106, 'time_shift_frac': 0.14439975445336498, 'noise_std': 0.01877105418031501, 'label_smoothing': 7.787658410143285e-05, 'num_workers': 3, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibration_batches': 98}
+2025-09-19 16:32:26,055 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,055 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:26,055 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,055 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.034s
+2025-09-19 16:32:26,055 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:26,055 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-19 16:32:26,055 - INFO - bo.run_bo - Recorded observation #1: hparams={'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'nb_filters': np.int64(26), 'bottleneck_channels': np.int64(30), 'depth': np.int64(4), 'se_reduction': np.int64(14), 'seq_head_hidden': np.int64(39), 'use_rr_features': True, 'rr_hidden1': np.int64(15), 'rr_hidden2': np.int64(11), 'gamma': 2.301776945897706, 'mixup_alpha': 0.022564631610840106, 'time_shift_frac': 0.14439975445336498, 'noise_std': 0.01877105418031501, 'label_smoothing': 7.787658410143285e-05, 'num_workers': np.int64(3), 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibration_batches': np.int64(98)}, value=0.0000
+2025-09-19 16:32:26,055 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'nb_filters': np.int64(26), 'bottleneck_channels': np.int64(30), 'depth': np.int64(4), 'se_reduction': np.int64(14), 'seq_head_hidden': np.int64(39), 'use_rr_features': True, 'rr_hidden1': np.int64(15), 'rr_hidden2': np.int64(11), 'gamma': 2.301776945897706, 'mixup_alpha': 0.022564631610840106, 'time_shift_frac': 0.14439975445336498, 'noise_std': 0.01877105418031501, 'label_smoothing': 7.787658410143285e-05, 'num_workers': np.int64(3), 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibration_batches': np.int64(98)} -> 0.0000
+2025-09-19 16:32:26,056 - INFO - bo.run_bo - 🔍BO Trial 2: Initial random exploration
+2025-09-19 16:32:26,056 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 16:32:26,056 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:26,056 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:26,056 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 7.476312062252305e-05, 'batch_size': 128, 'epochs': 46, 'weight_decay': 1.536960311060885e-06, 'dropout': 0.4868777594207297, 'nb_filters': 22, 'bottleneck_channels': 22, 'depth': 3, 'se_reduction': 6, 'seq_head_hidden': 59, 'use_rr_features': False, 'rr_hidden1': 32, 'rr_hidden2': 6, 'gamma': 2.7198808134726415, 'mixup_alpha': 0.2721230154351119, 'time_shift_frac': 0.09009985039390861, 'noise_std': 0.0002652992231973306, 'label_smoothing': 0.09422017556848529, 'num_workers': 1, 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': 101}
+2025-09-19 16:32:26,059 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,059 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:26,059 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,059 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.003s
+2025-09-19 16:32:26,059 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:26,059 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.001s
+2025-09-19 16:32:26,059 - INFO - bo.run_bo - Recorded observation #2: hparams={'lr': 7.476312062252305e-05, 'batch_size': 128, 'epochs': np.int64(46), 'weight_decay': 1.536960311060885e-06, 'dropout': 0.4868777594207297, 'nb_filters': np.int64(22), 'bottleneck_channels': np.int64(22), 'depth': np.int64(3), 'se_reduction': np.int64(6), 'seq_head_hidden': np.int64(59), 'use_rr_features': False, 'rr_hidden1': np.int64(32), 'rr_hidden2': np.int64(6), 'gamma': 2.7198808134726415, 'mixup_alpha': 0.2721230154351119, 'time_shift_frac': 0.09009985039390861, 'noise_std': 0.0002652992231973306, 'label_smoothing': 0.09422017556848529, 'num_workers': np.int64(1), 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': np.int64(101)}, value=0.0000
+2025-09-19 16:32:26,059 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 2: {'lr': 7.476312062252305e-05, 'batch_size': 128, 'epochs': np.int64(46), 'weight_decay': 1.536960311060885e-06, 'dropout': 0.4868777594207297, 'nb_filters': np.int64(22), 'bottleneck_channels': np.int64(22), 'depth': np.int64(3), 'se_reduction': np.int64(6), 'seq_head_hidden': np.int64(59), 'use_rr_features': False, 'rr_hidden1': np.int64(32), 'rr_hidden2': np.int64(6), 'gamma': 2.7198808134726415, 'mixup_alpha': 0.2721230154351119, 'time_shift_frac': 0.09009985039390861, 'noise_std': 0.0002652992231973306, 'label_smoothing': 0.09422017556848529, 'num_workers': np.int64(1), 'quantization_bits': 16, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': np.int64(101)} -> 0.0000
+2025-09-19 16:32:26,060 - INFO - bo.run_bo - 🔍BO Trial 3: Initial random exploration
+2025-09-19 16:32:26,060 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 16:32:26,060 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:26,060 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:26,060 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.00020914981329035607, 'batch_size': 32, 'epochs': 12, 'weight_decay': 1.3726318898045866e-06, 'dropout': 0.45466020103939114, 'nb_filters': 11, 'bottleneck_channels': 25, 'depth': 3, 'se_reduction': 9, 'seq_head_hidden': 57, 'use_rr_features': False, 'rr_hidden1': 25, 'rr_hidden2': 13, 'gamma': 1.8995082667395315, 'mixup_alpha': 0.1580600944007258, 'time_shift_frac': 0.18533177315875887, 'noise_std': 0.01454543991712842, 'label_smoothing': 0.03265407688058355, 'num_workers': 3, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': 91}
+2025-09-19 16:32:26,062 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,062 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:26,062 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,062 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.002s
+2025-09-19 16:32:26,159 - INFO - _models.ai_code_generator - Calling GPT to debug JSON formatting issues
+2025-09-19 16:32:26,159 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-19 16:32:26,159 - INFO - _models.ai_code_generator - Prompt length: 380 characters
+2025-09-19 16:32:26,159 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-19 16:32:26,159 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-19 16:32:26,159 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-19 16:32:26,268 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:26,268 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.206s
+2025-09-19 16:32:26,268 - INFO - bo.run_bo - Recorded observation #3: hparams={'lr': 0.00020914981329035607, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 1.3726318898045866e-06, 'dropout': 0.45466020103939114, 'nb_filters': np.int64(11), 'bottleneck_channels': np.int64(25), 'depth': np.int64(3), 'se_reduction': np.int64(9), 'seq_head_hidden': np.int64(57), 'use_rr_features': False, 'rr_hidden1': np.int64(25), 'rr_hidden2': np.int64(13), 'gamma': 1.8995082667395315, 'mixup_alpha': 0.1580600944007258, 'time_shift_frac': 0.18533177315875887, 'noise_std': 0.01454543991712842, 'label_smoothing': 0.03265407688058355, 'num_workers': np.int64(3), 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': np.int64(91)}, value=0.0000
+2025-09-19 16:32:26,268 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 3: {'lr': 0.00020914981329035607, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 1.3726318898045866e-06, 'dropout': 0.45466020103939114, 'nb_filters': np.int64(11), 'bottleneck_channels': np.int64(25), 'depth': np.int64(3), 'se_reduction': np.int64(9), 'seq_head_hidden': np.int64(57), 'use_rr_features': False, 'rr_hidden1': np.int64(25), 'rr_hidden2': np.int64(13), 'gamma': 1.8995082667395315, 'mixup_alpha': 0.1580600944007258, 'time_shift_frac': 0.18533177315875887, 'noise_std': 0.01454543991712842, 'label_smoothing': 0.03265407688058355, 'num_workers': np.int64(3), 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': np.int64(91)} -> 0.0000
+2025-09-19 16:32:26,268 - INFO - bo.run_bo - 🔍BO Trial 4: Using RF surrogate + Expected Improvement
+2025-09-19 16:32:26,269 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 16:32:26,269 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:26,269 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:26,269 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.00041598378017194054, 'batch_size': 32, 'epochs': 20, 'weight_decay': 0.004214471139280925, 'dropout': 0.057898963258242134, 'nb_filters': 11, 'bottleneck_channels': 25, 'depth': 3, 'se_reduction': 12, 'seq_head_hidden': 53, 'use_rr_features': False, 'rr_hidden1': 16, 'rr_hidden2': 14, 'gamma': 1.0733014538610026, 'mixup_alpha': 0.09707531838837166, 'time_shift_frac': 0.08818147785117907, 'noise_std': 0.0014350236809290732, 'label_smoothing': 0.006127696583084708, 'num_workers': 1, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 11}
+2025-09-19 16:32:26,271 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,271 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:26,271 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,271 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.002s
+2025-09-19 16:32:26,462 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:26,462 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.191s
+2025-09-19 16:32:26,462 - INFO - bo.run_bo - Recorded observation #4: hparams={'lr': 0.00041598378017194054, 'batch_size': np.int64(32), 'epochs': np.int64(20), 'weight_decay': 0.004214471139280925, 'dropout': 0.057898963258242134, 'nb_filters': np.int64(11), 'bottleneck_channels': np.int64(25), 'depth': np.int64(3), 'se_reduction': np.int64(12), 'seq_head_hidden': np.int64(53), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(16), 'rr_hidden2': np.int64(14), 'gamma': 1.0733014538610026, 'mixup_alpha': 0.09707531838837166, 'time_shift_frac': 0.08818147785117907, 'noise_std': 0.0014350236809290732, 'label_smoothing': 0.006127696583084708, 'num_workers': np.int64(1), 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(11)}, value=0.0000
+2025-09-19 16:32:26,462 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 4: {'lr': 0.00041598378017194054, 'batch_size': np.int64(32), 'epochs': np.int64(20), 'weight_decay': 0.004214471139280925, 'dropout': 0.057898963258242134, 'nb_filters': np.int64(11), 'bottleneck_channels': np.int64(25), 'depth': np.int64(3), 'se_reduction': np.int64(12), 'seq_head_hidden': np.int64(53), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(16), 'rr_hidden2': np.int64(14), 'gamma': 1.0733014538610026, 'mixup_alpha': 0.09707531838837166, 'time_shift_frac': 0.08818147785117907, 'noise_std': 0.0014350236809290732, 'label_smoothing': 0.006127696583084708, 'num_workers': np.int64(1), 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(11)} -> 0.0000
+2025-09-19 16:32:26,462 - INFO - bo.run_bo - 🔍BO Trial 5: Using RF surrogate + Expected Improvement
+2025-09-19 16:32:26,462 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 16:32:26,462 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:26,462 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:26,462 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 1.0153097570852296e-05, 'batch_size': 128, 'epochs': 16, 'weight_decay': 2.43662770119419e-06, 'dropout': 0.3949070862316619, 'nb_filters': 24, 'bottleneck_channels': 25, 'depth': 2, 'se_reduction': 13, 'seq_head_hidden': 25, 'use_rr_features': False, 'rr_hidden1': 12, 'rr_hidden2': 16, 'gamma': 2.34262199924223, 'mixup_alpha': 0.3829084835917734, 'time_shift_frac': 0.04845950908411937, 'noise_std': 0.01475390771727704, 'label_smoothing': 0.024251601447554498, 'num_workers': 0, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': 56}
+2025-09-19 16:32:26,464 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,465 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:26,465 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,465 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.004s
+2025-09-19 16:32:26,657 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:26,657 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.192s
+2025-09-19 16:32:26,657 - INFO - bo.run_bo - Recorded observation #5: hparams={'lr': 1.0153097570852296e-05, 'batch_size': np.int64(128), 'epochs': np.int64(16), 'weight_decay': 2.43662770119419e-06, 'dropout': 0.3949070862316619, 'nb_filters': np.int64(24), 'bottleneck_channels': np.int64(25), 'depth': np.int64(2), 'se_reduction': np.int64(13), 'seq_head_hidden': np.int64(25), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(12), 'rr_hidden2': np.int64(16), 'gamma': 2.34262199924223, 'mixup_alpha': 0.3829084835917734, 'time_shift_frac': 0.04845950908411937, 'noise_std': 0.01475390771727704, 'label_smoothing': 0.024251601447554498, 'num_workers': np.int64(0), 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(56)}, value=0.0000
+2025-09-19 16:32:26,657 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 5: {'lr': 1.0153097570852296e-05, 'batch_size': np.int64(128), 'epochs': np.int64(16), 'weight_decay': 2.43662770119419e-06, 'dropout': 0.3949070862316619, 'nb_filters': np.int64(24), 'bottleneck_channels': np.int64(25), 'depth': np.int64(2), 'se_reduction': np.int64(13), 'seq_head_hidden': np.int64(25), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(12), 'rr_hidden2': np.int64(16), 'gamma': 2.34262199924223, 'mixup_alpha': 0.3829084835917734, 'time_shift_frac': 0.04845950908411937, 'noise_std': 0.01475390771727704, 'label_smoothing': 0.024251601447554498, 'num_workers': np.int64(0), 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(56)} -> 0.0000
+2025-09-19 16:32:26,658 - INFO - bo.run_bo - 🔍BO Trial 6: Using RF surrogate + Expected Improvement
+2025-09-19 16:32:26,658 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-19 16:32:26,658 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:26,658 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:26,658 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0008551537576269915, 'batch_size': 32, 'epochs': 37, 'weight_decay': 0.0020397417177716206, 'dropout': 0.33994195947975575, 'nb_filters': 12, 'bottleneck_channels': 10, 'depth': 2, 'se_reduction': 7, 'seq_head_hidden': 40, 'use_rr_features': False, 'rr_hidden1': 8, 'rr_hidden2': 14, 'gamma': 2.659063244647064, 'mixup_alpha': 0.012680836398129095, 'time_shift_frac': 0.13762826369900255, 'noise_std': 0.0008399820227731027, 'label_smoothing': 0.040986105033850334, 'num_workers': 3, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 147}
+2025-09-19 16:32:26,661 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,661 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:26,661 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,661 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.003s
+2025-09-19 16:32:26,853 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:26,853 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.192s
+2025-09-19 16:32:26,853 - INFO - bo.run_bo - Recorded observation #6: hparams={'lr': 0.0008551537576269915, 'batch_size': np.int64(32), 'epochs': np.int64(37), 'weight_decay': 0.0020397417177716206, 'dropout': 0.33994195947975575, 'nb_filters': np.int64(12), 'bottleneck_channels': np.int64(10), 'depth': np.int64(2), 'se_reduction': np.int64(7), 'seq_head_hidden': np.int64(40), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(8), 'rr_hidden2': np.int64(14), 'gamma': 2.659063244647064, 'mixup_alpha': 0.012680836398129095, 'time_shift_frac': 0.13762826369900255, 'noise_std': 0.0008399820227731027, 'label_smoothing': 0.040986105033850334, 'num_workers': np.int64(3), 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(147)}, value=0.0000
+2025-09-19 16:32:26,853 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 6: {'lr': 0.0008551537576269915, 'batch_size': np.int64(32), 'epochs': np.int64(37), 'weight_decay': 0.0020397417177716206, 'dropout': 0.33994195947975575, 'nb_filters': np.int64(12), 'bottleneck_channels': np.int64(10), 'depth': np.int64(2), 'se_reduction': np.int64(7), 'seq_head_hidden': np.int64(40), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(8), 'rr_hidden2': np.int64(14), 'gamma': 2.659063244647064, 'mixup_alpha': 0.012680836398129095, 'time_shift_frac': 0.13762826369900255, 'noise_std': 0.0008399820227731027, 'label_smoothing': 0.040986105033850334, 'num_workers': np.int64(3), 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(147)} -> 0.0000
+2025-09-19 16:32:26,853 - INFO - bo.run_bo - 🔍BO Trial 7: Using RF surrogate + Expected Improvement
+2025-09-19 16:32:26,853 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 16:32:26,853 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:26,853 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:26,853 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0055123958267205425, 'batch_size': 128, 'epochs': 17, 'weight_decay': 1.7404548339298184e-06, 'dropout': 0.42998882615429984, 'nb_filters': 28, 'bottleneck_channels': 25, 'depth': 3, 'se_reduction': 16, 'seq_head_hidden': 62, 'use_rr_features': True, 'rr_hidden1': 9, 'rr_hidden2': 4, 'gamma': 1.9376282079812968, 'mixup_alpha': 0.25533587716107076, 'time_shift_frac': 0.09735532111174118, 'noise_std': 0.006768422834677167, 'label_smoothing': 0.04972386493648405, 'num_workers': 2, 'quantization_bits': 32, 'quantize_weights': False, 'quantize_activations': True, 'calibration_batches': 192}
+2025-09-19 16:32:26,855 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,855 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:26,855 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:26,855 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.003s
+2025-09-19 16:32:27,047 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:27,048 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.193s
+2025-09-19 16:32:27,048 - INFO - bo.run_bo - Recorded observation #7: hparams={'lr': 0.0055123958267205425, 'batch_size': np.int64(128), 'epochs': np.int64(17), 'weight_decay': 1.7404548339298184e-06, 'dropout': 0.42998882615429984, 'nb_filters': np.int64(28), 'bottleneck_channels': np.int64(25), 'depth': np.int64(3), 'se_reduction': np.int64(16), 'seq_head_hidden': np.int64(62), 'use_rr_features': np.True_, 'rr_hidden1': np.int64(9), 'rr_hidden2': np.int64(4), 'gamma': 1.9376282079812968, 'mixup_alpha': 0.25533587716107076, 'time_shift_frac': 0.09735532111174118, 'noise_std': 0.006768422834677167, 'label_smoothing': 0.04972386493648405, 'num_workers': np.int64(2), 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(192)}, value=0.0000
+2025-09-19 16:32:27,048 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 7: {'lr': 0.0055123958267205425, 'batch_size': np.int64(128), 'epochs': np.int64(17), 'weight_decay': 1.7404548339298184e-06, 'dropout': 0.42998882615429984, 'nb_filters': np.int64(28), 'bottleneck_channels': np.int64(25), 'depth': np.int64(3), 'se_reduction': np.int64(16), 'seq_head_hidden': np.int64(62), 'use_rr_features': np.True_, 'rr_hidden1': np.int64(9), 'rr_hidden2': np.int64(4), 'gamma': 1.9376282079812968, 'mixup_alpha': 0.25533587716107076, 'time_shift_frac': 0.09735532111174118, 'noise_std': 0.006768422834677167, 'label_smoothing': 0.04972386493648405, 'num_workers': np.int64(2), 'quantization_bits': np.int64(32), 'quantize_weights': np.False_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(192)} -> 0.0000
+2025-09-19 16:32:27,048 - INFO - bo.run_bo - 🔍BO Trial 8: Using RF surrogate + Expected Improvement
+2025-09-19 16:32:27,048 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 16:32:27,048 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:27,048 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:27,048 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 3.6885200797413504e-05, 'batch_size': 32, 'epochs': 32, 'weight_decay': 1.8428801661343776e-06, 'dropout': 0.15102942026884372, 'nb_filters': 21, 'bottleneck_channels': 21, 'depth': 2, 'se_reduction': 5, 'seq_head_hidden': 52, 'use_rr_features': True, 'rr_hidden1': 21, 'rr_hidden2': 12, 'gamma': 1.8400857074236567, 'mixup_alpha': 0.04982956706043794, 'time_shift_frac': 0.0046101852337201215, 'noise_std': 0.006532588374997653, 'label_smoothing': 0.08165364047422874, 'num_workers': 4, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibration_batches': 84}
+2025-09-19 16:32:27,051 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:27,051 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:27,051 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:27,051 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.003s
+2025-09-19 16:32:27,247 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:27,247 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.196s
+2025-09-19 16:32:27,247 - INFO - bo.run_bo - Recorded observation #8: hparams={'lr': 3.6885200797413504e-05, 'batch_size': np.int64(32), 'epochs': np.int64(32), 'weight_decay': 1.8428801661343776e-06, 'dropout': 0.15102942026884372, 'nb_filters': np.int64(21), 'bottleneck_channels': np.int64(21), 'depth': np.int64(2), 'se_reduction': np.int64(5), 'seq_head_hidden': np.int64(52), 'use_rr_features': np.True_, 'rr_hidden1': np.int64(21), 'rr_hidden2': np.int64(12), 'gamma': 1.8400857074236567, 'mixup_alpha': 0.04982956706043794, 'time_shift_frac': 0.0046101852337201215, 'noise_std': 0.006532588374997653, 'label_smoothing': 0.08165364047422874, 'num_workers': np.int64(4), 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(84)}, value=0.0000
+2025-09-19 16:32:27,247 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 8: {'lr': 3.6885200797413504e-05, 'batch_size': np.int64(32), 'epochs': np.int64(32), 'weight_decay': 1.8428801661343776e-06, 'dropout': 0.15102942026884372, 'nb_filters': np.int64(21), 'bottleneck_channels': np.int64(21), 'depth': np.int64(2), 'se_reduction': np.int64(5), 'seq_head_hidden': np.int64(52), 'use_rr_features': np.True_, 'rr_hidden1': np.int64(21), 'rr_hidden2': np.int64(12), 'gamma': 1.8400857074236567, 'mixup_alpha': 0.04982956706043794, 'time_shift_frac': 0.0046101852337201215, 'noise_std': 0.006532588374997653, 'label_smoothing': 0.08165364047422874, 'num_workers': np.int64(4), 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(84)} -> 0.0000
+2025-09-19 16:32:27,247 - INFO - bo.run_bo - 🔍BO Trial 9: Using RF surrogate + Expected Improvement
+2025-09-19 16:32:27,247 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 16:32:27,248 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:27,248 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:27,248 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0010054957226808222, 'batch_size': 64, 'epochs': 35, 'weight_decay': 3.76624732943297e-06, 'dropout': 0.24342413313202116, 'nb_filters': 10, 'bottleneck_channels': 29, 'depth': 3, 'se_reduction': 10, 'seq_head_hidden': 54, 'use_rr_features': False, 'rr_hidden1': 22, 'rr_hidden2': 5, 'gamma': 2.8495689618295916, 'mixup_alpha': 0.04640282140693427, 'time_shift_frac': 0.13582318827534656, 'noise_std': 0.007714442657534931, 'label_smoothing': 0.0941227636894757, 'num_workers': 2, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True, 'calibration_batches': 174}
+2025-09-19 16:32:27,250 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:27,250 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:27,250 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:27,250 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.003s
+2025-09-19 16:32:27,454 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:27,454 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.204s
+2025-09-19 16:32:27,454 - INFO - bo.run_bo - Recorded observation #9: hparams={'lr': 0.0010054957226808222, 'batch_size': np.int64(64), 'epochs': np.int64(35), 'weight_decay': 3.76624732943297e-06, 'dropout': 0.24342413313202116, 'nb_filters': np.int64(10), 'bottleneck_channels': np.int64(29), 'depth': np.int64(3), 'se_reduction': np.int64(10), 'seq_head_hidden': np.int64(54), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(22), 'rr_hidden2': np.int64(5), 'gamma': 2.8495689618295916, 'mixup_alpha': 0.04640282140693427, 'time_shift_frac': 0.13582318827534656, 'noise_std': 0.007714442657534931, 'label_smoothing': 0.0941227636894757, 'num_workers': np.int64(2), 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(174)}, value=0.0000
+2025-09-19 16:32:27,454 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 9: {'lr': 0.0010054957226808222, 'batch_size': np.int64(64), 'epochs': np.int64(35), 'weight_decay': 3.76624732943297e-06, 'dropout': 0.24342413313202116, 'nb_filters': np.int64(10), 'bottleneck_channels': np.int64(29), 'depth': np.int64(3), 'se_reduction': np.int64(10), 'seq_head_hidden': np.int64(54), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(22), 'rr_hidden2': np.int64(5), 'gamma': 2.8495689618295916, 'mixup_alpha': 0.04640282140693427, 'time_shift_frac': 0.13582318827534656, 'noise_std': 0.007714442657534931, 'label_smoothing': 0.0941227636894757, 'num_workers': np.int64(2), 'quantization_bits': np.int64(8), 'quantize_weights': np.True_, 'quantize_activations': np.True_, 'calibration_batches': np.int64(174)} -> 0.0000
+2025-09-19 16:32:27,454 - INFO - bo.run_bo - 🔍BO Trial 10: Using RF surrogate + Expected Improvement
+2025-09-19 16:32:27,454 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-19 16:32:27,455 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:27,455 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:27,455 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.002656089388608615, 'batch_size': 256, 'epochs': 37, 'weight_decay': 0.004465010936191201, 'dropout': 0.18906105770318427, 'nb_filters': 22, 'bottleneck_channels': 24, 'depth': 3, 'se_reduction': 7, 'seq_head_hidden': 31, 'use_rr_features': False, 'rr_hidden1': 32, 'rr_hidden2': 11, 'gamma': 2.5816370811572766, 'mixup_alpha': 0.2511271866995625, 'time_shift_frac': 0.1439873652882677, 'noise_std': 0.008173468231878018, 'label_smoothing': 0.0023285182164641707, 'num_workers': 0, 'quantization_bits': 16, 'quantize_weights': False, 'quantize_activations': False, 'calibration_batches': 175}
+2025-09-19 16:32:27,457 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:27,457 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:27,457 - ERROR - _models.training_function_executor - BO training objective failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:27,457 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) FAILED took 0.003s
+2025-09-19 16:32:27,649 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.0000
+2025-09-19 16:32:27,649 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.192s
+2025-09-19 16:32:27,649 - INFO - bo.run_bo - Recorded observation #10: hparams={'lr': 0.002656089388608615, 'batch_size': np.int64(256), 'epochs': np.int64(37), 'weight_decay': 0.004465010936191201, 'dropout': 0.18906105770318427, 'nb_filters': np.int64(22), 'bottleneck_channels': np.int64(24), 'depth': np.int64(3), 'se_reduction': np.int64(7), 'seq_head_hidden': np.int64(31), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(32), 'rr_hidden2': np.int64(11), 'gamma': 2.5816370811572766, 'mixup_alpha': 0.2511271866995625, 'time_shift_frac': 0.1439873652882677, 'noise_std': 0.008173468231878018, 'label_smoothing': 0.0023285182164641707, 'num_workers': np.int64(0), 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(175)}, value=0.0000
+2025-09-19 16:32:27,649 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 10: {'lr': 0.002656089388608615, 'batch_size': np.int64(256), 'epochs': np.int64(37), 'weight_decay': 0.004465010936191201, 'dropout': 0.18906105770318427, 'nb_filters': np.int64(22), 'bottleneck_channels': np.int64(24), 'depth': np.int64(3), 'se_reduction': np.int64(7), 'seq_head_hidden': np.int64(31), 'use_rr_features': np.False_, 'rr_hidden1': np.int64(32), 'rr_hidden2': np.int64(11), 'gamma': 2.5816370811572766, 'mixup_alpha': 0.2511271866995625, 'time_shift_frac': 0.1439873652882677, 'noise_std': 0.008173468231878018, 'label_smoothing': 0.0023285182164641707, 'num_workers': np.int64(0), 'quantization_bits': np.int64(16), 'quantize_weights': np.False_, 'quantize_activations': np.False_, 'calibration_batches': np.int64(175)} -> 0.0000
+2025-09-19 16:32:27,649 - INFO - evaluation.code_generation_pipeline_orchestrator - BO completed - Best score: 0.0000
+2025-09-19 16:32:27,650 - INFO - evaluation.code_generation_pipeline_orchestrator - Best params: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'nb_filters': np.int64(26), 'bottleneck_channels': np.int64(30), 'depth': np.int64(4), 'se_reduction': np.int64(14), 'seq_head_hidden': np.int64(39), 'use_rr_features': True, 'rr_hidden1': np.int64(15), 'rr_hidden2': np.int64(11), 'gamma': 2.301776945897706, 'mixup_alpha': 0.022564631610840106, 'time_shift_frac': 0.14439975445336498, 'noise_std': 0.01877105418031501, 'label_smoothing': 7.787658410143285e-05, 'num_workers': np.int64(3), 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibration_batches': np.int64(98)}
+2025-09-19 16:32:27,651 - INFO - visualization - Generating BO visualization charts with 10 trials...
+2025-09-19 16:32:29,394 - INFO - visualization - BO summary saved to: charts\BO_InceptionTimeSE_RR_Fusion_Tiny_PTQ_20250919_163227\bo_summary.txt
+2025-09-19 16:32:29,394 - INFO - visualization - BO charts saved to: charts\BO_InceptionTimeSE_RR_Fusion_Tiny_PTQ_20250919_163227
+2025-09-19 16:32:29,394 - INFO - evaluation.code_generation_pipeline_orchestrator - 📊 BO charts saved to: charts\BO_InceptionTimeSE_RR_Fusion_Tiny_PTQ_20250919_163227
+2025-09-19 16:32:30,396 - INFO - evaluation.code_generation_pipeline_orchestrator - 🚀 STEP 4: Final Training Execution
+2025-09-19 16:32:30,396 - INFO - evaluation.code_generation_pipeline_orchestrator - Using centralized splits - Train: (39904, 1000, 2), Val: (9977, 1000, 2), Test: (12471, 1000, 2)
+2025-09-19 16:32:30,570 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 16:32:30,579 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 16:32:30,589 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-19 16:32:30,599 - INFO - _models.training_function_executor - Loaded training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:30,599 - INFO - _models.training_function_executor - Reasoning: No reasoning provided
+2025-09-19 16:32:30,599 - INFO - evaluation.code_generation_pipeline_orchestrator - Executing final training with optimized params: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'nb_filters': np.int64(26), 'bottleneck_channels': np.int64(30), 'depth': np.int64(4), 'se_reduction': np.int64(14), 'seq_head_hidden': np.int64(39), 'use_rr_features': True, 'rr_hidden1': np.int64(15), 'rr_hidden2': np.int64(11), 'gamma': 2.301776945897706, 'mixup_alpha': 0.022564631610840106, 'time_shift_frac': 0.14439975445336498, 'noise_std': 0.01877105418031501, 'label_smoothing': 7.787658410143285e-05, 'num_workers': np.int64(3), 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibration_batches': np.int64(98)}
+2025-09-19 16:32:30,599 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-19 16:32:30,645 - INFO - _models.training_function_executor - Executing training function: InceptionTimeSE_RR_Fusion_Tiny_PTQ
+2025-09-19 16:32:30,645 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'nb_filters': np.int64(26), 'bottleneck_channels': np.int64(30), 'depth': np.int64(4), 'se_reduction': np.int64(14), 'seq_head_hidden': np.int64(39), 'use_rr_features': True, 'rr_hidden1': np.int64(15), 'rr_hidden2': np.int64(11), 'gamma': 2.301776945897706, 'mixup_alpha': 0.022564631610840106, 'time_shift_frac': 0.14439975445336498, 'noise_std': 0.01877105418031501, 'label_smoothing': 7.787658410143285e-05, 'num_workers': np.int64(3), 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': False, 'calibration_batches': np.int64(98)}
+2025-09-19 16:32:30,648 - ERROR - _models.training_function_executor - Training execution failed: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+2025-09-19 16:32:30,648 - ERROR - _models.training_function_executor - Training code: import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.ao.quantization import get_default_qconfig
+fro...
+2025-09-19 16:32:30,649 - ERROR - __main__ - Unhandled exception: ImportError: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+Traceback (most recent call last):
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 484, in <module>
+    processed_real_data = process_real_data()
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 342, in process_real_data
+    result = process_data_with_ai_enhanced_evaluation(
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 136, in process_data_with_ai_enhanced_evaluation
+    result = train_with_iterative_selection(data, labels, device=device, **kwargs)
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 85, in train_with_iterative_selection
+    best_model, pipeline_results = orchestrator.run_complete_pipeline(
+  File "D:\_A\GPT_research\ml_pipeline\evaluation\code_generation_pipeline_orchestrator.py", line 99, in run_complete_pipeline
+    final_model, training_results = self._execute_final_training(
+  File "D:\_A\GPT_research\ml_pipeline\evaluation\code_generation_pipeline_orchestrator.py", line 339, in _execute_final_training
+    trained_model, training_metrics = training_executor.execute_training_function(
+  File "D:\_A\GPT_research\ml_pipeline\_models\training_function_executor.py", line 247, in execute_training_function
+    exec(training_code, namespace)
+  File "<string>", line 9, in <module>
+ImportError: cannot import name 'prepare_fx' from 'torch.ao.quantization.fx' (C:\Users\22447\.conda\envs\GPT\lib\site-packages\torch\ao\quantization\fx\__init__.py)
+

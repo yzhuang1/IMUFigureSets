@@ -205,7 +205,44 @@ Only return the corrected key-value pair(s) that need to be fixed, nothing else.
             if start_idx != -1 and end_idx > 0:
                 correction_json = debug_response[start_idx:end_idx]
                 logger.info(f"GPT suggested correction: {correction_json}")
-                return correction_json
+
+                # Apply the same JSON fixing logic as in main parsing
+                try:
+                    # First try to parse as-is
+                    import json
+                    json.loads(correction_json)
+                    return correction_json
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Debug JSON parse failed: {e}, attempting to fix")
+
+                    # Apply the same fixes as in main JSON parsing
+                    import re
+                    fixed_json = correction_json
+
+                    # Fix missing closing quotes before commas/braces
+                    fixed_json = re.sub(r'(\d+)"\s*([,}])', r'\1\2', fixed_json)
+                    fixed_json = re.sub(r'([^"])"\s*([,}])', r'\1"\2', fixed_json)
+
+                    # Fix missing commas after closing braces in nested objects
+                    fixed_json = re.sub(r'}\s*\n\s*"', r'},\n    "', fixed_json)
+
+                    # Fix missing commas before closing braces/brackets
+                    fixed_json = re.sub(r'"\s*\n\s*}', '"\n}', fixed_json)
+                    fixed_json = re.sub(r'"\s*\n\s*]', '"\n]', fixed_json)
+
+                    # Fix trailing commas
+                    fixed_json = re.sub(r',(\s*[}\]])', r'\1', fixed_json)
+
+                    # Fix malformed numbers with quotes
+                    fixed_json = re.sub(r'"(\d+\.?\d*)"([,}])', r'\1\2', fixed_json)
+
+                    try:
+                        json.loads(fixed_json)
+                        logger.info("Successfully fixed debug JSON formatting")
+                        return fixed_json
+                    except json.JSONDecodeError:
+                        logger.warning("Could not fix debug JSON formatting")
+                        return correction_json  # Return original even if broken
             else:
                 logger.warning("No valid JSON found in debug response")
                 return "{}"
