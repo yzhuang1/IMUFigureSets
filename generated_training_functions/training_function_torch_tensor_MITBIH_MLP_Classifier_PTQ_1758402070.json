@@ -1,0 +1,131 @@
+{
+  "model_name": "MITBIH_MLP_Classifier_PTQ",
+  "training_code": "import math\\nimport torch\\nimport torch.nn as nn\\nimport torch.nn.functional as F\\nfrom torch.utils.data import TensorDataset, DataLoader\\nfrom torch.optim import Adam\\nfrom torch.optim.lr_scheduler import StepLR\\n\\ntry:\\n    import torch.ao.quantization as tq\\nexcept Exception:\\n    import torch.quantization as tq\\n\\nclass Identity(nn.Module):\\n    def forward(self, x):\\n        return x\\n\\nclass MLPClassifier(nn.Module):\\n    def __init__(self, input_dim, hidden1=64, hidden2=32, dropout=0.2, num_classes=5, use_quant_stubs=True):\\n        super().__init__()\\n        self.use_quant_stubs = use_quant_stubs\\n        self.quant = tq.QuantStub() if use_quant_stubs else Identity()\\n        self.dequant = tq.DeQuantStub() if use_quant_stubs else Identity()\\n        self.fc1 = nn.Linear(input_dim, hidden1)\\n        self.fc2 = nn.Linear(hidden1, hidden2)\\n        self.fc3 = nn.Linear(hidden2, num_classes)\\n        self.dropout = nn.Dropout(p=dropout)\\n\\n    def forward(self, x):\\n        # x expected shape: (N, 1000, 2) or (N, 2000). We flatten to (N, input_dim).\\n        x = x.view(x.size(0), -1)\\n        x = self.quant(x)\\n        x = F.relu(self.fc1(x))\\n        x = self.dropout(x)\\n        x = F.relu(self.fc2(x))\\n        x = self.dropout(x)\\n        x = self.fc3(x)\\n        x = self.dequant(x)\\n        return x\\n\\ndef _count_parameters(model: nn.Module) -> int:\\n    return sum(p.numel() for p in model.parameters())\\n\\n@torch.no_grad()\\ndef _evaluate(model, loader, device):\\n    model.eval()\\n    total_loss = 0.0\\n    total_correct = 0\\n    total_samples = 0\\n    criterion = nn.CrossEntropyLoss()\\n    for xb, yb in loader:\\n        xb = xb.to(device, non_blocking=False)\\n        yb = yb.to(device, non_blocking=False)\\n        logits = model(xb)\\n        loss = criterion(logits, yb)\\n        total_loss += float(loss.item()) * xb.size(0)\\n        preds = logits.argmax(dim=1)\\n        total_correct += int((preds == yb).sum().item())\\n        total_samples += xb.size(0)\\n    avg_loss = total_loss / max(1, total_samples)\\n    acc = total_correct / max(1, total_samples)\\n    return avg_loss, acc\\n\\ndef _calibrate_static(model_fp32_with_stubs, train_loader_cpu, n_batches: int):\\n    model_fp32_with_stubs.eval()\\n    # Run a few batches to collect activation statistics\\n    with torch.no_grad():\\n        seen = 0\\n        for xb, _ in train_loader_cpu:\\n            model_fp32_with_stubs(xb)\\n            seen += 1\\n            if seen >= n_batches:\\n                break\\n\\ndef _quantize_model(model_trained: nn.Module, train_loader: DataLoader, params: dict):\\n    bits = int(params.get('quantization_bits', 8))\\n    q_weights = bool(params.get('quantize_weights', True))\\n    q_acts = bool(params.get('quantize_activations', False))\\n    n_calib = int(params.get('n_calibration_batches', 20))\\n\\n    # If no quantization requested or 32-bit requested\\n    if bits == 32 or (not q_weights and not q_acts):\\n        model_trained.eval()\\n        return model_trained\\n\\n    # Quantization generally targets CPU execution\\n    model_cpu = model_trained.to('cpu').eval()\\n\\n    if bits == 8:\\n        torch.backends.quantized.engine = 'fbgemm'\\n        if q_acts and q_weights:\\n            # Static PTQ with activations and weights quantized\\n            # Ensure model has QuantStub/DeQuantStub\\n            # Recreate architecture with the same shapes\\n            with torch.no_grad():\\n                # Infer input_dim from first layer\\n                input_dim = model_cpu.fc1.in_features\\n                hidden1 = model_cpu.fc1.out_features\\n                hidden2 = model_cpu.fc2.out_features\\n                dropout = model_cpu.dropout.p if hasattr(model_cpu, 'dropout') else 0.0\\n                num_classes = model_cpu.fc3.out_features\\n                model_fp32 = MLPClassifier(input_dim, hidden1, hidden2, dropout, num_classes, use_quant_stubs=True)\\n                model_fp32.load_state_dict(model_cpu.state_dict(), strict=True)\\n                model_fp32.eval()\\n            model_fp32.qconfig = tq.get_default_qconfig('fbgemm')\\n            tq.prepare(model_fp32, inplace=True)\\n            # Build a CPU train loader for calibration (ensure tensors are on CPU)\\n            calib_dataset = train_loader.dataset\\n            calib_loader = DataLoader(calib_dataset, batch_size=train_loader.batch_size, shuffle=False, num_workers=0, pin_memory=False)\\n            _calibrate_static(model_fp32, calib_loader, n_batches=max(1, n_calib))\\n            quantized_model = tq.convert(model_fp32, inplace=False)\\n            return quantized_model\\n        else:\\n            # Dynamic quantization (primarily weights; activations are dynamically quantized at runtime if qint8)\\n            dtype = torch.qint8\\n            quantized_model = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=dtype, inplace=False)\\n            return quantized_model\\n\\n    if bits == 16:\\n        if q_weights:\\n            # Dynamic float16 quantization for Linear layers\\n            try:\\n                quantized_model = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.float16, inplace=False)\\n                return quantized_model\\n            except Exception:\\n                # Fallback: cast to half precision\\n                return model_cpu.half()\\n        else:\\n            # Activations-only fp16 not supported in PTQ; return original fp32 model\\n            return model_cpu\\n\\n    # Unsupported bit-width -> return original\\n    return model_cpu\\n\\ndef train_model(X_train, y_train, X_val, y_val, device, **params):\\n    \\\"\\\"\\\"\\n    Train a 5-class MLP classifier on tensors and return a quantized model and metrics.\\n\\n    Params (with defaults):\\n      - lr: float (1e-3)\\n      - batch_size: int (128)\\n      - epochs: int (20)\\n      - hidden_size1: int (64)\\n      - hidden_size2: int (32)\\n      - dropout: float (0.2)\\n      - weight_decay: float (1e-4)\\n      - step_size: int (10)\\n      - gamma: float (0.5)\\n      - grad_clip: float (1.0)\\n      - quantization_bits: {8,16,32} (8)\\n      - quantize_weights: bool (True)\\n      - quantize_activations: bool (False)\\n      - n_calibration_batches: int (20)\\n    \\\"\\\"\\\"\\n    # Hyperparameters with defaults\\n    lr = float(params.get('lr', 1e-3))\\n    batch_size = int(params.get('batch_size', 128))\\n    epochs = int(params.get('epochs', 20))\\n    hidden1 = int(params.get('hidden_size1', 64))\\n    hidden2 = int(params.get('hidden_size2', 32))\\n    dropout = float(params.get('dropout', 0.2))\\n    weight_decay = float(params.get('weight_decay', 1e-4))\\n    step_size = int(params.get('step_size', 10))\\n    gamma = float(params.get('gamma', 0.5))\\n    grad_clip = float(params.get('grad_clip', 1.0))\\n\\n    # Ensure dtypes\\n    X_train = X_train.float()\\n    X_val = X_val.float()\\n    y_train = y_train.long()\\n    y_val = y_val.long()\\n\\n    # Datasets and loaders (pin_memory=False as required)\\n    train_ds = TensorDataset(X_train, y_train)\\n    val_ds = TensorDataset(X_val, y_val)\\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False, drop_last=False)\\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False, drop_last=False)\\n\\n    # Infer input dimension: handle (N, 1000, 2) or (N, 2000)\\n    if X_train.dim() == 3:\\n        input_dim = int(X_train.shape[1] * X_train.shape[2])\\n    else:\\n        input_dim = int(X_train.shape[1])\\n\\n    # Build model\\n    model = MLPClassifier(input_dim=input_dim, hidden1=hidden1, hidden2=hidden2, dropout=dropout, num_classes=5, use_quant_stubs=True)\\n\\n    # Enforce parameter budget <= 256K\\n    n_params = _count_parameters(model)\\n    if n_params > 256_000:\\n        raise ValueError(f\"Model has {n_params} parameters, which exceeds the 256K limit. Reduce hidden sizes.\")\\n\\n    model = model.to(device)\\n    criterion = nn.CrossEntropyLoss()\\n    optimizer = Adam(model.parameters(), lr=lr, weight_decay=weight_decay)\\n    scheduler = StepLR(optimizer, step_size=step_size, gamma=gamma)\\n\\n    train_losses, val_losses, val_accs = [], [], []\\n\\n    for epoch in range(epochs):\\n        model.train()\\n        running_loss = 0.0\\n        total_samples = 0\\n        for xb, yb in train_loader:\\n            xb = xb.to(device, non_blocking=False)\\n            yb = yb.to(device, non_blocking=False)\\n\\n            optimizer.zero_grad(set_to_none=True)\\n            logits = model(xb)\\n            loss = criterion(logits, yb)\\n            loss.backward()\\n            if grad_clip and grad_clip > 0:\\n                nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)\\n            optimizer.step()\\n\\n            running_loss += float(loss.item()) * xb.size(0)\\n            total_samples += xb.size(0)\\n\\n        scheduler.step()\\n        train_loss = running_loss / max(1, total_samples)\\n\\n        val_loss, val_acc = _evaluate(model, val_loader, device)\\n\\n        train_losses.append(train_loss)\\n        val_losses.append(val_loss)\\n        val_accs.append(val_acc)\\n\\n        print(f\"Epoch {epoch+1}/{epochs} - train_loss: {train_loss:.4f}, val_loss: {val_loss:.4f}, val_acc: {val_acc:.4f}\")\\n\\n    # Post-training quantization\\n    quantized_model = _quantize_model(model, train_loader, params)\\n\\n    metrics = {\\n        'train_losses': train_losses,\\n        'val_losses': val_losses,\\n        'val_acc': val_accs\\n    }\\n\\n    return quantized_model, metrics\\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.1,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        64,
+        128,
+        256,
+        512
+      ]
+    },
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 100
+    },
+    "hidden_size1": {
+      "default": 64,
+      "type": "Integer",
+      "low": 32,
+      "high": 128
+    },
+    "hidden_size2": {
+      "default": 32,
+      "type": "Integer",
+      "low": 16,
+      "high": 64
+    },
+    "dropout": {
+      "default": 0.2,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-08,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "step_size": {
+      "default": 10,
+      "type": "Integer",
+      "low": 2,
+      "high": 30
+    },
+    "gamma": {
+      "default": 0.5,
+      "type": "Real",
+      "low": 0.1,
+      "high": 0.99
+    },
+    "grad_clip": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "n_calibration_batches": {
+      "default": 20,
+      "type": "Integer",
+      "low": 1,
+      "high": 200
+    }
+  },
+  "confidence": 0.9,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758402070,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

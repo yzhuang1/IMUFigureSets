@@ -262,6 +262,8 @@ class ErrorTerminator:
                         self.last_json_corrections = corrections
                     else:
                         print("[DEBUG] GPT could not provide valid corrections")
+                        # Set empty corrections to signal that GPT finished but couldn't fix
+                        self.last_json_corrections = "{}"
 
                     # Reset for next error
                     self.pending_training_error = None

@@ -6,7 +6,6 @@ This script deletes all content in the following folders except for README.md fi
 - logs/
 - literature_reviews/
 - generated_training_functions/
-- charts/
 """
 
 import os
@@ -70,7 +69,6 @@ def main():
     print("- logs/")
     print("- literature_reviews/")
     print("- generated_training_functions/")
-    print("- charts/")
     print("README.md files will be preserved in each folder.")
     print()
 
@@ -88,7 +86,6 @@ def main():
         "logs",
         "literature_reviews",
         "generated_training_functions",
-        "charts"
     ]
 
     # Clear each folder

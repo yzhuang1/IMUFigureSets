@@ -1,0 +1,64 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem framing: You have 2-lead ECG sequences of length 1000 (torch_tensor shaped [1000,2]) for 5-class arrhythmia classification on MIT-BIH. Recent work (2024–2025) shows state-of-the-art results with compact CNN–Transformer hybrids and lightweight Transformers, often evaluated on the same 5-class MIT-BIH mapping (N, S, V, F, Q) and increasingly considering multi-lead inputs. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))\n\nWhat’s state-of-the-art now: (1) CNN+Transformer hybrids tailored to ECG remain dominant. CAT-Net (2024) couples 1D CNN feature extractors with a Transformer encoder and explicit class-imbalance handling (SMOTE‑Tomek), reporting 99.14% accuracy and 94.69% macro-F1 on 5-class MIT‑BIH (single‑lead). ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai)) (2) Two‑lead specific hybrids: A 2025 multi‑lead Sensors paper reports a compact CNN+Attention (not Transformer) with two‑lead MIT‑BIH inputs achieving 99.18% accuracy, and discloses compute: ~308k parameters, ~3.66 MB model, ~5.9 ms inference—plus a comparative table listing STCT (a CNN‑Transformer that exploits spatial–temporal structure across leads) at 98.96% accuracy and 99.31% F1 on 5‑class MIT‑BIH with 2 leads. This makes STCT especially relevant when your input has two channels. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542)) (3) Lightweight Transformers for deployment: a “Tiny Transformer” (≈6k parameters) attains 98.97% accuracy on 5‑class MIT‑BIH and runs in 4.28 ms at 0.09 mJ on a GAP9 MCU (int8). This shows you can keep near‑SOTA accuracy with extreme efficiency. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai)) (4) Additional CNN‑Transformer variants (e.g., stockwell/spectrogram + Transformer or multi‑branch CNN+Transformer) report 97.8–99.6% accuracy on MIT‑BIH depending on protocol; one 2024 PubMed paper reports 99.5% intra‑patient and up to 98.8% inter‑patient accuracy, highlighting that evaluation protocol materially affects reported performance. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/40050678/?utm_source=openai))\n\nSurveys/meta-analyses: A 2025 Artificial Intelligence Review survey synthesizes Transformer/LLM methods for ECG, emphasizing the move from pure CNNs to (i) hybrid CNN–Transformers for long‑range temporal dependencies and (ii) efficiency‑oriented attention mechanisms; it also catalogs common datasets and pitfalls. ([link.springer.com](https://link.springer.com/article/10.1007/s10462-025-11259-x))\n\nArchitectural details and compute from key papers: (a) CAT‑Net: 1D CNN front‑end + Transformer encoder + attention; SMOTE‑Tomek for minority classes; single‑lead; 99.14% acc, 94.69% macro‑F1 on MIT‑BIH (5‑class). Compute not explicitly stated, but design is moderate sized and open‑sourced. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai)) (b) STCT: Spatial‑Temporal Conv‑Transformer treating multi‑lead ECG as 2D (lead×time) to learn cross‑lead interactions before Transformer mixing; benchmarked on MIT‑BIH and others; comparative table shows 98.96% acc/99.31% F1 on 5‑class MIT‑BIH (2‑lead). ([dl.acm.org](https://dl.acm.org/doi/10.1007/978-3-030-95405-5_7?utm_source=openai)) (c) Lightweight multi‑lead CNN+Attention (Sensors 2025): reports full compute profile—~307,669 parameters, ~3.66 MB, ~5.89 ms inference—and 99.18% accuracy on 5‑class MIT‑BIH (2‑lead). It also publishes per‑class metrics and ablations. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542)) (d) Tiny Transformer (2024): ~6k params; 98.97% accuracy (5‑class MIT‑BIH); 4.28 ms, 0.09 mJ on GAP9; demonstrates practical MCU‑grade deployment. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai)) (e) Multi‑branch CNN+Transformer (2024): intra‑patient 99.5% overall accuracy; inter‑patient up to 98.8%—underscoring protocol sensitivity. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/?utm_source=openai))\n\nEvaluation protocols matter: Many >99% reports are intra‑patient; inter‑patient (patient‑wise) splits give a truer generalization estimate and are lower but still high for strong hybrids. Plan for patient‑wise evaluation (e.g., AAMI‑style splits) to avoid leakage; recent works explicitly compare intra‑ vs inter‑patient performance showing 1–2% gaps. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/?utm_source=openai))\n\nBottom line for your data (1000×2): Models that explicitly model cross‑lead (spatial) and temporal dependencies—like STCT‑style CNN→spatial mixing→Transformer—are the best fit. They have demonstrated top accuracy on MIT‑BIH 5‑class with two leads and balance accuracy with efficiency. If you must prioritize extreme efficiency (edge inference), a Tiny‑Transformer variant is near‑SOTA with orders‑of‑magnitude fewer parameters. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542))",
+  "key_findings": [
+    "Two-lead aware hybrids are crucial: STCT (Spatial–Temporal Conv‑Transformer) exploits lead×time structure and achieves 98.96% accuracy and 99.31% F1 on 5‑class MIT‑BIH with two leads. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542))",
+    "Compact multi‑lead CNN+Attention can be both accurate and light: a 2025 Sensors model reports 99.18% accuracy on 5‑class MIT‑BIH (2‑lead) with ~307.7k params, ~3.66 MB, and ~5.89 ms inference. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542))",
+    "Single‑lead CNN+Transformer (CAT‑Net) remains strong but misses cross‑lead cues; it reports 99.14% accuracy and 94.69% macro‑F1 on 5‑class MIT‑BIH with explicit class‑imbalance handling (SMOTE‑Tomek). ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "Ultra‑light Transformers approach SOTA: a ~6k‑parameter Tiny Transformer reaches 98.97% accuracy on MIT‑BIH 5‑class and runs in 4.28 ms at 0.09 mJ on GAP9, enabling MCU‑grade deployment. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))",
+    "Protocol choice impacts reported metrics: a 2024 multi‑branch CNN+Transformer reports 99.5% intra‑patient vs up to 98.8% inter‑patient accuracy on MIT‑BIH, highlighting the need for patient‑wise splits to avoid leakage. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Adopt an STCT‑style Spatial–Temporal Conv‑Transformer in PyTorch for 2‑lead, 1000‑step inputs: (i) 1D temporal CNN stem with depthwise separable convs per lead; (ii) a lightweight spatial mixing block to fuse the two leads (treat channels as a spatial axis); (iii) 2–4 Transformer encoder layers with multi‑head self‑attention over time tokens; (iv) class‑token or global average pooling + linear head for 5 classes; (v) weighted/focal loss for class imbalance. This matches your two‑lead shape, has published near‑SOTA accuracy on MIT‑BIH 5‑class with two leads, and remains computationally efficient; if deployment constraints tighten, swap the encoder for a Tiny‑Transformer block to cut parameters ~10–50× with minimal accuracy loss. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542))"
+  ],
+  "recent_papers": [
+    {
+      "title": "CAT‑Net: Convolution, attention, and transformer based network for single‑lead ECG arrhythmia classification (BSPC, 2024)",
+      "contribution": "Hybrid CNN+Transformer with class‑imbalance handling; 99.14% accuracy and 94.69% macro‑F1 on 5‑class MIT‑BIH; strong single‑lead baseline. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "Lightweight Deep Learning Architecture for Multi‑Lead ECG Arrhythmia Detection (Sensors, 2025)",
+      "contribution": "Two‑lead CNN+Attention with full compute disclosure (~308k params; ~5.9 ms); 99.18% accuracy on 5‑class MIT‑BIH; provides comparative table including STCT results. ([mdpi.com](https://www.mdpi.com/1424-8220/25/17/5542))"
+    },
+    {
+      "title": "STCT: Spatial‑Temporal Conv‑Transformer Network for Cardiac Arrhythmias Recognition (ADMA LNCS, 2022; summarized 2025)",
+      "contribution": "Explicit spatial–temporal (lead×time) modeling plus Transformer; 98.96% accuracy and 99.31% F1 on 5‑class MIT‑BIH (2‑lead) per comparative table. ([dl.acm.org](https://dl.acm.org/doi/10.1007/978-3-030-95405-5_7?utm_source=openai))"
+    },
+    {
+      "title": "A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (arXiv, 2024)",
+      "contribution": "≈6k‑parameter Transformer achieving 98.97% MIT‑BIH accuracy; 4.28 ms, 0.09 mJ on GAP9; blueprint for ultra‑efficient deployment. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))"
+    },
+    {
+      "title": "Heartbeat classification combining multi‑branch CNNs and Transformer (Biomed Eng Online/PubMed, 2024)",
+      "contribution": "Reports 99.5% intra‑patient and up to 98.8% inter‑patient accuracy on MIT‑BIH; underscores protocol sensitivity and generalization issues. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38482492/?utm_source=openai))"
+    },
+    {
+      "title": "A survey of transformers and large language models for ECG diagnosis (AI Review, 2025)",
+      "contribution": "Comprehensive survey of Transformer/LLM ECG methods, trends, and open challenges; useful for design choices and pitfalls. ([link.springer.com](https://link.springer.com/article/10.1007/s10462-025-11259-x))"
+    }
+  ],
+  "confidence": 0.78,
+  "timestamp": 1758352570,
+  "generated_time": "2025-09-20 02:16:10",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

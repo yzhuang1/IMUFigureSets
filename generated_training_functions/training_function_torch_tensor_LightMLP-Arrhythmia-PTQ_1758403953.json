@@ -1,0 +1,151 @@
+{
+  "model_name": "LightMLP-Arrhythmia-PTQ",
+  "training_code": "import math\\nimport torch\\nimport torch.nn as nn\\nfrom torch.utils.data import DataLoader, TensorDataset\\n\\n\\ndef train_model(\\n    X_train,\\n    y_train,\\n    X_val,\\n    y_val,\\n    device,\\n    # Hyperparameters\\n    lr=1e-3,\\n    batch_size=128,\\n    epochs=20,\\n    hidden_dim1=64,\\n    hidden_dim2=64,\\n    hidden_dim3=32,\\n    dropout=0.1,\\n    weight_decay=1e-5,\\n    grad_clip_norm=1.0,\\n    use_scheduler=False,\\n    step_size=10,\\n    gamma=0.5,\\n    seed=42,\\n    # Quantization parameters\\n    quantization_bits=8,\\n    quantize_weights=True,\\n    quantize_activations=True,\\n    calibration_batches=5,\\n):\\n    \\\"\\\"\\\"\\n    Train a lightweight MLP classifier for 5 classes and apply post-training quantization.\\n    Inputs:\\n      - X_train, y_train, X_val, y_val: torch.Tensors (tensors as inputs)\\n      - device: 'cpu' or 'cuda'\\n    Returns:\\n      - quantized_model (torch.nn.Module): Quantized model (returned on CPU for int8 PTQ)\\n      - metrics (dict): {train_losses, val_losses, val_acc, param_count_before, param_count_after, config}\\n    Notes:\\n      - DataLoader uses pin_memory=False to avoid CUDA tensor pinning errors.\\n      - If quantization_bits==8 and quantize_* are True, static PTQ with calibration is performed.\\n      - If quantize_weights=True and quantize_activations=False, dynamic quantization (Linear only) is used.\\n      - If quantization_bits==16, weights may be cast to float16 (dynamic) and/or full half precision on CUDA.\\n      - Final parameter budget is enforced (<= 256K parameters). Hidden dims may be reduced automatically if needed.\\n    \\\"\\\"\\\"\\n\\n    torch.manual_seed(seed)\\n    if torch.cuda.is_available():\\n        torch.cuda.manual_seed_all(seed)\\n\\n    # --------- Helpers ---------\\n    def flatten_time_series(X):\\n        # Accepts X of shape (N, T, C) or (N, C, T) or already flattened (N, F)\\n        if X.dim() == 3:\\n            # If (N, T, C), transpose to (N, C, T)\\n            if X.shape[1] > X.shape[2]:\\n                X = X.transpose(1, 2).contiguous()\\n            # Flatten (N, C, T) -> (N, C*T)\\n            X = X.reshape(X.shape[0], -1).contiguous()\\n        elif X.dim() > 2:\\n            X = X.view(X.size(0), -1).contiguous()\\n        return X\\n\\n    class QuantizableMLP(nn.Module):\\n        def __init__(self, in_features, h1, h2, h3, pdrop, num_classes=5):\\n            super().__init__()\\n            # Stubs allow static PTQ when requested; act as identity in FP32/dynamic paths\\n            self.quant = torch.ao.quantization.QuantStub()\\n            self.dequant = torch.ao.quantization.DeQuantStub()\\n            self.net = nn.Sequential(\\n                nn.Linear(in_features, h1),\\n                nn.ReLU(inplace=True),\\n                nn.Dropout(pdrop),\\n                nn.Linear(h1, h2),\\n                nn.ReLU(inplace=True),\\n                nn.Dropout(pdrop),\\n                nn.Linear(h2, h3),\\n                nn.ReLU(inplace=True),\\n                nn.Dropout(pdrop),\\n                nn.Linear(h3, num_classes),\\n            )\\n        def forward(self, x):\\n            x = self.quant(x)\\n            x = self.net(x)\\n            x = self.dequant(x)\\n            return x\\n\\n    def count_parameters(model):\\n        return sum(p.numel() for p in model.parameters() if p.requires_grad)\\n\\n    # --------- Prepare data (tensors as inputs) ---------\\n    X_train = X_train.float()\\n    X_val = X_val.float()\\n    y_train = y_train.long()\\n    y_val = y_val.long()\\n\\n    X_train_flat = flatten_time_series(X_train)\\n    X_val_flat = flatten_time_series(X_val)\\n    in_features = X_train_flat.shape[1]\\n\\n    # --------- Build model within parameter budget ---------\\n    # Enforce <= 256K parameters by scaling down hidden dims if needed\\n    def build_model_with_budget(h1, h2, h3):\\n        model_tmp = QuantizableMLP(in_features, h1, h2, h3, dropout, num_classes=5)\\n        params = count_parameters(model_tmp)\\n        if params <= 256 * 1024:\\n            return model_tmp, (h1, h2, h3), params\\n        # Reduce dims progressively until under budget\\n        scale = math.sqrt((256 * 1024) / max(params, 1))\\n        # Keep at least 8 units per hidden layer\\n        new_h1 = max(8, int(h1 * scale))\\n        new_h2 = max(8, int(h2 * scale))\\n        new_h3 = max(8, int(h3 * scale))\\n        model_tmp2 = QuantizableMLP(in_features, new_h1, new_h2, new_h3, dropout, num_classes=5)\\n        params2 = count_parameters(model_tmp2)\\n        # If still over budget (high input dim), reduce further deterministically\\n        while params2 > 256 * 1024 and (new_h1 > 8 or new_h2 > 8 or new_h3 > 8):\\n            if new_h1 >= new_h2 and new_h1 >= new_h3 and new_h1 > 8:\\n                new_h1 = max(8, new_h1 // 2)\\n            elif new_h2 >= new_h1 and new_h2 >= new_h3 and new_h2 > 8:\\n                new_h2 = max(8, new_h2 // 2)\\n            else:\\n                new_h3 = max(8, new_h3 // 2)\\n            model_tmp2 = QuantizableMLP(in_features, new_h1, new_h2, new_h3, dropout, num_classes=5)\\n            params2 = count_parameters(model_tmp2)\\n        return model_tmp2, (new_h1, new_h2, new_h3), params2\\n\\n    model, (hidden_dim1_adj, hidden_dim2_adj, hidden_dim3_adj), param_count_before = build_model_with_budget(hidden_dim1, hidden_dim2, hidden_dim3)\\n    model = model.to(device)\\n\\n    # --------- Dataloaders ---------\\n    train_ds = TensorDataset(X_train_flat, y_train)\\n    val_ds = TensorDataset(X_val_flat, y_val)\\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False)\\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)\\n\\n    # --------- Training setup ---------\\n    criterion = nn.CrossEntropyLoss()\\n    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)\\n    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma) if use_scheduler else None\\n\\n    train_losses, val_losses, val_accs = [], [], []\\n\\n    # --------- Train loop ---------\\n    for epoch in range(1, epochs + 1):\\n        model.train()\\n        running_loss = 0.0\\n        total = 0\\n        for xb, yb in train_loader:\\n            xb = xb.to(device, non_blocking=False)\\n            yb = yb.to(device, non_blocking=False)\\n            optimizer.zero_grad(set_to_none=True)\\n            logits = model(xb)\\n            loss = criterion(logits, yb)\\n            loss.backward()\\n            if grad_clip_norm and grad_clip_norm > 0:\\n                nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)\\n            optimizer.step()\\n            bs = yb.size(0)\\n            running_loss += loss.item() * bs\\n            total += bs\\n\\n        train_loss = running_loss / max(total, 1)\\n\\n        # Validation\\n        model.eval()\\n        val_running_loss = 0.0\\n        val_total = 0\\n        val_correct = 0\\n        with torch.no_grad():\\n            for xb, yb in val_loader:\\n                xb = xb.to(device, non_blocking=False)\\n                yb = yb.to(device, non_blocking=False)\\n                logits = model(xb)\\n                loss = criterion(logits, yb)\\n                val_running_loss += loss.item() * yb.size(0)\\n                preds = torch.argmax(logits, dim=1)\\n                val_correct += (preds == yb).sum().item()\\n                val_total += yb.size(0)\\n\\n        val_loss = val_running_loss / max(val_total, 1)\\n        val_acc = val_correct / max(val_total, 1)\\n\\n        train_losses.append(train_loss)\\n        val_losses.append(val_loss)\\n        val_accs.append(val_acc)\\n\\n        if scheduler is not None:\\n            scheduler.step()\\n\\n        print(f\\\"Epoch {epoch:03d} | train_loss={train_loss:.6f} | val_loss={val_loss:.6f} | val_acc={val_acc:.4f}\\\")\\n\\n    # --------- Post-Training Quantization ---------\\n    # For int8 quantization, quantized models run on CPU.\\n    model.eval()\\n\\n    def calibrate_static_ptq(model_fp32, calib_loader, max_batches):\\n        # Choose backend\\n        try:\\n            torch.backends.quantized.engine = 'fbgemm'\\n            qconfig = torch.ao.quantization.get_default_qconfig('fbgemm')\\n        except Exception:\\n            torch.backends.quantized.engine = 'qnnpack'\\n            qconfig = torch.ao.quantization.get_default_qconfig('qnnpack')\\n        model_fp32.qconfig = qconfig\\n        torch.ao.quantization.prepare(model_fp32, inplace=True)\\n        model_fp32.eval()\\n        seen = 0\\n        with torch.no_grad():\\n            for xb, _ in calib_loader:\\n                model_fp32(xb)\\n                seen += 1\\n                if seen >= max_batches:\\n                    break\\n        torch.ao.quantization.convert(model_fp32, inplace=True)\\n        return model_fp32\\n\\n    # Build a CPU calibration loader from original FP32 tensors\\n    calib_loader = DataLoader(\\n        TensorDataset(X_train_flat, y_train),\\n        batch_size=batch_size,\\n        shuffle=False,\\n        num_workers=0,\\n        pin_memory=False,\\n    )\\n\\n    model_q = None\\n    quant_cfg_used = {\\n        'quantization_bits': quantization_bits,\\n        'quantize_weights': bool(quantize_weights),\\n        'quantize_activations': bool(quantize_activations),\\n        'calibration_batches': int(calibration_batches),\\n    }\\n\\n    if quantization_bits == 32 or (not quantize_weights and not quantize_activations):\\n        # No quantization\\n        model_q = model.to(device)\\n    elif quantization_bits == 8:\\n        if quantize_weights and quantize_activations:\\n            # Static PTQ (int8 weights + activations)\\n            model_cpu = model.to('cpu')\\n            model_q = calibrate_static_ptq(model_cpu, calib_loader, max_batches=max(1, int(calibration_batches)))\\n        elif quantize_weights and not quantize_activations:\\n            # Dynamic quantization (Linear only), weights int8, activations dynamically quantized for matmul\\n            model_cpu = model.to('cpu')\\n            model_q = torch.ao.quantization.quantize_dynamic(\\n                model_cpu, {nn.Linear}, dtype=torch.qint8\\n            )\\n        elif (not quantize_weights) and quantize_activations:\\n            # Activation-only quantization is not supported by PyTorch quantized operators.\\n            # Fallback: static PTQ (both weights and activations) to honor activation quantization request.\\n            print('Warning: activation-only quantization is unsupported; applying static PTQ (weights+activations).')\\n            model_cpu = model.to('cpu')\\n            model_q = calibrate_static_ptq(model_cpu, calib_loader, max_batches=max(1, int(calibration_batches)))\\n        else:\\n            model_q = model.to(device)\\n    elif quantization_bits == 16:\\n        if quantize_weights and not quantize_activations:\\n            # Dynamic float16 weights for Linear on CPU\\n            model_cpu = model.to('cpu')\\n            model_q = torch.ao.quantization.quantize_dynamic(\\n                model_cpu, {nn.Linear}, dtype=torch.float16\\n            )\\n        elif quantize_activations and torch.cuda.is_available():\\n            # Half precision end-to-end on CUDA (common mixed precision path)\\n            model_q = model.to('cuda').half()\\n        else:\\n            # Best-effort: cast Linear weights to float16 dynamically on CPU\\n            model_cpu = model.to('cpu')\\n            model_q = torch.ao.quantization.quantize_dynamic(\\n                model_cpu, {nn.Linear}, dtype=torch.float16\\n            )\\n    else:\\n        # Unknown bit-width -> no quantization\\n        model_q = model.to(device)\\n\\n    # Count parameters after quantization (may drop since quantized weights aren't Parameters)\\n    try:\\n        param_count_after = sum(p.numel() for p in model_q.parameters())\\n    except Exception:\\n        param_count_after = None\\n\\n    metrics = {\\n        'train_losses': train_losses,\\n        'val_losses': val_losses,\\n        'val_acc': val_accs,\\n        'param_count_before': int(param_count_before),\\n        'param_count_after': (int(param_count_after) if param_count_after is not None else None),\\n        'config': {\\n            'lr': lr,\\n            'batch_size': batch_size,\\n            'epochs': epochs,\\n            'hidden_dim1': hidden_dim1_adj,\\n            'hidden_dim2': hidden_dim2_adj,\\n            'hidden_dim3': hidden_dim3_adj,\\n            'dropout': dropout,\\n            'weight_decay': weight_decay,\\n            'grad_clip_norm': grad_clip_norm,\\n            'use_scheduler': bool(use_scheduler),\\n            'step_size': step_size,\\n            'gamma': gamma,\\n            'seed': int(seed),\\n            'quantization_bits': quantization_bits,\\n            'quantize_weights': bool(quantize_weights),\\n            'quantize_activations': bool(quantize_activations),\\n            'calibration_batches': int(calibration_batches),\\n        }\\n    }\\n\\n    # Ensure quantized model is in eval mode\\n    model_q.eval()\\n    return model_q, metrics\\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.1,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 100
+    },
+    "hidden_dim1": {
+      "default": 64,
+      "type": "Integer",
+      "low": 16,
+      "high": 128
+    },
+    "hidden_dim2": {
+      "default": 64,
+      "type": "Integer",
+      "low": 16,
+      "high": 128
+    },
+    "hidden_dim3": {
+      "default": 32,
+      "type": "Integer",
+      "low": 8,
+      "high": 64
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "weight_decay": {
+      "default": 1e-05,
+      "type": "Real",
+      "low": 1e-08,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "grad_clip_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "use_scheduler": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "step_size": {
+      "default": 10,
+      "type": "Integer",
+      "low": 5,
+      "high": 20
+    },
+    "gamma": {
+      "default": 0.5,
+      "type": "Real",
+      "low": 0.1,
+      "high": 0.99
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "calibration_batches": {
+      "default": 5,
+      "type": "Integer",
+      "low": 1,
+      "high": 20
+    },
+    "seed": {
+      "default": 42,
+      "type": "Integer",
+      "low": 0,
+      "high": 2147483647
+    }
+  },
+  "confidence": 0.9,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758403953,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

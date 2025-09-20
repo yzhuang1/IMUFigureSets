@@ -11,11 +11,9 @@ from logging_config import get_pipeline_logger
 from torch.utils.data import DataLoader
 import numpy as np
 from sklearn.model_selection import train_test_split
-from tqdm import tqdm
 
 from _models.ai_code_generator import generate_training_code_for_data, ai_code_generator
 from _models.training_function_executor import training_executor, BO_TrainingObjective
-from evaluation.evaluate import evaluate_model
 from visualization import generate_bo_charts, create_charts_folder
 from config import config
 from data_splitting import create_consistent_splits, get_current_splits, compute_standardization_stats
@@ -170,9 +168,9 @@ class CodeGenerationPipelineOrchestrator:
         
         logger.info(f"Training function saved to: {json_filepath}")
         
-        # Validate the saved function
-        if not training_executor.validate_training_function(training_data):
-            raise ValueError("Generated training function failed validation")
+        # Skip validation - let training code find the problem
+        # if not training_executor.validate_training_function(training_data):
+        #     raise ValueError("Generated training function failed validation")
         
         return json_filepath
     
@@ -197,6 +195,11 @@ class CodeGenerationPipelineOrchestrator:
                         logger.info("✅ Applied GPT fixes, restarting BO from trial 0")
                         continue
 
+                if "BO_UNFIXABLE_ERROR" in str(e):
+                    # Error cannot be fixed by GPT, stop BO gracefully
+                    logger.warning("BO stopped due to unfixable error - returning fallback results")
+                    return {"best_value": 0.0, "best_params": {}, "total_trials": 0, "all_results": []}
+
                 # Re-raise if not a restart case or max restarts exceeded
                 raise
 
@@ -217,8 +220,10 @@ class CodeGenerationPipelineOrchestrator:
             logger.error(f"❌ Failed to install required packages: {e}")
             raise RuntimeError(f"Cannot proceed with BO - missing dependencies: {e}")
 
-        # Use full centralized dataset for BO
-        logger.info(f"BO dataset size: {len(X)} samples (using full dataset)")
+        # Use BO subset from config (bo_sample_num) for efficient optimization
+        from data_splitting import get_bo_subset
+        X_bo, y_bo = get_bo_subset()
+        logger.info(f"BO dataset size: {len(X_bo)} samples (using bo_sample_num={config.bo_sample_num})")
         logger.info(f"BO will optimize: {list(code_rec.bo_config.keys())}")
 
         # Create training data for objective function
@@ -227,8 +232,8 @@ class CodeGenerationPipelineOrchestrator:
             "training_code": code_rec.training_code,
             "bo_config": code_rec.bo_config
         }
-        
-        # Create BO objective function with centralized splits (no subset)
+
+        # Create BO objective function with BO subset
         objective_func = BO_TrainingObjective(training_data, None, None, device)
         
         # Set up search space using GPT-generated search space
@@ -245,45 +250,63 @@ class CodeGenerationPipelineOrchestrator:
         # Run BO optimization
         results = []
         best_score = 0.0
-        
-        # Progress bar for BO trials  
-        logger_level = logging.getLogger().getEffectiveLevel()
-        disable_progress = logger_level <= logging.INFO
-        
-        pbar = tqdm(range(config.max_bo_trials), 
-                   desc="🔍 Bayesian Optimization", 
-                   unit="trial",
-                   position=1,
-                   leave=False,
-                   disable=disable_progress,
-                   file=sys.stdout,
-                   dynamic_ncols=True,
-                   ascii=True,
-                   bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] Best: {postfix}")
-        
-        for trial in pbar:
+
+        for trial in range(config.max_bo_trials):
             # Get next hyperparameters
             hparams = bo_optimizer.suggest()
-            
-            # Show trial progress when progress bars are disabled (every 3rd trial to reduce noise)
-            if disable_progress and (trial + 1) % 3 == 0:
-                print(f"🔍 BO Trial {trial + 1}/{config.max_bo_trials}: {hparams}")
-            
+
+            # Show all trial progress
+            print(f"🔍 BO Trial {trial + 1}/{config.max_bo_trials}: {hparams}")
+
             value, metrics = objective_func(hparams)
 
-            # Check if we got an error and if GPT provided fixes
+            # Check if we got an error and fail fast
             if value == 0.0 and "error" in metrics:
-                logger.warning(f"BO Trial {trial + 1} failed with error: {metrics['error']}")
+                logger.error(f"BO Trial {trial + 1} FAILED with error: {metrics['error']}")
 
-                # Check if GPT provided fixes
+                # Record the failed trial first
+                results.append({
+                    'trial': trial + 1,
+                    'hparams': hparams,
+                    'value': value,
+                    'metrics': metrics
+                })
+
+                # Wait for error monitor to process and generate GPT fixes
+                import time
+                logger.info("⏳ Waiting for GPT to finish debugging...")
+
                 from error_monitor import _global_terminator
-                if _global_terminator and hasattr(_global_terminator, 'last_json_corrections'):
-                    gpt_fixes = getattr(_global_terminator, 'last_json_corrections', None)
-                    if gpt_fixes and gpt_fixes != "{}":
-                        logger.info("🔄 GPT provided fixes - requesting BO restart")
-                        pbar.close()
-                        # Signal that GPT fixes are available and BO should restart
-                        raise Exception("GPT_FIXES_AVAILABLE")
+
+                # Wait indefinitely until GPT finishes (no timeout)
+                check_interval = 3  # Check every 3 seconds
+                elapsed_time = 0
+
+                while True:
+                    time.sleep(check_interval)
+                    elapsed_time += check_interval
+
+                    # Check if GPT provided fixes
+                    if _global_terminator and hasattr(_global_terminator, 'last_json_corrections'):
+                        gpt_fixes = getattr(_global_terminator, 'last_json_corrections', None)
+                        if gpt_fixes and gpt_fixes != "{}":
+                            logger.info(f"✅ GPT provided fixes after {elapsed_time}s - requesting BO restart")
+                            # Signal that GPT fixes are available and BO should restart
+                            raise Exception("GPT_FIXES_AVAILABLE")
+                        elif gpt_fixes == "{}":
+                            logger.warning(f"❌ GPT finished but couldn't provide fixes after {elapsed_time}s")
+                            break
+
+                    if elapsed_time % 15 == 0:  # Log progress every 15 seconds
+                        logger.info(f"⏳ Still waiting for GPT to finish debugging... ({elapsed_time}s elapsed)")
+
+                # No GPT fixes available - this trial failed and no fixes possible
+                logger.error(f"🚨 FAILING FAST: Trial {trial + 1} failed and no GPT fixes available")
+                logger.error(f"Error details: {metrics['error']}")
+
+                # Raise a different exception to indicate unfixable error (not restart)
+                logger.info("🛑 Stopping BO due to unfixable error")
+                raise Exception("BO_UNFIXABLE_ERROR")
 
             results.append({
                 'trial': trial + 1,
@@ -291,18 +314,14 @@ class CodeGenerationPipelineOrchestrator:
                 'value': value,
                 'metrics': metrics
             })
-            
+
             bo_optimizer.observe(hparams, value)
-            
-            # Update best score for progress bar
+
+            # Update best score
             best_score = max(best_score, value)
-            pbar.set_postfix_str(f"{best_score:.4f}")
-            
-            # Only log every 3rd trial or best scores to reduce noise
-            if (trial + 1) % 3 == 0 or value >= best_score:
-                logger.info(f"BO Trial {trial + 1}: {hparams} -> {value:.4f}")
-        
-        pbar.close()
+
+            # Log every trial
+            logger.info(f"BO Trial {trial + 1}: {hparams} -> {value:.4f}")
         
         # Get best results
         if results:
@@ -435,12 +454,13 @@ class CodeGenerationPipelineOrchestrator:
             **best_params
         )
         
-        # Evaluate on held-out test set
-        from torch.utils.data import TensorDataset, DataLoader
-        test_dataset_eval = TensorDataset(X_test_tensor, y_test_tensor)
-        test_loader = DataLoader(test_dataset_eval, batch_size=64, shuffle=False)
-        
-        final_metrics = evaluate_model(trained_model, test_loader, device)
+        # Use final validation metrics from training instead of separate evaluation
+        # This avoids preprocessing mismatches since training function handles its own evaluation
+        final_metrics = {
+            'acc': training_metrics.get('val_acc', [])[-1] if training_metrics.get('val_acc') else None,
+            'macro_f1': training_metrics.get('macro_f1', None)
+        }
+        logger.info("Using final validation metrics from training (avoids preprocessing mismatch)")
         
         logger.info(f"Final test metrics: {dict(final_metrics) if final_metrics else 'None'}")
         

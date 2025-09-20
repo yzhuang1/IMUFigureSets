@@ -71,8 +71,8 @@ Requirements:
   def train_model(X_train, y_train, X_val, y_val, device, **hyperparams **quantization parameters)
   * tensors as inputs
   * build model from scratch
-  * core train loop only (no fancy schedulers/early stopping)
-  * return quantized model + metrics
+  * core train loop with epoch-by-epoch logging (log epoch, train_loss, val_loss, val_acc each epoch)
+  * return quantized model + metrics (include lists: train_losses, val_losses, val_acc for all epochs)
   * fill in the real input you need for hyperparams and quantization parameters
   * IMPORTANT: For DataLoader, use pin_memory=False to avoid CUDA tensor pinning errors
 - Final model (after quantization) MUST have ≤ 256K parameters.
@@ -152,11 +152,24 @@ Response JSON example:
     def _debug_json_with_gpt(self, malformed_json: str, error_message: str) -> str:
         """Use GPT to debug and fix any kind of error - JSON, training, or other issues"""
         from config import config
+        import torch
+        import os
+        import json
+        from datetime import datetime
+        from pathlib import Path
+
+        # Create folder for GPT debugging responses
+        debug_folder = Path("gpt_debug_responses")
+        debug_folder.mkdir(exist_ok=True)
+
+        # Get PyTorch version for context
+        pytorch_version = torch.__version__
 
         # Check if this is a training error or JSON error
         is_training_error = any(keyword in error_message for keyword in [
             "parameters, exceeds", "embed_dim must be divisible", "Expected all tensors",
-            "Model has", "quantized tensors", "cannot pin", "object has no attribute"
+            "Model has", "quantized tensors", "cannot pin", "object has no attribute",
+            "cannot import name", "prepare_fx", "torch.ao.quantization"
         ])
 
         # Get debug retry attempts from config
@@ -164,54 +177,51 @@ Response JSON example:
         logger.info(f"Starting debug attempts (max: {max_debug_attempts})")
 
         if is_training_error:
-            debug_prompt = f"""Analyze this PyTorch training error and provide hyperparameter corrections.
+            debug_prompt = """CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
 
-Training Error: {error_message}
+Analyze this PyTorch training error and provide hyperparameter corrections.
 
-Training Code Context:
-{malformed_json}
+PyTorch Version: {}
+Training Error: {}
+Training Code Context: {}
 
-This error occurred during Bayesian Optimization. Provide ONLY a JSON object with corrected hyperparameter values that would fix this specific error. For example:
+RESPONSE FORMAT REQUIREMENTS:
+1. Output ONLY a JSON object
+2. No explanations, no markdown, no ```json``` blocks
+3. Start with {{ and end with }}
+4. If you cannot fix the error, return {{}}
 
-- If "Model has X parameters, exceeds 256k limit" → reduce model size parameters like d_model, hidden_size, channels, layers, etc.
-- If "embed_dim must be divisible by num_heads" → adjust d_model or mha_heads to be compatible
-- If "Expected all tensors to be on the same device" → this is a code issue, return empty JSON
-- If "cannot pin 'torch.cuda.FloatTensor'" → this is a DataLoader pin_memory issue, return empty JSON (code fix needed)
-- If parameter count error → return smaller architecture parameters
+CORRECTION EXAMPLES:
+- "Model has X parameters, exceeds 256k limit" → {{"d_model": 64, "hidden_size": 128}}
+- "embed_dim must be divisible by num_heads" → {{"d_model": 96, "nhead": 4}}
+- "'str' object has no attribute 'update'" → {{}} (Python coding bug, cannot fix with hyperparameters)
+- "Expected all tensors to be on the same device" → {{}} (code issue, not hyperparameter issue)
+- "mat1 and mat2 shapes cannot be multiplied" → {{"d_model": 128}} (dimension mismatch)
 
-Return only JSON with the specific parameter corrections needed:"""
+OUTPUT ONLY THE JSON OBJECT:""".format(pytorch_version, error_message, malformed_json)
         else:
             # General debugging logic for any error type
-            debug_prompt = f"""You are a debugging expert. Analyze this error and provide JSON corrections to fix the issue.
+            debug_prompt = """CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
 
-ERROR: {error_message}
+Analyze this error and provide JSON corrections to fix the issue.
 
-CONTEXT/CODE:
-{malformed_json}
+PyTorch Version: {}
+ERROR: {}
+CONTEXT/CODE: {}
 
-Your task:
-1. Understand what caused this error
-2. Identify which parts of the JSON/parameters need to be corrected
-3. Provide the corrected JSON structure
+RESPONSE FORMAT REQUIREMENTS:
+1. Output ONLY a JSON object
+2. No explanations, no markdown, no ```json``` blocks
+3. Start with {{ and end with }}
+4. If you cannot fix the error, return {{}}
 
-Common error patterns and fixes:
-- "unhashable type: 'list'" in ML contexts → categorical parameters need hashable values (strings/numbers/tuples, not lists)
-- JSON syntax errors → fix brackets, quotes, commas
-- PyTorch parameter errors → adjust model architecture parameters
-- Type mismatches → convert to correct data types
-- Constraint violations → modify values to satisfy constraints
+COMMON FIXES:
+- "unhashable type: 'list'" → {{"param": {{"categories": ["a", "b", "c"]}}}}
+- JSON syntax errors → fix brackets, quotes, commas in returned JSON
+- PyTorch parameter errors → {{"d_model": 64, "hidden_size": 128}}
+- "cannot import name 'prepare_fx'" → {{"quantization_bits": 32}} (disable quantization)
 
-EXAMPLE OUTPUT FORMAT:
-If the error is about unhashable lists in categorical parameters, return:
-{
-  "kernel_sizes": {
-    "default": [5, 11, 23],
-    "type": "Categorical",
-    "categories": ["small", "medium", "large"]
-  }
-}
-
-Return ONLY the corrected JSON object containing the specific keys that need to be fixed. No explanations, just valid JSON that can be parsed and merged."""
+OUTPUT ONLY THE JSON OBJECT:""".format(pytorch_version, error_message, malformed_json)
 
         # Retry logic for debug attempts
         for attempt in range(1, max_debug_attempts + 1):
@@ -221,6 +231,25 @@ Return ONLY the corrected JSON object containing the specific keys that need to 
                 else:
                     logger.info(f"Calling GPT to debug JSON formatting issues (attempt {attempt}/{max_debug_attempts})")
                 debug_response = self._call_openai_api(debug_prompt)
+
+                # Save the raw GPT response to file for analysis
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                error_type = "training_error" if is_training_error else "general_error"
+                response_filename = f"gpt_debug_{error_type}_{timestamp}_attempt{attempt}.txt"
+                response_filepath = debug_folder / response_filename
+
+                with open(response_filepath, 'w', encoding='utf-8') as f:
+                    f.write(f"=== GPT DEBUG RESPONSE ===\n")
+                    f.write(f"Timestamp: {timestamp}\n")
+                    f.write(f"Attempt: {attempt}/{max_debug_attempts}\n")
+                    f.write(f"Error Type: {error_type}\n")
+                    f.write(f"Original Error: {error_message}\n")
+                    f.write(f"=== RAW GPT RESPONSE ===\n")
+                    f.write(debug_response)
+                    f.write(f"\n=== PROMPT USED ===\n")
+                    f.write(debug_prompt)
+
+                logger.info(f"Saved GPT debug response to: {response_filepath}")
 
                 # Clean the debug response
                 debug_response = debug_response.strip()

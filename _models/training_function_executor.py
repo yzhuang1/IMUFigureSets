@@ -111,85 +111,6 @@ class TrainingFunctionExecutor:
             logger.error(f"Failed to count model parameters: {e}")
             return 0
 
-    def validate_training_function(self, training_data: Dict[str, Any]) -> bool:
-        """Validate training function data and model architecture"""
-        try:
-            # Check required fields
-            required_fields = ['model_name', 'training_code', 'bo_config']
-            for field in required_fields:
-                if field not in training_data:
-                    logger.error(f"Missing required field: {field}")
-                    return False
-
-            # Extract hyperparameters from bo_config
-            bo_config = training_data['bo_config']
-            hyperparams = {param: config["default"] for param, config in bo_config.items()}
-
-            # Validate hyperparameters
-            validated_hyperparams = self._validate_hyperparameters(
-                hyperparams,
-                training_data.get('model_name', 'Unknown')
-            )
-            
-            # Test model instantiation
-            return self._validate_model_instantiation(
-                training_data['training_code'], 
-                validated_hyperparams
-            )
-            
-        except Exception as e:
-            logger.error(f"Training function validation failed: {e}")
-            return False
-    
-    def _validate_model_instantiation(self, training_code: str, hyperparams: Dict[str, Any]) -> bool:
-        """Test model instantiation with given hyperparameters to catch architecture errors early"""
-        try:
-            # Create a test environment to instantiate the model
-            test_globals = {
-                'torch': torch,
-                'nn': torch.nn,
-                'F': torch.nn.functional,
-                'math': __import__('math'),
-                'numpy': np,
-                'np': np
-            }
-            
-            # Execute the training code to get the model classes
-            exec(training_code, test_globals)
-            
-            # Try to find and instantiate the model with test parameters
-            test_hyperparams = hyperparams.copy()
-            test_hyperparams.update({
-                'device': 'cpu',  # Use CPU for testing
-                'lr': 1e-3,
-                'epochs': 1,
-                'batch_size': 2,
-            })
-            
-            # Create dummy data for testing
-            dummy_X_train = torch.randn(2, 10, 2)  # Small batch for testing
-            dummy_y_train = torch.randint(0, 5, (2,))
-            dummy_X_val = torch.randn(2, 10, 2)
-            dummy_y_val = torch.randint(0, 5, (2,))
-            
-            # Try to execute just the model instantiation part
-            if 'train_model' in test_globals:
-                train_func = test_globals['train_model']
-                # This will fail if there are parameter incompatibilities
-                try:
-                    # Just test parameter validation, don't run full training
-                    model, _ = train_func(dummy_X_train, dummy_y_train, dummy_X_val, dummy_y_val, 'cpu', **test_hyperparams)
-                    logger.info("Model architecture validation passed")
-                    return True
-                except Exception as e:
-                    logger.warning(f"Model architecture validation failed: {e}")
-                    return False
-            
-            return True
-            
-        except Exception as e:
-            logger.warning(f"Model validation failed: {e}")
-            return False
     
     def load_training_function(self, filepath: str) -> Dict[str, Any]:
         """Load training function data from JSON file"""
@@ -295,113 +216,8 @@ class TrainingFunctionExecutor:
             logger.error(f"Training execution failed: {e}")
             logger.error(f"Training code: {training_code[:200]}...")
             raise
+
     
-    def validate_training_function(self, training_data: Dict[str, Any]) -> bool:
-        """Validate that training function data is complete and correct"""
-        try:
-            required_fields = ['model_name', 'training_code', 'bo_config']
-
-            for field in required_fields:
-                if field not in training_data:
-                    logger.error(f"Missing required field: {field}")
-                    return False
-
-            # Check that training code compiles
-            training_code = training_data['training_code']
-
-            # Handle JSON escape sequences properly
-            training_code = self._process_training_code(training_code)
-
-            try:
-                compile(training_code, '<string>', 'exec')
-            except SyntaxError as e:
-                logger.error(f"Syntax error in training code: {e}")
-                logger.error(f"First 200 chars of training code: {training_code[:200]}")
-                return False
-
-            # Check that bo_config is valid
-            bo_config = training_data['bo_config']
-
-            if not isinstance(bo_config, dict):
-                logger.error("bo_config must be a dictionary")
-                return False
-
-            # Validate bo_config structure
-            for param_name, config in bo_config.items():
-                if not isinstance(config, dict):
-                    logger.error(f"bo_config parameter '{param_name}' must be a dictionary")
-                    return False
-                if "default" not in config:
-                    logger.error(f"bo_config parameter '{param_name}' missing 'default' value")
-                    return False
-            
-            logger.info("Training function validation passed")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Training function validation failed: {e}")
-            return False
-    
-    def test_training_function(
-        self, 
-        training_data: Dict[str, Any],
-        X_sample: torch.Tensor,
-        y_sample: torch.Tensor
-    ) -> bool:
-        """Test training function with small sample data"""
-        try:
-            # Create minimal test data
-            test_size = min(20, len(X_sample))
-            X_test = X_sample[:test_size]
-            y_test = y_sample[:test_size]
-            
-            # Split into train/val
-            split_idx = test_size // 2
-            X_train_test = X_test[:split_idx]
-            y_train_test = y_test[:split_idx]
-            X_val_test = X_test[split_idx:]
-            y_val_test = y_test[split_idx:]
-            
-            # Test with minimal hyperparameters
-            test_hyperparams = {
-                'epochs': 1,
-                'batch_size': min(4, len(X_train_test))
-            }
-            
-            # Add other required hyperparameters with minimal values from bo_config
-            bo_config = training_data.get('bo_config', {})
-            default_hyperparams = {param: config["default"] for param, config in bo_config.items()}
-            for key, value in default_hyperparams.items():
-                if key not in test_hyperparams:
-                    if isinstance(value, (int, float)) and key != 'lr':
-                        test_hyperparams[key] = min(value, 32) if key == 'hidden_size' else value
-                    else:
-                        test_hyperparams[key] = value
-            
-            # Execute training function
-            model, metrics = self.execute_training_function(
-                training_data,
-                X_train_test, y_train_test,
-                X_val_test, y_val_test,
-                device=self.default_device,
-                **test_hyperparams
-            )
-            
-            # Validate outputs
-            if not hasattr(model, 'eval'):
-                logger.error("Returned object is not a PyTorch model")
-                return False
-            
-            if not isinstance(metrics, dict):
-                logger.error("Metrics should be a dictionary")
-                return False
-            
-            logger.info("Training function test passed")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Training function test failed: {e}")
-            return False
     
     def save_training_function(self, training_data: Dict[str, Any], filename: Optional[str] = None) -> str:
         """Save training function data to JSON file"""
@@ -475,23 +291,22 @@ class BO_TrainingObjective:
                 X_array, y_array, test_size=0.2, random_state=42, stratify=y_array
             )
         else:
-            # Use centralized data splits
+            # Use BO subset for efficient optimization (respects config.bo_sample_num)
             try:
-                splits = get_current_splits()
-                logger.info("Using centralized data splits for BO objective")
-                
-                # Use training and validation splits from centralized splitter
-                X_train, y_train = splits.X_train, splits.y_train
-                X_val, y_val = splits.X_val, splits.y_val
-                
-            except ValueError:
-                # Fallback: use BO subset if centralized splits not available
-                logger.warning("Centralized splits not available, using BO subset")
                 X_bo, y_bo = get_bo_subset()
+                logger.info(f"Using BO subset for optimization: {len(X_bo)} samples (bo_sample_num={config.bo_sample_num})")
                 from sklearn.model_selection import train_test_split
                 X_train, X_val, y_train, y_val = train_test_split(
                     X_bo, y_bo, test_size=0.2, random_state=42, stratify=y_bo
                 )
+                logger.info(f"BO splits - Train: {len(X_train)}, Val: {len(X_val)}")
+
+            except (ValueError, Exception) as e:
+                # Fallback: use full centralized splits if BO subset fails
+                logger.warning(f"BO subset failed ({e}), falling back to full centralized splits")
+                splits = get_current_splits()
+                X_train, y_train = splits.X_train, splits.y_train
+                X_val, y_val = splits.X_val, splits.y_val
         
         # Create tensors on the correct device
         self.X_train = torch.tensor(X_train, dtype=torch.float32, device=self.device)
