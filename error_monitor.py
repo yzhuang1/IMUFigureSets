@@ -269,16 +269,10 @@ class ErrorTerminator:
                 return
 
             else:
-                # For other types of errors, use the original approach
-                print("[DEBUG] Calling _debug_json_with_gpt for general BO error")
-                corrections = ai_code_generator._debug_json_with_gpt(text, text.strip())
-
-                if corrections and corrections != "{}":
-                    print(f"[DEBUG] GPT suggested corrections: {corrections}")
-                    # Store corrections for potential use by the BO process
-                    self.last_json_corrections = corrections
-                else:
-                    print("[DEBUG] GPT could not provide valid corrections")
+                # For other types of errors, just log them - don't call debug GPT
+                # (Those will be handled by the main JSON parsing logic if needed)
+                print(f"[DEBUG] General BO error logged (will be handled by main logic): {text.strip()[:100]}...")
+                # Don't call debug GPT here to avoid duplicate calls
 
             # Log the error but don't terminate
             error_msg = f"BO Error in {source}: {text.strip()}"

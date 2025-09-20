@@ -150,12 +150,17 @@ Response JSON example:
 
     def _debug_json_with_gpt(self, malformed_json: str, error_message: str) -> str:
         """Use GPT to debug and fix any kind of error - JSON, training, or other issues"""
+        from config import config
 
         # Check if this is a training error or JSON error
         is_training_error = any(keyword in error_message for keyword in [
             "parameters, exceeds", "embed_dim must be divisible", "Expected all tensors",
             "Model has", "quantized tensors", "cannot pin", "object has no attribute"
         ])
+
+        # Get debug retry attempts from config
+        max_debug_attempts = config.debug_chances
+        logger.info(f"Starting debug attempts (max: {max_debug_attempts})")
 
         if is_training_error:
             debug_prompt = f"""Analyze this PyTorch training error and provide hyperparameter corrections.
@@ -174,82 +179,117 @@ This error occurred during Bayesian Optimization. Provide ONLY a JSON object wit
 
 Return only JSON with the specific parameter corrections needed:"""
         else:
-            # Original JSON debugging logic
-            debug_prompt = f"""Analyze this error and provide debugging suggestions. Handle any type of error (JSON, PyTorch, training, etc.).
+            # General debugging logic for any error type
+            debug_prompt = f"""You are a debugging expert. Analyze this error and provide JSON corrections to fix the issue.
 
-Error: {error_message}
+ERROR: {error_message}
 
-Context/Code:
+CONTEXT/CODE:
 {malformed_json}
 
-Only return the corrected key-value pair(s) that need to be fixed, nothing else."""
+Your task:
+1. Understand what caused this error
+2. Identify which parts of the JSON/parameters need to be corrected
+3. Provide the corrected JSON structure
 
-        try:
-            if is_training_error:
-                logger.info("Calling GPT to debug training error and suggest hyperparameter corrections")
-            else:
-                logger.info("Calling GPT to debug JSON formatting issues")
-            debug_response = self._call_openai_api(debug_prompt)
+Common error patterns and fixes:
+- "unhashable type: 'list'" in ML contexts → categorical parameters need hashable values (strings/numbers/tuples, not lists)
+- JSON syntax errors → fix brackets, quotes, commas
+- PyTorch parameter errors → adjust model architecture parameters
+- Type mismatches → convert to correct data types
+- Constraint violations → modify values to satisfy constraints
 
-            # Clean the debug response
-            debug_response = debug_response.strip()
-            if debug_response.startswith('```json'):
-                debug_response = debug_response[7:]
-            if debug_response.endswith('```'):
-                debug_response = debug_response[:-3]
+EXAMPLE OUTPUT FORMAT:
+If the error is about unhashable lists in categorical parameters, return:
+{
+  "kernel_sizes": {
+    "default": [5, 11, 23],
+    "type": "Categorical",
+    "categories": ["small", "medium", "large"]
+  }
+}
 
-            # Extract JSON from debug response
-            start_idx = debug_response.find('{')
-            end_idx = debug_response.rfind('}') + 1
+Return ONLY the corrected JSON object containing the specific keys that need to be fixed. No explanations, just valid JSON that can be parsed and merged."""
 
-            if start_idx != -1 and end_idx > 0:
-                correction_json = debug_response[start_idx:end_idx]
-                logger.info(f"GPT suggested correction: {correction_json}")
+        # Retry logic for debug attempts
+        for attempt in range(1, max_debug_attempts + 1):
+            try:
+                if is_training_error:
+                    logger.info(f"Calling GPT to debug training error (attempt {attempt}/{max_debug_attempts})")
+                else:
+                    logger.info(f"Calling GPT to debug JSON formatting issues (attempt {attempt}/{max_debug_attempts})")
+                debug_response = self._call_openai_api(debug_prompt)
 
-                # Apply the same JSON fixing logic as in main parsing
-                try:
-                    # First try to parse as-is
-                    import json
-                    json.loads(correction_json)
-                    return correction_json
-                except json.JSONDecodeError as e:
-                    logger.warning(f"Debug JSON parse failed: {e}, attempting to fix")
+                # Clean the debug response
+                debug_response = debug_response.strip()
+                if debug_response.startswith('```json'):
+                    debug_response = debug_response[7:]
+                if debug_response.endswith('```'):
+                    debug_response = debug_response[:-3]
 
-                    # Apply the same fixes as in main JSON parsing
-                    import re
-                    fixed_json = correction_json
+                # Extract JSON from debug response
+                start_idx = debug_response.find('{')
+                end_idx = debug_response.rfind('}') + 1
 
-                    # Fix missing closing quotes before commas/braces
-                    fixed_json = re.sub(r'(\d+)"\s*([,}])', r'\1\2', fixed_json)
-                    fixed_json = re.sub(r'([^"])"\s*([,}])', r'\1"\2', fixed_json)
+                if start_idx != -1 and end_idx > 0:
+                    correction_json = debug_response[start_idx:end_idx]
+                    logger.info(f"GPT suggested correction: {correction_json}")
 
-                    # Fix missing commas after closing braces in nested objects
-                    fixed_json = re.sub(r'}\s*\n\s*"', r'},\n    "', fixed_json)
-
-                    # Fix missing commas before closing braces/brackets
-                    fixed_json = re.sub(r'"\s*\n\s*}', '"\n}', fixed_json)
-                    fixed_json = re.sub(r'"\s*\n\s*]', '"\n]', fixed_json)
-
-                    # Fix trailing commas
-                    fixed_json = re.sub(r',(\s*[}\]])', r'\1', fixed_json)
-
-                    # Fix malformed numbers with quotes
-                    fixed_json = re.sub(r'"(\d+\.?\d*)"([,}])', r'\1\2', fixed_json)
-
+                    # Apply the same JSON fixing logic as in main parsing
                     try:
-                        json.loads(fixed_json)
-                        logger.info("Successfully fixed debug JSON formatting")
-                        return fixed_json
-                    except json.JSONDecodeError:
-                        logger.warning("Could not fix debug JSON formatting")
-                        return correction_json  # Return original even if broken
-            else:
-                logger.warning("No valid JSON found in debug response")
-                return "{}"
+                        # First try to parse as-is
+                        import json
+                        json.loads(correction_json)
+                        logger.info(f"Debug successful on attempt {attempt}")
+                        return correction_json
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Debug JSON parse failed: {e}, attempting to fix")
 
-        except Exception as e:
-            logger.error(f"Failed to debug JSON with GPT: {e}")
-            return "{}"
+                        # Apply the same fixes as in main JSON parsing
+                        import re
+                        fixed_json = correction_json
+
+                        # Fix missing closing quotes before commas/braces
+                        fixed_json = re.sub(r'(\d+)"\s*([,}])', r'\1\2', fixed_json)
+                        fixed_json = re.sub(r'([^"])"\s*([,}])', r'\1"\2', fixed_json)
+
+                        # Fix missing commas after closing braces in nested objects
+                        fixed_json = re.sub(r'}\s*\n\s*"', r'},\n    "', fixed_json)
+
+                        # Fix missing commas before closing braces/brackets
+                        fixed_json = re.sub(r'"\s*\n\s*}', '"\n}', fixed_json)
+                        fixed_json = re.sub(r'"\s*\n\s*]', '"\n]', fixed_json)
+
+                        # Fix trailing commas
+                        fixed_json = re.sub(r',(\s*[}\]])', r'\1', fixed_json)
+
+                        # Fix malformed numbers with quotes
+                        fixed_json = re.sub(r'"(\d+\.?\d*)"([,}])', r'\1\2', fixed_json)
+
+                        try:
+                            json.loads(fixed_json)
+                            logger.info(f"Successfully fixed debug JSON formatting on attempt {attempt}")
+                            return fixed_json
+                        except json.JSONDecodeError:
+                            logger.warning(f"Could not fix debug JSON formatting on attempt {attempt}")
+                            if attempt == max_debug_attempts:
+                                return correction_json  # Return original even if broken on last attempt
+                            # Continue to next attempt
+                else:
+                    logger.warning(f"No valid JSON found in debug response (attempt {attempt})")
+                    if attempt == max_debug_attempts:
+                        return "{}"
+                    # Continue to next attempt
+
+            except Exception as e:
+                logger.error(f"Failed to debug JSON with GPT on attempt {attempt}: {e}")
+                if attempt == max_debug_attempts:
+                    return "{}"
+                # Continue to next attempt
+
+        # If all attempts failed
+        logger.error(f"All {max_debug_attempts} debug attempts failed")
+        return "{}"
 
     def _apply_json_corrections(self, original_json: str, corrections: str) -> str:
         """Apply JSON corrections to the original JSON"""
