@@ -149,8 +149,8 @@ Response JSON example:
             raise
     
 
-    def _debug_json_with_gpt(self, malformed_json: str, error_message: str) -> str:
-        """Use GPT to debug and fix any kind of error - JSON, training, or other issues"""
+    def _debug_json_with_gpt(self, training_code: str, error_message: str, bo_config: dict = None) -> str:
+        """Use GPT to debug and fix training errors by suggesting hyperparameter corrections"""
         from config import config
         import torch
         import os
@@ -165,76 +165,55 @@ Response JSON example:
         # Get PyTorch version for context
         pytorch_version = torch.__version__
 
-        # Check if this is a training error or JSON error
-        is_training_error = any(keyword in error_message for keyword in [
-            "parameters, exceeds", "embed_dim must be divisible", "Expected all tensors",
-            "Model has", "quantized tensors", "cannot pin", "object has no attribute",
-            "cannot import name", "prepare_fx", "torch.ao.quantization"
-        ])
-
         # Get debug retry attempts from config
         max_debug_attempts = config.debug_chances
         logger.info(f"Starting debug attempts (max: {max_debug_attempts})")
 
-        if is_training_error:
-            debug_prompt = """CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
+        # Decode escaped training code for better readability
+        decoded_training_code = training_code.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"').replace('\\\\', '\\')
 
-Analyze this PyTorch training error and provide hyperparameter corrections.
+        debug_prompt = """CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
+
+Analyze this PyTorch training error and provide either hyperparameter corrections OR fixed training code.
 
 PyTorch Version: {}
 Training Error: {}
-Training Code Context: {}
+BO Config: {}
+Training Code: {}
+
+RESPONSE OPTIONS:
+1. HYPERPARAMETER FIX: If error can be fixed by changing hyperparameters
+   Output: {{"bo_config": {{"param_name": new_value, "param2": new_value}}}}
+
+2. CODE FIX: If error requires fixing bugs in the training code
+   Output: {{"training_code": "complete_corrected_training_function_code"}}
+
+3. CANNOT FIX: If error cannot be resolved
+   Output: {{}}
 
 RESPONSE FORMAT REQUIREMENTS:
-1. Output ONLY a JSON object
+1. Output ONLY a JSON object with either "bo_config" OR "training_code" field
 2. No explanations, no markdown, no ```json``` blocks
 3. Start with {{ and end with }}
-4. If you cannot fix the error, return {{}}
+4. For training_code fixes, include the COMPLETE corrected function
 
 CORRECTION EXAMPLES:
-- "Model has X parameters, exceeds 256k limit" → {{"d_model": 64, "hidden_size": 128}}
-- "embed_dim must be divisible by num_heads" → {{"d_model": 96, "nhead": 4}}
-- "'str' object has no attribute 'update'" → {{}} (Python coding bug, cannot fix with hyperparameters)
-- "Expected all tensors to be on the same device" → {{}} (code issue, not hyperparameter issue)
-- "mat1 and mat2 shapes cannot be multiplied" → {{"d_model": 128}} (dimension mismatch)
+- "Model has X parameters, exceeds 256k limit" → {{"bo_config": {{"d_model": 64, "hidden_size": 128}}}}
+- "'str' object has no attribute 'type'" → {{"training_code": "def train_model(...):\\n    # fixed implementation"}}
+- "Quantization bug in code" → {{"training_code": "corrected_training_function"}}
+- "mat1 and mat2 shapes cannot be multiplied" → {{"bo_config": {{"d_model": 128}}}}
 
-OUTPUT ONLY THE JSON OBJECT:""".format(pytorch_version, error_message, malformed_json)
-        else:
-            # General debugging logic for any error type
-            debug_prompt = """CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
-
-Analyze this error and provide JSON corrections to fix the issue.
-
-PyTorch Version: {}
-ERROR: {}
-CONTEXT/CODE: {}
-
-RESPONSE FORMAT REQUIREMENTS:
-1. Output ONLY a JSON object
-2. No explanations, no markdown, no ```json``` blocks
-3. Start with {{ and end with }}
-4. If you cannot fix the error, return {{}}
-
-COMMON FIXES:
-- "unhashable type: 'list'" → {{"param": {{"categories": ["a", "b", "c"]}}}}
-- JSON syntax errors → fix brackets, quotes, commas in returned JSON
-- PyTorch parameter errors → {{"d_model": 64, "hidden_size": 128}}
-- "cannot import name 'prepare_fx'" → {{"quantization_bits": 32}} (disable quantization)
-
-OUTPUT ONLY THE JSON OBJECT:""".format(pytorch_version, error_message, malformed_json)
+OUTPUT ONLY THE JSON OBJECT:""".format(pytorch_version, error_message, bo_config or {}, decoded_training_code)
 
         # Retry logic for debug attempts
         for attempt in range(1, max_debug_attempts + 1):
             try:
-                if is_training_error:
-                    logger.info(f"Calling GPT to debug training error (attempt {attempt}/{max_debug_attempts})")
-                else:
-                    logger.info(f"Calling GPT to debug JSON formatting issues (attempt {attempt}/{max_debug_attempts})")
+                logger.info(f"Calling GPT to debug training error (attempt {attempt}/{max_debug_attempts})")
                 debug_response = self._call_openai_api(debug_prompt)
 
                 # Save the raw GPT response to file for analysis
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                error_type = "training_error" if is_training_error else "general_error"
+                error_type = "training_error"
                 response_filename = f"gpt_debug_{error_type}_{timestamp}_attempt{attempt}.txt"
                 response_filepath = debug_folder / response_filename
 

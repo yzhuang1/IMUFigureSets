@@ -220,72 +220,12 @@ class ErrorTerminator:
                 return
                 
     def _handle_bo_error(self, text: str, source: str):
-        """Handle error during BO process - send to debug GPT instead of terminating"""
-        try:
-            # Import and use the debug GPT functionality
-            from _models.ai_code_generator import ai_code_generator
+        """Handle error during BO process - log but don't terminate (debug handled by training executor)"""
+        print(f"[DEBUG] BO Error logged: {text.strip()[:100]}...")
 
-            print(f"\n[DEBUG] BO Error detected - sending to debug GPT: {text.strip()}")
-
-            # Store error information for potential combination with training code
-            if not hasattr(self, 'pending_training_error'):
-                self.pending_training_error = None
-                self.pending_training_code = None
-
-            # Check if this is a training execution error or training code log
-            if "Training execution failed:" in text:
-                # Extract the actual error message
-                error_start = text.find("Training execution failed:") + len("Training execution failed:")
-                actual_error = text[error_start:].strip()
-                self.pending_training_error = actual_error
-                print(f"[DEBUG] Captured training error: {actual_error}")
-                return  # Wait for the training code to be logged
-
-            elif "Training code:" in text:
-                # Extract the training code
-                code_start = text.find("Training code:") + len("Training code:")
-                training_code = text[code_start:].strip()
-                self.pending_training_code = training_code
-                print(f"[DEBUG] Captured training code: {training_code[:100]}...")
-
-                # If we have both error and code, send to GPT
-                if self.pending_training_error:
-                    print("[DEBUG] Calling _debug_json_with_gpt with combined context")
-                    corrections = ai_code_generator._debug_json_with_gpt(
-                        self.pending_training_code,
-                        self.pending_training_error
-                    )
-
-                    if corrections and corrections != "{}":
-                        print(f"[DEBUG] GPT suggested corrections: {corrections}")
-                        # Store corrections for potential use by the BO process
-                        self.last_json_corrections = corrections
-                    else:
-                        print("[DEBUG] GPT could not provide valid corrections")
-                        # Set empty corrections to signal that GPT finished but couldn't fix
-                        self.last_json_corrections = "{}"
-
-                    # Reset for next error
-                    self.pending_training_error = None
-                    self.pending_training_code = None
-                return
-
-            else:
-                # For other types of errors, just log them - don't call debug GPT
-                # (Those will be handled by the main JSON parsing logic if needed)
-                print(f"[DEBUG] General BO error logged (will be handled by main logic): {text.strip()[:100]}...")
-                # Don't call debug GPT here to avoid duplicate calls
-
-            # Log the error but don't terminate
-            error_msg = f"BO Error in {source}: {text.strip()}"
-            self.detected_errors.append(error_msg)
-
-            # Don't terminate, let BO continue with debugging
-
-        except Exception as e:
-            print(f"Failed to handle BO error via debug GPT: {e}")
-            # Fall back to normal termination if debug GPT fails
-            self._terminate_program(f"BO Error (debug failed): {text.strip()}")
+        # Log the error but don't terminate (debug GPT handled directly in training executor)
+        error_msg = f"BO Error in {source}: {text.strip()}"
+        self.detected_errors.append(error_msg)
 
     def _terminate_program(self, error_msg: str):
         """Terminate the program due to error detection"""

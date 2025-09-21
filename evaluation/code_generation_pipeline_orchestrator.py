@@ -100,7 +100,7 @@ class CodeGenerationPipelineOrchestrator:
 
         # STEP 5: Performance Analysis
         logger.info("📊 STEP 5: Performance Analysis")
-        performance_score = training_results['final_metrics']['macro_f1']
+        performance_score = training_results['final_metrics']['acc']  # Use accuracy since AI training functions don't provide macro_f1
         
         # Record single attempt
         attempt_record = {
@@ -117,7 +117,7 @@ class CodeGenerationPipelineOrchestrator:
         
         logger.info(f"Generated Model: {code_rec.model_name}")
         logger.info(f"BO Score: {bo_results['best_value']:.4f}")
-        logger.info(f"Final Score: {performance_score:.4f}")
+        logger.info(f"Final Score: {performance_score:.4f}" if performance_score is not None else f"Final Score: None")
         
         # Enhance results with pipeline history
         training_results['pipeline_history'] = self.pipeline_history
@@ -456,8 +456,25 @@ class CodeGenerationPipelineOrchestrator:
         
         # Use final validation metrics from training instead of separate evaluation
         # This avoids preprocessing mismatches since training function handles its own evaluation
+        # Extract performance metrics using same logic as BO
+        val_f1 = training_metrics.get('val_f1', [])
+        val_acc = training_metrics.get('val_acc', [])
+
+        if val_f1 and isinstance(val_f1, list) and len(val_f1) > 0:
+            performance_metric = val_f1[-1]
+        elif 'macro_f1' in training_metrics:
+            performance_metric = training_metrics['macro_f1']
+        elif val_acc and isinstance(val_acc, list) and len(val_acc) > 0:
+            performance_metric = val_acc[-1]
+        elif 'val_accuracy' in training_metrics:
+            performance_metric = training_metrics['val_accuracy']
+        elif 'best_val_acc' in training_metrics:
+            performance_metric = training_metrics['best_val_acc']
+        else:
+            performance_metric = 0.0
+
         final_metrics = {
-            'acc': training_metrics.get('val_acc', [])[-1] if training_metrics.get('val_acc') else None,
+            'acc': performance_metric,
             'macro_f1': training_metrics.get('macro_f1', None)
         }
         logger.info("Using final validation metrics from training (avoids preprocessing mismatch)")

@@ -1,0 +1,159 @@
+2025-09-20 18:07:20,108 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-20 18:07:20,439 - INFO - __main__ - Logging system initialized successfully
+2025-09-20 18:07:20,439 - INFO - __main__ - Starting AI-Enhanced Machine Learning Pipeline
+2025-09-20 18:07:20,441 - INFO - __main__ - Starting real data processing from data/ directory
+2025-09-20 18:07:20,442 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'X.npy', 'y.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-20 18:07:20,442 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-20 18:07:20,443 - INFO - __main__ - Attempting to load: X.npy
+2025-09-20 18:07:20,570 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-20 18:07:20,656 - INFO - __main__ - Data loaded successfully: X.npy + y.npy, shape: (62352, 1000, 2), device: cuda
+2025-09-20 18:07:20,657 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-20 18:07:20,657 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-20 18:07:20,657 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-20 18:07:20,659 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-20 18:07:20,659 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-20 18:07:20,659 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-20 18:07:20,659 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-20 18:07:20,659 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-20 18:07:20,659 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-20 18:07:20,659 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-20 18:07:20,659 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-20 18:07:20,661 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-20 18:07:20,868 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-20 18:07:20,868 - INFO - class_balancing - Class imbalance analysis:
+2025-09-20 18:07:20,869 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-20 18:07:20,869 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-20 18:07:20,869 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-20 18:07:20,869 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-20 18:07:20,869 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-20 18:07:20,869 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-20 18:07:20,869 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-20 18:07:20,869 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-20 18:07:21,551 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-20 18:07:21,560 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-20 18:07:21,560 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-20 18:07:21,560 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-20 18:07:21,560 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-20 18:07:21,560 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-20 18:07:21,560 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-20 18:07:21,560 - INFO - _models.ai_code_generator - Prompt length: 2552 characters
+2025-09-20 18:07:21,560 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-20 18:07:21,560 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-20 18:07:21,560 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-20 18:08:44,791 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-20 18:08:44,881 - INFO - _models.ai_code_generator - Successfully extracted response content
+2025-09-20 18:08:44,881 - INFO - _models.ai_code_generator - AI generated training function: LightECG1D_CNN
+2025-09-20 18:08:44,881 - INFO - _models.ai_code_generator - Confidence: 0.90
+2025-09-20 18:08:44,881 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated training function: LightECG1D_CNN
+2025-09-20 18:08:44,881 - INFO - evaluation.code_generation_pipeline_orchestrator - BO parameters: ['lr', 'batch_size', 'epochs', 'weight_decay', 'dropout', 'kernel_size', 'optimizer', 'grad_clip', 'label_smoothing', 'early_stopping_patience', 'use_batch_norm', 'quantization_bits', 'quantize_weights', 'quantize_activations']
+2025-09-20 18:08:44,881 - INFO - evaluation.code_generation_pipeline_orchestrator - Confidence: 0.90
+2025-09-20 18:08:44,884 - INFO - evaluation.code_generation_pipeline_orchestrator - 💾 STEP 2: Save Training Function to JSON
+2025-09-20 18:08:44,887 - INFO - _models.ai_code_generator - Training function saved to: generated_training_functions\training_function_torch_tensor_LightECG1D_CNN_1758409724.json
+2025-09-20 18:08:44,887 - INFO - evaluation.code_generation_pipeline_orchestrator - Training function saved to: generated_training_functions\training_function_torch_tensor_LightECG1D_CNN_1758409724.json
+2025-09-20 18:08:44,887 - INFO - evaluation.code_generation_pipeline_orchestrator - 🔍 STEP 3: Bayesian Optimization
+2025-09-20 18:08:44,887 - INFO - evaluation.code_generation_pipeline_orchestrator - Running BO for generated training function: LightECG1D_CNN
+2025-09-20 18:08:44,887 - INFO - evaluation.code_generation_pipeline_orchestrator - 📦 Installing dependencies for GPT-generated training code...
+2025-09-20 18:08:44,888 - INFO - package_installer - 🔍 Analyzing GPT-generated code for package dependencies...
+2025-09-20 18:08:44,888 - WARNING - package_installer - Could not parse code for imports due to syntax error: unexpected character after line continuation character (<unknown>, line 1)
+2025-09-20 18:08:44,888 - INFO - package_installer - Extracted imports from code: {'torch'}
+2025-09-20 18:08:44,888 - INFO - package_installer - Available packages: {'torch'}
+2025-09-20 18:08:44,888 - INFO - package_installer - Missing packages: set()
+2025-09-20 18:08:44,888 - INFO - package_installer - ✅ All required packages are already available
+2025-09-20 18:08:44,888 - INFO - evaluation.code_generation_pipeline_orchestrator - ✅ All dependencies installed successfully
+2025-09-20 18:08:44,969 - INFO - data_splitting - Created BO subset: 5000 samples
+2025-09-20 18:08:44,969 - INFO - data_splitting - BO subset class distribution: [3600  766   96  100  438]
+2025-09-20 18:08:44,969 - INFO - evaluation.code_generation_pipeline_orchestrator - BO dataset size: 5000 samples (using bo_sample_num=5000)
+2025-09-20 18:08:44,970 - INFO - evaluation.code_generation_pipeline_orchestrator - BO will optimize: ['lr', 'batch_size', 'epochs', 'weight_decay', 'dropout', 'kernel_size', 'optimizer', 'grad_clip', 'label_smoothing', 'early_stopping_patience', 'use_batch_norm', 'quantization_bits', 'quantize_weights', 'quantize_activations']
+2025-09-20 18:08:44,970 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-20 18:08:45,049 - INFO - data_splitting - Created BO subset: 5000 samples
+2025-09-20 18:08:45,051 - INFO - data_splitting - BO subset class distribution: [3600  766   96  100  438]
+2025-09-20 18:08:45,051 - INFO - _models.training_function_executor - Using BO subset for optimization: 5000 samples (bo_sample_num=5000)
+2025-09-20 18:08:45,060 - INFO - _models.training_function_executor - BO splits - Train: 4000, Val: 1000
+2025-09-20 18:08:45,338 - INFO - bo.run_bo - Converted GPT search space: 14 parameters
+2025-09-20 18:08:45,338 - INFO - bo.run_bo - Using GPT-generated search space
+2025-09-20 18:08:45,339 - INFO - bo.run_bo - Initialized Random Forest Bayesian Optimizer
+2025-09-20 18:08:45,340 - INFO - bo.run_bo - 🔍BO Trial 1: Initial random exploration
+2025-09-20 18:08:45,340 - INFO - bo.run_bo - [PROFILE] suggest() took 0.001s
+2025-09-20 18:08:45,340 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-20 18:08:45,340 - INFO - _models.training_function_executor - Executing training function: LightECG1D_CNN
+2025-09-20 18:08:45,340 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': 12, 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': 5, 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': 7, 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False}
+2025-09-20 18:08:45,341 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': 12, 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': 5, 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': 7, 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False}
+2025-09-20 18:08:51,016 - INFO - _models.training_function_executor - Model parameter count: 31,525
+2025-09-20 18:08:51,016 - INFO - _models.training_function_executor - Training completed successfully: {'train_losses': [0.959641674041748, 0.8809582829475403, 0.8606632747650147, 0.8363482542037964, 0.7771618640422822, 0.72434215259552, 0.6824971776008606, 0.6441840794086456, 0.6127386972904205, 0.5761911811828613, 0.5533765668869018, 0.5430181522369385], 'val_losses': [0.8359840207099914, 0.7909028244018554, 0.7411536722183227, 0.7087281551361084, 0.651090817451477, 0.6205825595855713, 0.5689119329452514, 0.5627572631835938, 0.47642960834503173, 0.5171375341415405, 0.453486008644104, 0.4257387342453003], 'val_acc': [0.713, 0.728, 0.748, 0.749, 0.766, 0.778, 0.824, 0.824, 0.854, 0.868, 0.875, 0.87], 'best_val_acc': 0.875, 'model_name': 'LightECG1D_CNN', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': 12, 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': 5, 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': 7, 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False}, 'model_parameter_count': 31525, 'model_size_validation': 'PASS'}
+2025-09-20 18:08:51,016 - INFO - _models.training_function_executor - BO Objective: base=0.8700, size_penalty=0.0000, final=0.8700
+2025-09-20 18:08:51,016 - INFO - _models.training_function_executor - Model size: 31,525 parameters (PASS 256K limit)
+2025-09-20 18:08:51,016 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) took 5.676s
+2025-09-20 18:08:51,016 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.8700
+2025-09-20 18:08:51,016 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-20 18:08:51,016 - INFO - bo.run_bo - Recorded observation #1: hparams={'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': np.int64(5), 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': np.int64(7), 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False}, value=0.8700
+2025-09-20 18:08:51,016 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 1: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': np.int64(5), 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': np.int64(7), 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False} -> 0.8700
+2025-09-20 18:08:51,017 - INFO - bo.run_bo - 🔍BO Trial 2: Initial random exploration
+2025-09-20 18:08:51,017 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-20 18:08:51,018 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-20 18:08:51,018 - INFO - _models.training_function_executor - Executing training function: LightECG1D_CNN
+2025-09-20 18:08:51,018 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 4.3352817949515615e-05, 'batch_size': 32, 'epochs': 25, 'weight_decay': 0.0002950706670790534, 'dropout': 0.3058265802441405, 'kernel_size': 7, 'optimizer': 'adamw', 'grad_clip': 0.5824582803960839, 'label_smoothing': 0.06118528947223796, 'early_stopping_patience': 9, 'use_batch_norm': True, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': True}
+2025-09-20 18:08:51,019 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 4.3352817949515615e-05, 'batch_size': 32, 'epochs': 25, 'weight_decay': 0.0002950706670790534, 'dropout': 0.3058265802441405, 'kernel_size': 7, 'optimizer': 'adamw', 'grad_clip': 0.5824582803960839, 'label_smoothing': 0.06118528947223796, 'early_stopping_patience': 9, 'use_batch_norm': True, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': True}
+2025-09-20 18:09:00,562 - INFO - _models.training_function_executor - Model parameter count: 44,101
+2025-09-20 18:09:00,562 - INFO - _models.training_function_executor - Training completed successfully: {'train_losses': [1.3425155143737793, 1.160571915626526, 1.0652318892478942, 1.0101969265937805, 0.9715285401344299, 0.9432987442016602, 0.922349217414856, 0.9065079302787781, 0.8925265765190125, 0.8799355878829956, 0.8681422157287597, 0.8532482724189758, 0.8453606696128845, 0.8418212780952453, 0.827158634185791, 0.8251578392982483, 0.8184209628105164, 0.8094693970680237, 0.7998398208618164, 0.7955104823112488, 0.7859080500602722, 0.7813484382629394, 0.77399697971344, 0.7724871883392334, 0.7618617596626281], 'val_losses': [1.1689682636260987, 1.034945990562439, 0.953435544013977, 0.8869609003067016, 0.8606054592132568, 0.8237690334320068, 0.8150993165969849, 0.7757731122970581, 0.761862868309021, 0.7513905410766601, 0.7311421766281128, 0.7157747988700867, 0.7132267580032349, 0.6980348615646362, 0.686127806186676, 0.6930349521636963, 0.6692180824279785, 0.6624121723175049, 0.6540054640769959, 0.6516574540138245, 0.6380328388214112, 0.6313056788444519, 0.6209335470199585, 0.6206877565383911, 0.6045111336708069], 'val_acc': [0.712, 0.734, 0.736, 0.719, 0.726, 0.736, 0.727, 0.741, 0.742, 0.744, 0.748, 0.748, 0.762, 0.752, 0.765, 0.767, 0.758, 0.789, 0.77, 0.794, 0.779, 0.802, 0.805, 0.818, 0.814], 'best_val_acc': 0.818, 'model_name': 'LightECG1D_CNN', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 4.3352817949515615e-05, 'batch_size': 32, 'epochs': 25, 'weight_decay': 0.0002950706670790534, 'dropout': 0.3058265802441405, 'kernel_size': 7, 'optimizer': 'adamw', 'grad_clip': 0.5824582803960839, 'label_smoothing': 0.06118528947223796, 'early_stopping_patience': 9, 'use_batch_norm': True, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': True}, 'model_parameter_count': 44101, 'model_size_validation': 'PASS'}
+2025-09-20 18:09:00,562 - INFO - _models.training_function_executor - BO Objective: base=0.8140, size_penalty=0.0000, final=0.8140
+2025-09-20 18:09:00,562 - INFO - _models.training_function_executor - Model size: 44,101 parameters (PASS 256K limit)
+2025-09-20 18:09:00,562 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) took 9.544s
+2025-09-20 18:09:00,562 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.8140
+2025-09-20 18:09:00,562 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.000s
+2025-09-20 18:09:00,563 - INFO - bo.run_bo - Recorded observation #2: hparams={'lr': 4.3352817949515615e-05, 'batch_size': 32, 'epochs': np.int64(25), 'weight_decay': 0.0002950706670790534, 'dropout': 0.3058265802441405, 'kernel_size': np.int64(7), 'optimizer': 'adamw', 'grad_clip': 0.5824582803960839, 'label_smoothing': 0.06118528947223796, 'early_stopping_patience': np.int64(9), 'use_batch_norm': True, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': True}, value=0.8140
+2025-09-20 18:09:00,563 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 2: {'lr': 4.3352817949515615e-05, 'batch_size': 32, 'epochs': np.int64(25), 'weight_decay': 0.0002950706670790534, 'dropout': 0.3058265802441405, 'kernel_size': np.int64(7), 'optimizer': 'adamw', 'grad_clip': 0.5824582803960839, 'label_smoothing': 0.06118528947223796, 'early_stopping_patience': np.int64(9), 'use_batch_norm': True, 'quantization_bits': 32, 'quantize_weights': True, 'quantize_activations': True} -> 0.8140
+2025-09-20 18:09:00,563 - INFO - bo.run_bo - 🔍BO Trial 3: Initial random exploration
+2025-09-20 18:09:00,563 - INFO - bo.run_bo - [PROFILE] suggest() took 0.000s
+2025-09-20 18:09:00,565 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-20 18:09:00,565 - INFO - _models.training_function_executor - Executing training function: LightECG1D_CNN
+2025-09-20 18:09:00,565 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.0007164040428191009, 'batch_size': 64, 'epochs': 7, 'weight_decay': 0.0027527173929429443, 'dropout': 0.3401537692938899, 'kernel_size': 3, 'optimizer': 'adam', 'grad_clip': 1.897771074506667, 'label_smoothing': 0.09656320330745595, 'early_stopping_patience': 1, 'use_batch_norm': True, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True}
+2025-09-20 18:09:00,566 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.0007164040428191009, 'batch_size': 64, 'epochs': 7, 'weight_decay': 0.0027527173929429443, 'dropout': 0.3401537692938899, 'kernel_size': 3, 'optimizer': 'adam', 'grad_clip': 1.897771074506667, 'label_smoothing': 0.09656320330745595, 'early_stopping_patience': 1, 'use_batch_norm': True, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True}
+2025-09-20 18:09:03,053 - INFO - _models.training_function_executor - Model parameter count: 0
+2025-09-20 18:09:03,053 - INFO - _models.training_function_executor - Training completed successfully: {'train_losses': [1.1357898635864259, 0.9668650159835815, 0.9340177669525146, 0.9256030325889587, 0.9148035621643067, 0.8994877634048462, 0.8869076571464538], 'val_losses': [0.8652063326835633, 0.7797143092155456, 0.7466745920181275, 0.7359316110610962, 0.7184657025337219, 0.7213708238601685, 0.6982800321578979], 'val_acc': [0.716, 0.718, 0.719, 0.726, 0.728, 0.745, 0.783], 'best_val_acc': 0.783, 'model_name': 'LightECG1D_CNN', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 0.0007164040428191009, 'batch_size': 64, 'epochs': 7, 'weight_decay': 0.0027527173929429443, 'dropout': 0.3401537692938899, 'kernel_size': 3, 'optimizer': 'adam', 'grad_clip': 1.897771074506667, 'label_smoothing': 0.09656320330745595, 'early_stopping_patience': 1, 'use_batch_norm': True, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True}, 'model_parameter_count': 0, 'model_size_validation': 'PASS'}
+2025-09-20 18:09:03,053 - INFO - _models.training_function_executor - BO Objective: base=0.7830, size_penalty=0.0000, final=0.7830
+2025-09-20 18:09:03,053 - INFO - _models.training_function_executor - Model size: 0 parameters (PASS 256K limit)
+2025-09-20 18:09:03,053 - INFO - _models.training_function_executor - [PROFILE] objective(train+eval) took 2.488s
+2025-09-20 18:09:03,263 - INFO - bo.run_bo - Updated RF surrogate model with observation: 0.7830
+2025-09-20 18:09:03,264 - INFO - bo.run_bo - [PROFILE] observe()->tell took 0.212s
+2025-09-20 18:09:03,264 - INFO - bo.run_bo - Recorded observation #3: hparams={'lr': 0.0007164040428191009, 'batch_size': 64, 'epochs': np.int64(7), 'weight_decay': 0.0027527173929429443, 'dropout': 0.3401537692938899, 'kernel_size': np.int64(3), 'optimizer': 'adam', 'grad_clip': 1.897771074506667, 'label_smoothing': 0.09656320330745595, 'early_stopping_patience': np.int64(1), 'use_batch_norm': True, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True}, value=0.7830
+2025-09-20 18:09:03,264 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Trial 3: {'lr': 0.0007164040428191009, 'batch_size': 64, 'epochs': np.int64(7), 'weight_decay': 0.0027527173929429443, 'dropout': 0.3401537692938899, 'kernel_size': np.int64(3), 'optimizer': 'adam', 'grad_clip': 1.897771074506667, 'label_smoothing': 0.09656320330745595, 'early_stopping_patience': np.int64(1), 'use_batch_norm': True, 'quantization_bits': 8, 'quantize_weights': True, 'quantize_activations': True} -> 0.7830
+2025-09-20 18:09:03,264 - INFO - evaluation.code_generation_pipeline_orchestrator - BO completed - Best score: 0.8700
+2025-09-20 18:09:03,264 - INFO - evaluation.code_generation_pipeline_orchestrator - Best params: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': np.int64(5), 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': np.int64(7), 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False}
+2025-09-20 18:09:03,266 - INFO - visualization - Generating BO visualization charts with 3 trials...
+2025-09-20 18:09:05,041 - INFO - visualization - BO summary saved to: charts\BO_LightECG1D_CNN_20250920_180903\bo_summary.txt
+2025-09-20 18:09:05,041 - INFO - visualization - BO charts saved to: charts\BO_LightECG1D_CNN_20250920_180903
+2025-09-20 18:09:05,041 - INFO - evaluation.code_generation_pipeline_orchestrator - 📊 BO charts saved to: charts\BO_LightECG1D_CNN_20250920_180903
+2025-09-20 18:09:05,057 - INFO - evaluation.code_generation_pipeline_orchestrator - 🚀 STEP 4: Final Training Execution
+2025-09-20 18:09:05,057 - INFO - evaluation.code_generation_pipeline_orchestrator - Using centralized splits - Train: (39904, 1000, 2), Val: (9977, 1000, 2), Test: (12471, 1000, 2)
+2025-09-20 18:09:05,243 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-20 18:09:05,253 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-20 18:09:05,266 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-20 18:09:05,276 - INFO - _models.training_function_executor - Loaded training function: LightECG1D_CNN
+2025-09-20 18:09:05,276 - INFO - _models.training_function_executor - Reasoning: No reasoning provided
+2025-09-20 18:09:05,276 - INFO - evaluation.code_generation_pipeline_orchestrator - Executing final training with optimized params: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': np.int64(5), 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': np.int64(7), 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False}
+2025-09-20 18:09:05,276 - INFO - _models.training_function_executor - Using device: cuda
+2025-09-20 18:09:05,375 - INFO - _models.training_function_executor - Executing training function: LightECG1D_CNN
+2025-09-20 18:09:05,375 - INFO - _models.training_function_executor - Hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': np.int64(12), 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': np.int64(5), 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': np.int64(7), 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False}
+2025-09-20 18:09:05,377 - INFO - _models.training_function_executor - Starting training with hyperparameters: {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': 12, 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': 5, 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': 7, 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False}
+2025-09-20 18:09:43,610 - INFO - _models.training_function_executor - Model parameter count: 31,525
+2025-09-20 18:09:43,610 - INFO - _models.training_function_executor - Training completed successfully: {'train_losses': [0.758210608958242, 0.47858825781245945, 0.4023066834392028, 0.36883500016443044, 0.34656076140420955, 0.332889190354439, 0.32429017698946433, 0.3172380896740755, 0.31095553193698433, 0.30697005334718763, 0.304016543299844, 0.3017237231481907], 'val_losses': [0.4681965477291897, 0.27186570696885953, 0.23214605678844824, 0.2091339539702531, 0.20069302842386907, 0.18284690695534467, 0.19418092357801078, 0.16788379417039165, 0.17406532544987324, 0.16388998641463073, 0.15937634181857432, 0.19628482446010262], 'val_acc': [0.8497544352009622, 0.9342487721760048, 0.938658915505663, 0.9476796632254184, 0.9488824295880525, 0.9508870401924426, 0.958504560489125, 0.958905482610003, 0.9570011025358324, 0.9557983361731983, 0.9606094016237345, 0.9577027162473689], 'best_val_acc': 0.9606094016237345, 'model_name': 'LightECG1D_CNN', 'training_function_source': 'ai_generated', 'hyperparameters_used': {'lr': 0.002452612631133679, 'batch_size': 32, 'epochs': 12, 'weight_decay': 0.0002481040974867812, 'dropout': 0.07800932022121827, 'kernel_size': 5, 'optimizer': 'adam', 'grad_clip': 0.9184977839317345, 'label_smoothing': 0.03337086111390219, 'early_stopping_patience': 7, 'use_batch_norm': False, 'quantization_bits': 8, 'quantize_weights': False, 'quantize_activations': False}, 'model_parameter_count': 31525, 'model_size_validation': 'PASS'}
+2025-09-20 18:09:43,610 - INFO - evaluation.code_generation_pipeline_orchestrator - Using final validation metrics from training (avoids preprocessing mismatch)
+2025-09-20 18:09:43,611 - INFO - evaluation.code_generation_pipeline_orchestrator - Final test metrics: {'acc': 0.9577027162473689, 'macro_f1': None}
+2025-09-20 18:09:43,638 - INFO - evaluation.code_generation_pipeline_orchestrator - 📊 STEP 5: Performance Analysis
+2025-09-20 18:09:43,638 - INFO - evaluation.code_generation_pipeline_orchestrator - Generated Model: LightECG1D_CNN
+2025-09-20 18:09:43,638 - INFO - evaluation.code_generation_pipeline_orchestrator - BO Score: 0.8700
+2025-09-20 18:09:43,639 - ERROR - __main__ - Unhandled exception: TypeError: unsupported format string passed to NoneType.__format__
+Traceback (most recent call last):
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 484, in <module>
+    processed_real_data = process_real_data()
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 342, in process_real_data
+    result = process_data_with_ai_enhanced_evaluation(
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 136, in process_data_with_ai_enhanced_evaluation
+    result = train_with_iterative_selection(data, labels, device=device, **kwargs)
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 85, in train_with_iterative_selection
+    best_model, pipeline_results = orchestrator.run_complete_pipeline(
+  File "D:\_A\GPT_research\ml_pipeline\evaluation\code_generation_pipeline_orchestrator.py", line 120, in run_complete_pipeline
+    logger.info(f"Final Score: {performance_score:.4f}")
+TypeError: unsupported format string passed to NoneType.__format__
+

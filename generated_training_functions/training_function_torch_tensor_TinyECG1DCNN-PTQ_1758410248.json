@@ -1,0 +1,119 @@
+{
+  "model_name": "TinyECG1DCNN-PTQ",
+  "training_code": "import copy\nimport math\nfrom typing import Dict, Any\n\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.data import DataLoader, TensorDataset\n\n# Optional alias for quantization API across torch versions\ntry:\n    from torch.ao.quantization import (\n        QuantStub, DeQuantStub, get_default_qconfig, prepare, convert, fuse_modules,\n        quantize_dynamic\n    )\nexcept Exception:\n    from torch.quantization import (\n        QuantStub, DeQuantStub, get_default_qconfig, prepare, convert, fuse_modules,\n        quantize_dynamic\n    )\n\n\nclass TinyECG1DCNN(nn.Module):\n    \"\"\"\n    Lightweight 1D CNN for 2-lead ECG classification with Quant/DeQuant stubs for PTQ.\n    Input expected as (B, C=2, L=1000).\n    \"\"\"\n    def __init__(self, in_channels: int = 2, num_classes: int = 5, ch1: int = 32, ch2: int = 64, ch3: int = 128, dropout: float = 0.1):\n        super().__init__()\n        # Feature extractor (no BatchNorm to simplify quantization)\n        self.conv1 = nn.Sequential(\n            nn.Conv1d(in_channels, ch1, kernel_size=7, stride=2, padding=3, bias=False),\n            nn.ReLU(inplace=True),\n        )\n        self.conv2 = nn.Sequential(\n            nn.Conv1d(ch1, ch2, kernel_size=5, stride=2, padding=2, bias=False),\n            nn.ReLU(inplace=True),\n        )\n        self.conv3 = nn.Sequential(\n            nn.Conv1d(ch2, ch3, kernel_size=5, stride=2, padding=2, bias=False),\n            nn.ReLU(inplace=True),\n        )\n        self.pool = nn.AdaptiveAvgPool1d(1)\n        self.dropout = nn.Dropout(dropout)\n        self.fc = nn.Linear(ch3, num_classes)\n        # Quantization stubs for static PTQ\n        self.quant = QuantStub()\n        self.dequant = DeQuantStub()\n\n    def forward(self, x):\n        # x: (B, C, L)\n        x = self.quant(x)\n        x = self.conv1(x)\n        x = self.conv2(x)\n        x = self.conv3(x)\n        x = self.pool(x).squeeze(-1)\n        x = self.dropout(x)\n        x = self.fc(x)\n        x = self.dequant(x)\n        return x\n\n\ndef _count_params(model: nn.Module) -> int:\n    return sum(p.numel() for p in model.parameters())\n\n\ndef _evaluate(model: nn.Module, dl: DataLoader, device: torch.device) -> (float, float):\n    model.eval()\n    total_loss = 0.0\n    total_correct = 0\n    total_samples = 0\n    criterion = nn.CrossEntropyLoss()\n    with torch.inference_mode():\n        for xb, yb in dl:\n            # Expect input as (B, L, C) -> convert to (B, C, L)\n            if xb.dim() == 3 and xb.shape[-1] <= 8:  # assume last dim is channels\n                xb = xb.permute(0, 2, 1).contiguous()\n            xb = xb.to(device)\n            yb = yb.to(device)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            total_loss += loss.item() * xb.size(0)\n            preds = logits.argmax(dim=1)\n            total_correct += (preds == yb).sum().item()\n            total_samples += xb.size(0)\n    avg_loss = total_loss / max(1, total_samples)\n    acc = total_correct / max(1, total_samples)\n    return avg_loss, acc\n\n\ndef _static_int8_quantize(model_fp32: nn.Module, calib_loader: DataLoader, calib_steps: int = 50) -> nn.Module:\n    # Force CPU int8 backend\n    torch.backends.quantized.engine = 'fbgemm'\n    model = copy.deepcopy(model_fp32).cpu()\n    model.eval()\n    # Fuse conv+relu where possible\n    try:\n        fuse_modules(model, [[\"conv1.0\", \"conv1.1\"], [\"conv2.0\", \"conv2.1\"], [\"conv3.0\", \"conv3.1\"]], inplace=True)\n    except Exception:\n        pass  # Safe fallback if fusion is unavailable\n    model.qconfig = get_default_qconfig('fbgemm')\n    prepare(model, inplace=True)\n    # Calibration\n    model.eval()\n    seen = 0\n    with torch.inference_mode():\n        for xb, _ in calib_loader:\n            if xb.dim() == 3 and xb.shape[-1] <= 8:\n                xb = xb.permute(0, 2, 1).contiguous()\n            xb = xb.to('cpu')\n            _ = model(xb)\n            seen += 1\n            if seen >= calib_steps:\n                break\n    convert(model, inplace=True)\n    return model\n\n\ndef _dynamic_int8_quantize_linear_only(model_fp32: nn.Module) -> nn.Module:\n    model = copy.deepcopy(model_fp32).cpu().eval()\n    torch.backends.quantized.engine = 'fbgemm'\n    # Dynamic quantization for Linear layers only (weight quantization, FP activations)\n    qmodel = quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)\n    return qmodel\n\n\ndef train_model(X_train: torch.Tensor,\n                y_train: torch.Tensor,\n                X_val: torch.Tensor,\n                y_val: torch.Tensor,\n                device: torch.device,\n                **kwargs) -> (nn.Module, Dict[str, Any]):\n    \"\"\"\n    Train a lightweight 1D CNN on ECG signals and return a quantized model plus metrics.\n\n    Expected input tensors:\n      - X_*: shape (N, 1000, 2) or (N, 2, 1000); dtype float/float32\n      - y_*: shape (N,), dtype long/int64 with class indices [0..4]\n\n    Hyperparameters (with defaults):\n      - lr: float\n      - batch_size: int\n      - epochs: int\n      - weight_decay: float\n      - dropout: float\n      - ch1, ch2, ch3: ints for conv channels\n      - calib_steps: int (for static PTQ)\n\n    Quantization parameters:\n      - quantization_bits: one of {8, 16, 32}\n      - quantize_weights: bool\n      - quantize_activations: bool\n    \"\"\"\n    # ------------------ Hyperparameters ------------------\n    lr = float(kwargs.get('lr', 1e-3))\n    batch_size = int(kwargs.get('batch_size', 128))\n    epochs = int(kwargs.get('epochs', 10))\n    weight_decay = float(kwargs.get('weight_decay', 1e-4))\n    dropout = float(kwargs.get('dropout', 0.1))\n    ch1 = int(kwargs.get('ch1', 32))\n    ch2 = int(kwargs.get('ch2', 64))\n    ch3 = int(kwargs.get('ch3', 128))\n    calib_steps = int(kwargs.get('calib_steps', 50))\n\n    quantization_bits = int(kwargs.get('quantization_bits', 8))\n    quantize_weights = bool(kwargs.get('quantize_weights', True))\n    quantize_activations = bool(kwargs.get('quantize_activations', True))\n\n    # ------------------ DataLoaders ------------------\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False)\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)\n\n    # ------------------ Model/Optim ------------------\n    model = TinyECG1DCNN(in_channels=2, num_classes=5, ch1=ch1, ch2=ch2, ch3=ch3, dropout=dropout)\n    param_count = _count_params(model)\n    if param_count > 256_000:\n        raise ValueError(f\"Model has {param_count} parameters, which exceeds the 256K limit. Reduce channels.\")\n\n    model.to(device)\n    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)\n    criterion = nn.CrossEntropyLoss()\n\n    train_losses = []\n    val_losses = []\n    val_accs = []\n\n    # ------------------ Training Loop ------------------\n    for epoch in range(epochs):\n        model.train()\n        running_loss = 0.0\n        seen = 0\n        for xb, yb in train_loader:\n            # Convert (B, L, C) -> (B, C, L) if needed\n            if xb.dim() == 3 and xb.shape[-1] <= 8:\n                xb = xb.permute(0, 2, 1).contiguous()\n            xb = xb.to(device)\n            yb = yb.to(device)\n\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            optimizer.step()\n\n            running_loss += loss.item() * xb.size(0)\n            seen += xb.size(0)\n\n        train_loss = running_loss / max(1, seen)\n        val_loss, val_acc = _evaluate(model, val_loader, device)\n\n        train_losses.append(train_loss)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n\n        print(f\"Epoch {epoch+1}/{epochs} - train_loss: {train_loss:.4f} - val_loss: {val_loss:.4f} - val_acc: {val_acc:.4f}\")\n\n    # ------------------ Post-Training Quantization ------------------\n    # We create a copy of the trained FP32 model for quantization outputs.\n    trained_fp32 = copy.deepcopy(model).to('cpu').eval()\n\n    q_model = trained_fp32  # default fallback (FP32)\n\n    if quantization_bits == 8 and (quantize_weights or quantize_activations):\n        if quantize_activations:\n            # Static PTQ (weights + activations int8)\n            q_model = _static_int8_quantize(trained_fp32, train_loader, calib_steps=calib_steps)\n        else:\n            # Weight-only (dynamic) quantization for Linear layers\n            q_model = _dynamic_int8_quantize_linear_only(trained_fp32)\n    elif quantization_bits == 16:\n        # Half precision (FP16) weights/activations. Best on CUDA; on CPU falls back to FP32 if unsupported.\n        try:\n            q_model = copy.deepcopy(trained_fp32)\n            q_model = q_model.half()\n        except Exception:\n            # Fallback to FP32 if half not supported\n            q_model = trained_fp32\n    elif quantization_bits == 32:\n        q_model = trained_fp32\n    else:\n        # Unknown bit-width -> no quantization\n        q_model = trained_fp32\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'param_count': int(param_count),\n        'quantization_bits': int(quantization_bits),\n        'quantize_weights': bool(quantize_weights),\n        'quantize_activations': bool(quantize_activations)\n    }\n\n    return q_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 10,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-07,
+      "high": 0.001,
+      "prior": "log-uniform"
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "ch1": {
+      "default": 32,
+      "type": "Integer",
+      "low": 16,
+      "high": 64
+    },
+    "ch2": {
+      "default": 64,
+      "type": "Integer",
+      "low": 32,
+      "high": 128
+    },
+    "ch3": {
+      "default": 128,
+      "type": "Integer",
+      "low": 64,
+      "high": 192
+    },
+    "calib_steps": {
+      "default": 50,
+      "type": "Integer",
+      "low": 10,
+      "high": 200
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    }
+  },
+  "confidence": 0.9,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758410248,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

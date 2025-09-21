@@ -214,7 +214,30 @@ class TrainingFunctionExecutor:
             
         except Exception as e:
             logger.error(f"Training execution failed: {e}")
-            logger.error(f"Training code: {training_code[:200]}...")
+
+            # Send complete context to debug GPT immediately
+            try:
+                from _models.ai_code_generator import ai_code_generator
+                corrections = ai_code_generator._debug_json_with_gpt(
+                    training_data.get('training_code', ''),
+                    str(e),
+                    training_data.get('bo_config', {})
+                )
+                if corrections and corrections != "{}":
+                    logger.info(f"GPT suggested corrections: {corrections}")
+                    # Store corrections for BO to use
+                    try:
+                        from error_monitor import _global_terminator
+                        if _global_terminator:
+                            _global_terminator.last_json_corrections = corrections
+                            logger.info("Stored corrections for BO process")
+                    except Exception as store_e:
+                        logger.warning(f"Could not store corrections: {store_e}")
+                else:
+                    logger.info("GPT could not provide corrections")
+            except Exception as debug_e:
+                logger.warning(f"Debug GPT call failed: {debug_e}")
+
             raise
 
     
