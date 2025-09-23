@@ -1,0 +1,163 @@
+{
+  "model_name": "TinyConvTransformer-ECG (≤256KB)",
+  "training_code": "import math\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.data import Dataset, DataLoader, TensorDataset\nfrom typing import Optional, Tuple, Dict, Any\n\n\ndef train_model(X_train: torch.Tensor,\n                y_train: torch.Tensor,\n                X_val: torch.Tensor,\n                y_val: torch.Tensor,\n                device: str,\n                **hyperparams: Any):\n    \"\"\"\n    Train a tiny Conv-Transformer (1D) classifier for 5 classes on ECG segments.\n\n    Inputs:\n      - X_*: shape (N, 1000, 2) float tensors (time, leads)\n      - y_*: shape (N,) long tensors with class indices in [0..4]\n      - device: 'cpu' or 'cuda'\n      - hyperparams (with defaults below). Key ones:\n          d_model, n_heads, n_layers, patch_size, stem_channels, ffn_mult,\n          dropout, lr, weight_decay, batch_size, epochs, grad_clip_norm,\n          gamma (for focal loss), seed, use_rr, rr_train, rr_val,\n          quantization_bits, quantize_weights, quantize_activations\n\n    Returns:\n      - quantized_model (on CPU)\n      - metrics dict with lists: train_losses, val_losses, val_acc and other info\n    \"\"\"\n    # -----------------------\n    # Hyperparameters & safety\n    # -----------------------\n    hp = {\n        'd_model': int(hyperparams.get('d_model', 16)),          # embedding dim\n        'n_heads': int(hyperparams.get('n_heads', 2)),           # attention heads\n        'n_layers': int(hyperparams.get('n_layers', 3)),         # transformer layers\n        'patch_size': int(hyperparams.get('patch_size', 20)),    # 1D patch length\n        'stem_channels': int(hyperparams.get('stem_channels', 8)),\n        'ffn_mult': int(hyperparams.get('ffn_mult', 4)),         # FFN expansion\n        'dropout': float(hyperparams.get('dropout', 0.1)),\n        'lr': float(hyperparams.get('lr', 1e-3)),\n        'weight_decay': float(hyperparams.get('weight_decay', 1e-4)),\n        'batch_size': int(hyperparams.get('batch_size', 128)),\n        'epochs': int(hyperparams.get('epochs', 10)),\n        'grad_clip_norm': float(hyperparams.get('grad_clip_norm', 1.0)),\n        'gamma': float(hyperparams.get('gamma', 2.0)),\n        'seed': int(hyperparams.get('seed', 42)),\n        'use_rr': bool(hyperparams.get('use_rr', False)),\n        # Quantization controls\n        'quantization_bits': int(hyperparams.get('quantization_bits', 8)),  # {8,16,32}\n        'quantize_weights': bool(hyperparams.get('quantize_weights', True)),\n        'quantize_activations': bool(hyperparams.get('quantize_activations', False)),\n    }\n\n    # Constrain to safe bounds to guarantee final model size <= 256KB at worst (float32):\n    # Keep dimensions tiny and token count low.\n    hp['d_model'] = max(8, min(24, hp['d_model']))\n    hp['n_layers'] = max(1, min(4, hp['n_layers']))\n    hp['patch_size'] = max(16, min(32, hp['patch_size']))\n    hp['stem_channels'] = max(4, min(24, hp['stem_channels']))\n    # Heads must divide d_model\n    if hp['n_heads'] < 1:\n        hp['n_heads'] = 1\n    if hp['d_model'] % hp['n_heads'] != 0:\n        hp['n_heads'] = 1  # fallback\n\n    # Optional RR interval side-channel (2 features per sample). If not provided, will use zeros.\n    rr_train = hyperparams.get('rr_train', None)\n    rr_val = hyperparams.get('rr_val', None)\n\n    # Reproducibility\n    torch.manual_seed(hp['seed'])\n    if torch.cuda.is_available():\n        torch.cuda.manual_seed_all(hp['seed'])\n\n    # -----------------------\n    # Datasets & Loaders\n    # -----------------------\n    class ECGDataset(Dataset):\n        def __init__(self, X: torch.Tensor, y: torch.Tensor, rr: Optional[torch.Tensor]=None):\n            assert X.dim() == 3 and X.shape[-1] == 2, \"Expected X shape (N, L, 2)\"\n            self.X = X\n            self.y = y.long()\n            self.rr = rr\n            self.L = X.shape[1]\n        def __len__(self):\n            return self.X.shape[0]\n        def __getitem__(self, idx):\n            x = self.X[idx]  # (L, 2)\n            # Per-sample per-lead standardization\n            x = x.t()  # (2, L)\n            mean = x.mean(dim=1, keepdim=True)\n            std = x.std(dim=1, keepdim=True) + 1e-6\n            x = (x - mean) / std  # (2, L)\n            if self.rr is not None:\n                rr_feat = self.rr[idx].float()\n            else:\n                rr_feat = torch.zeros(2, dtype=torch.float32)\n            return x.contiguous(), rr_feat, self.y[idx]\n\n    train_ds = ECGDataset(X_train.float(), y_train.long(), rr_train)\n    val_ds   = ECGDataset(X_val.float(), y_val.long(), rr_val)\n\n    train_loader = DataLoader(train_ds, batch_size=hp['batch_size'], shuffle=True, num_workers=0, pin_memory=False)\n    val_loader   = DataLoader(val_ds, batch_size=hp['batch_size'], shuffle=False, num_workers=0, pin_memory=False)\n\n    L_in = X_train.shape[1]\n\n    # -----------------------\n    # Model Definition\n    # -----------------------\n    class ScaledDotAttn(nn.Module):\n        def __init__(self, d_model: int, n_heads: int, dropout: float):\n            super().__init__()\n            self.d_model = d_model\n            self.n_heads = n_heads\n            self.head_dim = d_model // n_heads\n            self.qkv = nn.Linear(d_model, 3 * d_model, bias=True)\n            self.out = nn.Linear(d_model, d_model, bias=True)\n            self.attn_drop = nn.Dropout(dropout)\n            self.proj_drop = nn.Dropout(dropout)\n        def forward(self, x):  # x: (B, T, D)\n            B, T, D = x.shape\n            qkv = self.qkv(x)  # (B, T, 3D)\n            q, k, v = qkv.split(self.d_model, dim=2)\n            # reshape to heads: (B, nH, T, Hd)\n            def reshape_heads(t):\n                t = t.view(B, T, self.n_heads, self.head_dim)\n                return t.permute(0, 2, 1, 3)\n            q = reshape_heads(q)\n            k = reshape_heads(k)\n            v = reshape_heads(v)\n            # scaled dot-product attn\n            attn_scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)  # (B, nH, T, T)\n            attn = F.softmax(attn_scores, dim=-1)\n            attn = self.attn_drop(attn)\n            out = torch.matmul(attn, v)  # (B, nH, T, Hd)\n            out = out.permute(0, 2, 1, 3).contiguous().view(B, T, D)\n            out = self.out(out)\n            out = self.proj_drop(out)\n            return out\n\n    class TransformerBlock(nn.Module):\n        def __init__(self, d_model: int, n_heads: int, mlp_ratio: int, dropout: float):\n            super().__init__()\n            self.norm1 = nn.LayerNorm(d_model)\n            self.attn = ScaledDotAttn(d_model, n_heads, dropout)\n            self.norm2 = nn.LayerNorm(d_model)\n            hidden = d_model * mlp_ratio\n            self.mlp = nn.Sequential(\n                nn.Linear(d_model, hidden),\n                nn.GELU(),\n                nn.Dropout(dropout),\n                nn.Linear(hidden, d_model),\n                nn.Dropout(dropout),\n            )\n        def forward(self, x):\n            x = x + self.attn(self.norm1(x))\n            x = x + self.mlp(self.norm2(x))\n            return x\n\n    class ECGTinyConvTransformer(nn.Module):\n        def __init__(self, L: int, d_model: int, n_heads: int, n_layers: int, patch_size: int, stem_channels: int, ffn_mult: int, dropout: float, use_rr: bool):\n            super().__init__()\n            assert L % patch_size == 0, \"Sequence length must be divisible by patch_size\"\n            self.use_rr = use_rr\n            self.d_model = d_model\n            # Conv stem to fuse 2 leads -> stem_channels -> d_model\n            self.stem = nn.Sequential(\n                nn.Conv1d(2, stem_channels, kernel_size=5, stride=1, padding=2, bias=True),\n                nn.GELU(),\n                nn.Conv1d(stem_channels, d_model, kernel_size=1, stride=1, bias=True),\n            )\n            # 1D Patch embedding (Conv with stride=patch_size)\n            self.patch_embed = nn.Conv1d(d_model, d_model, kernel_size=patch_size, stride=patch_size, bias=True)\n            self.num_patches = L // patch_size\n            self.pos_embed = nn.Parameter(torch.zeros(1, self.num_patches, d_model))\n            self.pos_drop = nn.Dropout(dropout)\n            # Tiny Transformer encoder\n            blocks = []\n            for _ in range(n_layers):\n                blocks.append(TransformerBlock(d_model, n_heads, ffn_mult, dropout))\n            self.blocks = nn.Sequential(*blocks)\n            self.norm = nn.LayerNorm(d_model)\n            # RR side-channel projection (2 -> d_model), added to pooled token\n            if self.use_rr:\n                self.rr_proj = nn.Linear(2, d_model)\n            else:\n                self.rr_proj = None\n            # Classification head\n            self.head = nn.Linear(d_model, 5)\n            # Init\n            nn.init.trunc_normal_(self.pos_embed, std=0.02)\n        def forward(self, x: torch.Tensor, rr: Optional[torch.Tensor]=None):\n            # x: (B, 2, L)\n            x = self.stem(x)  # (B, D, L)\n            x = self.patch_embed(x)  # (B, D, T)\n            x = x.transpose(1, 2)  # (B, T, D)\n            # Positional encoding\n            x = x + self.pos_embed[:, :x.size(1), :]\n            x = self.pos_drop(x)\n            # Encoder\n            x = self.blocks(x)\n            x = self.norm(x)\n            # Mean pool over tokens\n            x = x.mean(dim=1)  # (B, D)\n            # Add RR embedding if available\n            if self.rr_proj is not None:\n                if rr is None:\n                    rr = torch.zeros(x.size(0), 2, device=x.device, dtype=x.dtype)\n                rr_embed = self.rr_proj(rr)\n                x = x + rr_embed\n            logits = self.head(x)\n            return logits\n\n    model = ECGTinyConvTransformer(L=L_in,\n                                   d_model=hp['d_model'],\n                                   n_heads=hp['n_heads'],\n                                   n_layers=hp['n_layers'],\n                                   patch_size=hp['patch_size'],\n                                   stem_channels=hp['stem_channels'],\n                                   ffn_mult=hp['ffn_mult'],\n                                   dropout=hp['dropout'],\n                                   use_rr=hp['use_rr'])\n\n    # -----------------------\n    # Loss: Class-balanced Focal Loss\n    # -----------------------\n    class BalancedFocalLoss(nn.Module):\n        def __init__(self, alpha: torch.Tensor, gamma: float = 2.0, reduction: str = 'mean'):\n            super().__init__()\n            self.register_buffer('alpha', alpha.float())  # shape (C,)\n            self.gamma = gamma\n            self.reduction = reduction\n        def forward(self, logits: torch.Tensor, targets: torch.Tensor):\n            # logits: (B, C), targets: (B,)\n            log_probs = F.log_softmax(logits, dim=1)  # (B, C)\n            probs = log_probs.exp()\n            # Gather per-target log_probs and probs\n            targets = targets.view(-1, 1)\n            log_pt = log_probs.gather(1, targets).squeeze(1)\n            pt = probs.gather(1, targets).squeeze(1)\n            alpha_t = self.alpha.gather(0, targets.squeeze(1))\n            loss = -alpha_t * ((1 - pt) ** self.gamma) * log_pt\n            if self.reduction == 'mean':\n                return loss.mean()\n            elif self.reduction == 'sum':\n                return loss.sum()\n            else:\n                return loss\n\n    # Compute class weights alpha from training labels (inverse frequency, normalized)\n    with torch.no_grad():\n        num_classes = 5\n        counts = torch.bincount(y_train.long(), minlength=num_classes).float()\n        counts[counts == 0] = 1.0\n        inv = 1.0 / counts\n        alpha = inv / inv.sum() * num_classes  # normalized around 1.0\n\n    criterion = BalancedFocalLoss(alpha=alpha, gamma=hp['gamma'])\n\n    # -----------------------\n    # Optimizer\n    # -----------------------\n    device_t = torch.device(device)\n    model = model.to(device_t)\n    optimizer = torch.optim.AdamW(model.parameters(), lr=hp['lr'], weight_decay=hp['weight_decay'])\n\n    # -----------------------\n    # Training / Validation loops\n    # -----------------------\n    def evaluate(m: nn.Module) -> Tuple[float, float]:\n        m.eval()\n        total_loss = 0.0\n        total_correct = 0\n        total_samples = 0\n        with torch.no_grad():\n            for xb, rr_b, yb in val_loader:\n                xb = xb.to(device_t)\n                rr_b = rr_b.to(device_t)\n                yb = yb.to(device_t)\n                logits = m(xb, rr_b if hp['use_rr'] else None)\n                loss = criterion(logits, yb)\n                total_loss += loss.item() * yb.size(0)\n                preds = logits.argmax(dim=1)\n                total_correct += (preds == yb).sum().item()\n                total_samples += yb.size(0)\n        avg_loss = total_loss / max(1, total_samples)\n        acc = total_correct / max(1, total_samples)\n        return avg_loss, acc\n\n    train_losses, val_losses, val_accs = [], [], []\n    best_val_acc = 0.0\n\n    for epoch in range(1, hp['epochs'] + 1):\n        model.train()\n        running_loss = 0.0\n        seen = 0\n        for xb, rr_b, yb in train_loader:\n            xb = xb.to(device_t)\n            rr_b = rr_b.to(device_t)\n            yb = yb.to(device_t)\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb, rr_b if hp['use_rr'] else None)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if hp['grad_clip_norm'] is not None and hp['grad_clip_norm'] > 0:\n                nn.utils.clip_grad_norm_(model.parameters(), hp['grad_clip_norm'])\n            optimizer.step()\n            running_loss += loss.item() * yb.size(0)\n            seen += yb.size(0)\n        train_loss = running_loss / max(1, seen)\n        val_loss, val_acc = evaluate(model)\n        train_losses.append(train_loss)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n        if val_acc > best_val_acc:\n            best_val_acc = val_acc\n        print(f\"Epoch {epoch:03d}: train_loss={train_loss:.4f} val_loss={val_loss:.4f} val_acc={val_acc:.4f}\")\n\n    # -----------------------\n    # Post-Training Quantization\n    # -----------------------\n    def estimate_model_size_bytes(m: nn.Module) -> int:\n        total = 0\n        sd = m.state_dict()\n        for k, v in sd.items():\n            try:\n                if str(v.dtype).startswith('torch.q'):  # quantized tensor\n                    total += v.int_repr().numel()  # int8 elements ~1 byte\n                else:\n                    total += v.numel() * v.element_size()\n            except Exception:\n                # Fallback if dtype or int_repr not available\n                try:\n                    total += v.numel() * v.element_size()\n                except Exception:\n                    pass\n        return int(total)\n\n    def apply_quantization(m: nn.Module) -> nn.Module:\n        # Always move to CPU for post-training quantization\n        m = m.to('cpu').eval()\n        bits = int(hyperparams.get('quantization_bits', hp['quantization_bits']))\n        q_w = bool(hyperparams.get('quantize_weights', hp['quantize_weights']))\n        q_a = bool(hyperparams.get('quantize_activations', hp['quantize_activations']))\n\n        # Strategy: For Transformer-like models, dynamic quantization of Linear layers is robust.\n        # 8-bit: dynamic quantization on nn.Linear. Conv1d left in float (small portion of params).\n        # 16-bit: cast to float16 (weights + activations).\n        # 32-bit: keep float32.\n        if bits == 8 and q_w:\n            # Dynamic quantization only quantizes weights of Linear layers (activations remain float)\n            q_model = torch.ao.quantization.quantize_dynamic(\n                m, {nn.Linear}, dtype=torch.qint8\n            )\n            return q_model\n        elif bits == 16:\n            # Convert to half precision\n            m = m.half()\n            return m\n        else:\n            # 32-bit or quantization disabled: return as-is (float32)\n            return m\n\n    quantized_model = apply_quantization(model)\n\n    # If size still exceeds 256KB, enforce 8-bit dynamic quantization as a safeguard\n    max_bytes = 256 * 1024\n    size_bytes = estimate_model_size_bytes(quantized_model)\n    if size_bytes > max_bytes:\n        print(f\"[Quantization] Model size {size_bytes}B > 256KB, enforcing 8-bit dynamic quantization...\")\n        quantized_model = torch.ao.quantization.quantize_dynamic(\n            model.to('cpu').eval(), {nn.Linear}, dtype=torch.qint8\n        )\n        size_bytes = estimate_model_size_bytes(quantized_model)\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'best_val_acc': best_val_acc,\n        'final_model_size_bytes': int(size_bytes),\n        'quantization_bits': int(hp['quantization_bits']),\n        'quantize_weights': bool(hp['quantize_weights']),\n        'quantize_activations': bool(hp['quantize_activations'])\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.005,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128
+      ]
+    },
+    "epochs": {
+      "default": 10,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.3
+    },
+    "d_model": {
+      "default": 16,
+      "type": "Integer",
+      "low": 8,
+      "high": 24
+    },
+    "n_heads": {
+      "default": 2,
+      "type": "Categorical",
+      "categories": [
+        1,
+        2,
+        4
+      ]
+    },
+    "n_layers": {
+      "default": 3,
+      "type": "Integer",
+      "low": 1,
+      "high": 4
+    },
+    "patch_size": {
+      "default": 20,
+      "type": "Integer",
+      "low": 16,
+      "high": 32
+    },
+    "stem_channels": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        12,
+        16,
+        24
+      ]
+    },
+    "ffn_mult": {
+      "default": 4,
+      "type": "Integer",
+      "low": 2,
+      "high": 4
+    },
+    "gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 3.0
+    },
+    "grad_clip_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.1,
+      "high": 5.0
+    },
+    "seed": {
+      "default": 42,
+      "type": "Integer",
+      "low": 0,
+      "high": 1000000
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "use_rr": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    }
+  },
+  "confidence": 0.86,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758584726,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

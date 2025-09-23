@@ -39,6 +39,18 @@ class AICodeGenerator:
         self.code_storage_dir = Path("generated_training_functions")
         self.code_storage_dir.mkdir(exist_ok=True)
     
+    def _get_valid_divisors(self, n: int) -> List[int]:
+        """Get all valid divisors of n for patch_size constraints"""
+        if n <= 0:
+            return [1]
+        divisors = []
+        for i in range(1, int(n**0.5) + 1):
+            if n % i == 0:
+                divisors.append(i)
+                if i != n // i:
+                    divisors.append(n // i)
+        return sorted(divisors)
+
     def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None) -> str:
         """Create enhanced prompt for GPT-5 code generation with literature review insights"""
 
@@ -50,10 +62,22 @@ class AICodeGenerator:
         # Sample count
         num_samples = data_profile.get("sample_count", data_profile.get("num_samples", "unknown"))
 
+        # Extract sequence length for patch_size constraints
+        sequence_length = None
+        if len(input_shape) >= 2:
+            # For shape like (1000, 2) or (2, 1000), find the larger dimension as sequence length
+            sequence_length = max(input_shape[-2:]) if max(input_shape[-2:]) > 10 else None
+
+        # Generate valid divisors for patch_size if sequence length detected
+        valid_patch_sizes = []
+        if sequence_length and sequence_length > 1:
+            valid_patch_sizes = self._get_valid_divisors(sequence_length)
+
         prompt = f"""
 Generate a PyTorch training function for a {num_classes}-class classifier.
 
 Data: {data_profile['data_type']}, input shape {input_shape}, {num_samples} samples{dataset_context}
+Sequence length: {sequence_length if sequence_length else 'N/A'}
 
 - Use the first recommended approach if available, otherwise proceed with a reasonable architecture.
 """
@@ -75,7 +99,8 @@ Requirements:
   * return quantized model + metrics (include lists: train_losses, val_losses, val_acc for all epochs)
   * fill in the real input you need for hyperparams and quantization parameters
   * IMPORTANT: For DataLoader, use pin_memory=False to avoid CUDA tensor pinning errors
-- Final model (after quantization) MUST have ≤ 256K parameters.
+  * CRITICAL: ALWAYS train on GPU - ensure ALL tensors (model, inputs, targets, losses) are on the same device (GPU). Use .to(device) consistently throughout training loop.
+- Final model (after quantization) MUST have ≤ 256KB storage size.
 - Implement post-training quantization using torch.quantization / torch.ao.quantization.
   * Include hyperparams: quantization_bits ∈ {8, 16, 32}, quantize_weights ∈ {true,false}, quantize_activations ∈ {true,false}.
   * Choose a sensible strategy for the chosen architecture (e.g., CNN vs Transformer).
@@ -86,7 +111,8 @@ Bayesian Optimization:
   * Real: low, high, optional prior ∈ {"uniform","log-uniform"} (if log-uniform, low > 0, e.g., 1e-6)
   * Integer: low, high (inclusive)
   * Categorical: categories [..]
-- Only include params actually consumed by training_code.
+- Only include params actually consumed by training_code.{f'''
+- CRITICAL: For transformer models with patch_size, it must divide sequence length ({sequence_length}). Use only valid divisors: {valid_patch_sizes}''' if valid_patch_sizes else ""}
 
 Response JSON example:
 {
@@ -198,7 +224,7 @@ RESPONSE FORMAT REQUIREMENTS:
 4. For training_code fixes, include the COMPLETE corrected function
 
 CORRECTION EXAMPLES:
-- "Model has X parameters, exceeds 256k limit" → {{"bo_config": {{"d_model": 64, "hidden_size": 128}}}}
+- "Model has X KB storage, exceeds 256KB limit" → {{"bo_config": {{"d_model": 64, "hidden_size": 128}}}}
 - "'str' object has no attribute 'type'" → {{"training_code": "def train_model(...):\\n    # fixed implementation"}}
 - "Quantization bug in code" → {{"training_code": "corrected_training_function"}}
 - "mat1 and mat2 shapes cannot be multiplied" → {{"bo_config": {{"d_model": 128}}}}
@@ -365,6 +391,9 @@ OUTPUT ONLY THE JSON OBJECT:""".format(pytorch_version, error_message, bo_config
                 # Fix missing closing quotes before commas/braces
                 fixed_json = re.sub(r'(\d+)"\s*([,}])', r'\1\2', fixed_json)
                 fixed_json = re.sub(r'([^"])"\s*([,}])', r'\1"\2', fixed_json)
+
+                # Fix missing closing braces for nested objects after array values
+                fixed_json = re.sub(r'(\[[^\]]*\])\s*,\s*\n\s*"', r'\1\n    },\n    "', fixed_json)
 
                 # Fix missing commas after closing braces in nested objects
                 fixed_json = re.sub(r'}\s*\n\s*"', r'},\n    "', fixed_json)

@@ -10,8 +10,8 @@ This folder contains visualization outputs from Bayesian optimization and model 
 
 ## Structure
 
-Charts are organized by model architecture and timestamp:
-- `BO_{ModelName}_{Timestamp}/` - Individual BO run results
+Charts are organized chronologically by timestamp:
+- `{Timestamp}_BO_{ModelName}/` - Individual BO run results (newest at bottom when sorted)
 - Contains convergence plots, parameter importance charts, and optimization summaries
 
 ## Generation

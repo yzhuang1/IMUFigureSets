@@ -1,0 +1,241 @@
+2025-09-22 14:50:17,965 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti
+2025-09-22 14:50:18,073 - INFO - __main__ - Logging system initialized successfully
+2025-09-22 14:50:18,073 - INFO - __main__ - Starting AI-Enhanced Machine Learning Pipeline
+2025-09-22 14:50:18,073 - INFO - __main__ - Starting real data processing from data/ directory
+2025-09-22 14:50:18,073 - INFO - __main__ - Found 5 data files: ['mitdb_ecg_sample.csv', 'X.npy', 'y.npy', 'mitdb_ecg_data.npz', 'mitdb_metadata.json']
+2025-09-22 14:50:18,073 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-09-22 14:50:18,073 - INFO - __main__ - Attempting to load: X.npy
+2025-09-22 14:50:18,115 - INFO - __main__ - Successfully loaded NPY data: X(62352, 1000, 2), y(62352,)
+2025-09-22 14:50:18,154 - INFO - __main__ - Data loaded successfully: X.npy + y.npy, shape: (62352, 1000, 2), device: cuda
+2025-09-22 14:50:18,154 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-09-22 14:50:18,154 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-09-22 14:50:18,154 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-09-22 14:50:18,156 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-09-22 14:50:18,156 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (62352, 1000, 2), 'dtype': 'float32', 'feature_count': 2, 'sample_count': 62352, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-09-22 14:50:18,156 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-09-22 14:50:18,156 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-09-22 14:50:18,157 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-09-22 14:50:18,157 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-09-22 14:50:18,157 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-09-22 14:50:18,157 - INFO - data_splitting - Input data shape: X=(62352, 1000, 2), y=(62352,)
+2025-09-22 14:50:18,157 - INFO - data_splitting - Class distribution: [44897  9551  1201  1239  5464]
+2025-09-22 14:50:18,261 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.27775728256708315), np.int64(1): np.float64(1.3057591623036648), np.int64(2): np.float64(10.37815344603381), np.int64(3): np.float64(10.0640605296343), np.int64(4): np.float64(2.282184729768373)}
+2025-09-22 14:50:18,261 - INFO - class_balancing - Class imbalance analysis:
+2025-09-22 14:50:18,261 - INFO - class_balancing -   Strategy: severe_imbalance
+2025-09-22 14:50:18,261 - INFO - class_balancing -   Imbalance ratio: 37.36
+2025-09-22 14:50:18,261 - INFO - class_balancing -   Recommendations: Use weighted loss + weighted sampling, Consider Focal Loss, Evaluate with balanced metrics
+2025-09-22 14:50:18,261 - INFO - data_splitting - Final splits - Train: 39904, Val: 9977, Test: 12471
+2025-09-22 14:50:18,261 - INFO - data_splitting - Train class distribution: [28733  6112   769   793  3497]
+2025-09-22 14:50:18,261 - INFO - data_splitting - Val class distribution: [7184 1529  192  198  874]
+2025-09-22 14:50:18,261 - INFO - data_splitting - Test class distribution: [8980 1910  240  248 1093]
+2025-09-22 14:50:18,261 - INFO - data_splitting - Recommended balancing strategy: severe_imbalance
+2025-09-22 14:50:18,435 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 2]), std shape: torch.Size([1, 2])
+2025-09-22 14:50:18,436 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-09-22 14:50:18,436 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-09-22 14:50:18,436 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-09-22 14:50:18,436 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-09-22 14:50:18,436 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-09-22 14:50:18,436 - INFO - _models.ai_code_generator - Conducting literature review before code generation...
+2025-09-22 14:52:47,691 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-22 14:52:47,715 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-22 14:52:47,715 - INFO - _models.ai_code_generator - Prompt length: 3278 characters
+2025-09-22 14:52:47,715 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-22 14:52:47,715 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-22 14:52:47,715 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-22 14:55:56,175 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-22 14:55:56,176 - INFO - _models.ai_code_generator - Successfully extracted response content
+2025-09-22 14:55:56,176 - WARNING - _models.ai_code_generator - Initial JSON parse failed: Expecting ',' delimiter: line 146 column 2 (char 25820), attempting to fix common issues
+2025-09-22 14:55:56,177 - WARNING - _models.ai_code_generator - Standard fixes failed, using GPT to debug JSON
+2025-09-22 14:55:56,177 - INFO - _models.ai_code_generator - Saved malformed JSON to debug_malformed_json.txt for debugging
+2025-09-22 14:55:56,177 - INFO - _models.ai_code_generator - Starting debug attempts (max: 4)
+2025-09-22 14:55:56,177 - INFO - _models.ai_code_generator - Calling GPT to debug training error (attempt 1/4)
+2025-09-22 14:55:56,177 - INFO - _models.ai_code_generator - Making API call to gpt-5
+2025-09-22 14:55:56,177 - INFO - _models.ai_code_generator - Prompt length: 26600 characters
+2025-09-22 14:55:56,177 - INFO - _models.ai_code_generator - Using API base URL: https://api.openai.com/v1
+2025-09-22 14:55:56,177 - INFO - _models.ai_code_generator - Calling self.client.responses.create...
+2025-09-22 14:55:56,177 - INFO - _models.ai_code_generator - Model parameter: gpt-5
+2025-09-22 14:56:40,514 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-09-22 14:56:40,515 - INFO - _models.ai_code_generator - Successfully extracted response content
+2025-09-22 14:56:40,515 - INFO - _models.ai_code_generator - Saved GPT debug response to: gpt_debug_responses/gpt_debug_training_error_20250922_145640_attempt1.txt
+2025-09-22 14:56:40,515 - INFO - _models.ai_code_generator - GPT suggested correction: {"bo_config":{"epochs":{"default":20,"type":"Integer","low":5,"high":80},"batch_size":{"default":256,"type":"Categorical","categories":[64,128,256,512]},"lr":{"default":0.001,"type":"Real","low":1e-5,"high":0.005,"prior":"log-uniform"},"weight_decay":{"default":0.0001,"type":"Real","low":1e-6,"high":0.01,"prior":"log-uniform"},"d_model":{"default":64,"type":"Integer","low":56,"high":96},"n_heads":{"default":4,"type":"Categorical","categories":[2,4,8]},"num_layers":{"default":3,"type":"Integer","low":2,"high":3},"ffn_mult":{"default":2,"type":"Integer","low":1,"high":3},"dropout":{"default":0.1,"type":"Real","low":0.0,"high":0.3},"conv_kernel":{"default":7,"type":"Integer","low":5,"high":9},"conv_stride":{"default":2,"type":"Integer","low":1,"high":2},"aug_gauss_std":{"default":0.01,"type":"Real","low":0.0,"high":0.05},"time_warp_max_stretch":{"default":0.2,"type":"Real","low":0.0,"high":0.3},"mixup_alpha":{"default":0.2,"type":"Real","low":0.0,"high":0.4},"focal_alpha":{"default":0.25,"type":"Real","low":0.1,"high":0.75},"focal_gamma":{"default":2.0,"type":"Real","low":1.0,"high":3.0},"class_balancing":{"default":"effective","type":"Categorical","categories":["effective","inverse_freq","none"]},"beta_cb":{"default":0.9999,"type":"Real","low":0.9,"high":0.99999},"scheduler":{"default":"cosine","type":"Categorical","categories":["cosine","none"]},"warmup_epochs":{"default":2,"type":"Integer","low":0,"high":5},"grad_clip_norm":{"default":1.0,"type":"Real","low":0.0,"high":2.0},"quantization_bits":{"default":8,"type":"Categorical","categories":[8,16,32]},"quantize_weights":{"default":true,"type":"Categorical","categories":[true,false]},"quantize_activations":{"default":false,"type":"Categorical","categories":[true,false]}}}
+2025-09-22 14:56:40,515 - INFO - _models.ai_code_generator - Debug successful on attempt 1
+2025-09-22 14:56:40,515 - WARNING - _models.ai_code_generator - Original JSON is malformed, attempting partial repair
+2025-09-22 14:56:40,515 - INFO - _models.ai_code_generator - Successfully applied JSON corrections
+2025-09-22 14:56:40,515 - INFO - _models.ai_code_generator - Successfully repaired JSON using GPT debugging
+2025-09-22 14:56:40,515 - ERROR - _models.ai_code_generator - Failed to parse code recommendation: Missing required field: model_name
+2025-09-22 14:56:40,516 - ERROR - _models.ai_code_generator - Original response: {
+  "model_name": "TinyTransformer1D-ECG-5cls",
+  "training_code": "import math\\nimport copy\\nimport random\\nfrom typing import Dict, Any, Tuple\\n\\nimport torch\\nimport torch.nn as nn\\nimport torch.nn.functional as F\\nfrom torch.utils.data import Dataset, DataLoader\\n\\n# ------------------------------\\n# Utils\\n# ------------------------------\\n\\ndef set_seed(seed: int):\\n    random.seed(seed)\\n    torch.manual_seed(seed)\\n    torch.cuda.manual_seed_all(seed)\\n    torch.backends.cudnn.deterministic = True\\n    torch.backends.cudnn.benchmark = False\\n\\n\\ndef count_parameters(model: nn.Module) -> int:\\n    return sum(p.numel() for p in model.parameters() if p.requires_grad)\\n\\n\\n# ------------------------------\\n# Data & Augmentations\\n# ------------------------------\\nclass ECGDataset(Dataset):\\n    def __init__(self, X: torch.Tensor, y: torch.Tensor, mean: torch.Tensor, std: torch.Tensor,\\n                 train: bool = True, aug_gauss_std: float = 0.01, time_warp_max_stretch: float = 0.2):\\n        \"\"\"\\n        X expected shape: (N, L, C) or (N, C, L) with L=1000, C=2\\n        y expected shape: (N,) with class indices in [0,4]\\n        mean, std: per-channel tensors (C,) computed from training set\\n        \"\"\"\\n        super().__init__()\\n        assert X.ndim == 3, \"X must be 3D (N, L, C) or (N, C, L)\"\\n        self.X = X\\n        self.y = y.long() if y is not None else None\\n        self.train = train\\n        self.aug_gauss_std = float(aug_gauss_std)\\n        self.time_warp_max_stretch = float(time_warp_max_stretch)\\n        # mean/std expected for channels-first normalization during __getitem__\\n        self.mean = mean.view(-1, 1)  # (C,1)\\n        self.std = std.view(-1, 1).clamp_min(1e-6)  # (C,1)\\n\\n    def __len__(self):\\n        return self.X.size(0)\\n\\n    @staticmethod\\n    def _ensure_ch_first(x: torch.Tensor) -> torch.Tensor:\\n        # Accept (L,C) or (C,L); return (C,L)\\n        if x.size(0) in (1,2) and x.ndim == 2:\\n            # likely (C,L) already\\n            return x\\n        elif x.size(-1) in (1,2):\\n            # (L,C) -> (C,L)\\n            return x.transpose(0, 1)\\n        else:\\n            # default assume (C,L)\\n            return x\\n\\n    @staticmethod\\n    def _random_time_warp(sig: torch.Tensor, max_stretch: float) -> torch.Tensor:\\n        # sig: (C, L)\\n        if max_stretch <= 0.0:\\n            return sig\\n        C, L = sig.shape\\n        scale = 1.0 + (2.0 * torch.rand(1).item() - 1.0) * max_stretch  # [1-max, 1+max]\\n        new_L = max(1, int(round(L * scale)))\\n        sig_b = sig.unsqueeze(0)  # (1,C,L)\\n        sig_res = F.interpolate(sig_b, size=new_L, mode='linear', align_corners=False)  # (1,C,new_L)\\n        sig_res = sig_res.squeeze(0)  # (C,new_L)\\n        if new_L == L:\\n            return sig_res\\n        elif new_L > L:\\n            # center-crop to L\\n            start = (new_L - L) // 2\\n            return sig_res[:, start:start+L]\\n        else:\\n            # pad to L\\n            pad_left = (L - new_L) // 2\\n            pad_right = L - new_L - pad_left\\n            return F.pad(sig_res, (pad_left, pad_right), mode='constant', value=0.0)\\n\\n    def __getitem__(self, idx: int):\\n        x = self.X[idx]\\n        # Bring to (C,L)\\n        if x.ndim != 2:\\n            raise ValueError(\"Each sample must be 2D: (L,C) or (C,L)\")\\n        x = self._ensure_ch_first(x)  # (C,L)\\n        x = x.to(torch.float32)\\n\\n        if self.train:\\n            # Time-warp with 50% probability\\n            if self.time_warp_max_stretch > 0 and random.random() < 0.5:\\n                x = self._random_time_warp(x, self.time_warp_max_stretch)\\n            # Gaussian noise\\n            if self.aug_gauss_std > 0:\\n                noise = torch.randn_like(x) * self.aug_gauss_std\\n                x = x + noise\\n\\n        # Normalize per-channel\\n        x = (x - self.mean) / self.std\\n\\n        if self.y is None:\\n            return x\\n        return x, self.y[idx]\\n\\n\\n# ------------------------------\\n# Model: Tiny Transformer 1D\\n# ------------------------------\\nclass SinusoidalPositionalEncoding(nn.Module):\\n    def __init__(self, d_model: int, max_len: int = 5000):\\n        super().__init__()\\n        pe = torch.zeros(max_len, d_model)\\n        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)\\n        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))\\n        pe[:, 0::2] = torch.sin(position * div_term)\\n        pe[:, 1::2] = torch.cos(position * div_term)\\n        pe = pe.unsqueeze(0)  # (1, max_len, d_model)\\n        self.register_buffer('pe', pe, persistent=False)\\n\\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\\n        # x: (B, T, C)\\n        T = x.size(1)\\n        return x + self.pe[:, :T, :]\\n\\n\\nclass DepthwiseConvFFN(nn.Module):\\n    def __init__(self, d_model: int, ffn_mult: int = 2, dropout: float = 0.1):\\n        super().__init__()\\n        hidden = d_model * ffn_mult\\n        self.dw = nn.Conv1d(d_model, d_model, kernel_size=3, padding=1, groups=d_model, bias=True)\\n        self.pw1 = nn.Conv1d(d_model, hidden, kernel_size=1, bias=True)\\n        self.act = nn.GELU()\\n        self.drop = nn.Dropout(dropout)\\n        self.pw2 = nn.Conv1d(hidden, d_model, kernel_size=1, bias=True)\\n\\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\\n        # x: (B, T, C)\\n        x_c = x.transpose(1, 2)  # (B,C,T)\\n        y = self.dw(x_c)\\n        y = self.pw1(y)\\n        y = self.act(y)\\n        y = self.drop(y)\\n        y = self.pw2(y)\\n        y = self.drop(y)\\n        return y.transpose(1, 2)  # (B,T,C)\\n\\n\\nclass TransformerEncoderBlock(nn.Module):\\n    def __init__(self, d_model: int, n_heads: int, dropout: float, ffn_mult: int):\\n        super().__init__()\\n        self.mha = nn.MultiheadAttention(embed_dim=d_model, num_heads=n_heads, dropout=dropout, batch_first=True)\\n        self.drop1 = nn.Dropout(dropout)\\n        self.norm1 = nn.LayerNorm(d_model)\\n        self.ffn = DepthwiseConvFFN(d_model, ffn_mult=ffn_mult, dropout=dropout)\\n        self.drop2 = nn.Dropout(dropout)\\n        self.norm2 = nn.LayerNorm(d_model)\\n\\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\\n        # x: (B,T,C)\\n        attn_out, _ = self.mha(x, x, x, need_weights=False)\\n        x = self.norm1(x + self.drop1(attn_out))\\n        ffn_out = self.ffn(x)\\n        x = self.norm2(x + self.drop2(ffn_out))\\n        return x\\n\\n\\nclass TinyTransformer1D(nn.Module):\\n    def __init__(self, in_channels: int = 2, num_classes: int = 5, d_model: int = 64, n_heads: int = 4,\\n                 num_layers: int = 3, ffn_mult: int = 2, dropout: float = 0.1,\\n                 conv_kernel: int = 7, conv_stride: int = 2):\\n        super().__init__()\\n        padding = conv_kernel // 2\\n        self.stem = nn.Sequential(\\n            nn.Conv1d(in_channels, d_model, kernel_size=conv_kernel, stride=conv_stride, padding=padding, bias=False),\\n            nn.BatchNorm1d(d_model),\\n            nn.GELU(),\\n        )\\n        self.posenc = SinusoidalPositionalEncoding(d_model, max_len=5000)\\n        self.blocks = nn.ModuleList([TransformerEncoderBlock(d_model, n_heads, dropout, ffn_mult) for _ in range(num_layers)])\\n        self.head_norm = nn.LayerNorm(d_model)\\n        self.dropout = nn.Dropout(dropout)\\n        self.classifier = nn.Linear(d_model, num_classes)\\n\\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\\n        # Accept x (B, C, L) or (B, L, C) with C=2\\n        if x.ndim != 3:\\n            raise ValueError(\"Input must be (B,C,L) or (B,L,C)\")\\n        if x.size(1) in (1,2):\\n            # (B,C,L)\\n            x_c = x\\n        else:\\n            # (B,L,C)->(B,C,L)\\n            x_c = x.transpose(1, 2)\\n\\n        x_feat = self.stem(x_c)  # (B,d_model,L')\\n        x_feat = x_feat.transpose(1, 2)  # (B,L',d_model)\\n        x_feat = self.posenc(x_feat)\\n        for blk in self.blocks:\\n            x_feat = blk(x_feat)\\n        x_feat = self.head_norm(x_feat)\\n        x_feat = self.dropout(x_feat)\\n        # Global average pooling over time\\n        x_pool = x_feat.mean(dim=1)  # (B,d_model)\\n        logits = self.classifier(x_pool)  # (B,num_classes)\\n        return logits\\n\\n\\n# ------------------------------\\n# Loss: Class-balanced focal loss\\n# ------------------------------\\nclass FocalLossWithLogits(nn.Module):\\n    def __init__(self, num_classes: int, alpha: float = 0.25, gamma: float = 2.0, class_weights: torch.Tensor = None, reduction: str = 'mean'):\\n        super().__init__()\\n        self.alpha = alpha\\n        self.gamma = gamma\\n        self.num_classes = num_classes\\n        self.reduction = reduction\\n        self.register_buffer('class_weights', class_weights if class_weights is not None else None, persistent=False)\\n\\n    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:\\n        # logits: (B,C), targets: (B,)\\n        log_probs = F.log_softmax(logits, dim=1)\\n        probs = log_probs.exp()\\n        # Gather per-sample log_prob and prob for the target class\\n        tgt_logp = log_probs.gather(1, targets.view(-1, 1)).squeeze(1)\\n        tgt_p = probs.gather(1, targets.view(-1, 1)).squeeze(1).clamp_min(1e-8)\\n        ce_loss = -tgt_logp\\n        focal_weight = self.alpha * (1 - tgt_p) ** self.gamma\\n        loss = focal_weight * ce_loss\\n        if self.class_weights is not None:\\n            cw = self.class_weights[targets]  # (B,)\\n            loss = loss * cw\\n        if self.reduction == 'mean':\\n            return loss.mean()\\n        elif self.reduction == 'sum':\\n            return loss.sum()\\n        return loss\\n\\n\\ndef effective_number_class_weights(labels: torch.Tensor, num_classes: int, beta: float = 0.9999) -> torch.Tensor:\\n    # labels: (N,) long\\n    counts = torch.bincount(labels, minlength=num_classes).float()\\n    eff_num = 1.0 - torch.pow(beta, counts)\\n    weights = (1.0 - beta) / eff_num.clamp_min(1e-8)\\n    weights = weights / weights.mean()\\n    return weights\\n\\n\\n# ------------------------------\\n# Training function\\n# ------------------------------\\n\\nfrom torch.optim import AdamW\\nfrom torch.optim.lr_scheduler import CosineAnnealingLR\\n\\n\\ndef _compute_channel_stats(X: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:\\n    # Expect (N,L,C) or (N,C,L). Return per-channel mean/std of shape (C,)\\n    if X.ndim != 3:\\n        raise ValueError('X must be 3D tensor (N,L,C) or (N,C,L)')\\n    if X.size(-1) in (1,2):\\n        # (N,L,C) -> for per-channel stats across N,L\\n        mean = X.mean(dim=(0, 1))\\n        std = X.std(dim=(0, 1))\\n    elif X.size(1) in (1,2):\\n        # (N,C,L)\\n        mean = X.mean(dim=(0, 2))\\n        std = X.std(dim=(0, 2))\\n    else:\\n        raise ValueError('Unable to infer channel dimension. Expect C=2 on either dim=1 or dim=2.')\\n    return mean.float(), std.float()\\n\\n\\ndef _adjust_heads(d_model: int, n_heads: int) -> int:\\n    # Ensure heads divides d_model\\n    if d_model % n_heads == 0:\\n        return n_heads\\n    # pick largest divisor <= n_heads\\n    divisors = [h for h in range(min(n_heads, d_model), 0, -1) if d_model % h == 0]\\n    return divisors[0] if divisors else 1\\n\\n\\ndef _build_model_with_cap(in_channels: int, num_classes: int, d_model: int, n_heads: int, num_layers: int, ffn_mult: int, dropout: float, conv_kernel: int, conv_stride: int, param_cap: int = 256_000) -> Tuple[nn.Module, Dict[str, Any]]:\\n    # Iteratively adjust hyperparams to fit param cap\\n    used = dict(d_model=int(d_model), n_heads=int(n_heads), num_layers=int(num_layers), ffn_mult=int(ffn_mult), dropout=float(dropout), conv_kernel=int(conv_kernel), conv_stride=int(conv_stride))\\n    used['n_heads'] = _adjust_heads(used['d_model'], used['n_heads'])\\n\\n    def make():\\n        return TinyTransformer1D(in_channels=in_channels, num_classes=num_classes, d_model=used['d_model'], n_heads=used['n_heads'], num_layers=used['num_layers'], ffn_mult=used['ffn_mult'], dropout=used['dropout'], conv_kernel=used['conv_kernel'], conv_stride=used['conv_stride'])\\n\\n    model = make()\\n    params = count_parameters(model)\\n    # Try reduce until under cap\\n    attempts = 0\\n    while params > param_cap and attempts < 20:\\n        # Reduce in priority: num_layers -> d_model -> ffn_mult\\n        if used['num_layers'] > 2:\\n            used['num_layers'] -= 1\\n        elif used['d_model'] > 56:\\n            used['d_model'] = max(56, used['d_model'] - 8)\\n            used['n_heads'] = _adjust_heads(used['d_model'], used['n_heads'])\\n        elif used['ffn_mult'] > 1:\\n            used['ffn_mult'] -= 1\\n        else:\\n            break\\n        model = make()\\n        params = count_parameters(model)\\n        attempts += 1\\n    if params > param_cap:\\n        raise ValueError(f\"Model still exceeds parameter cap: {params} > {param_cap}. Try reducing d_model/num_layers.\")\\n    return model, used\\n\\n\\ndef train_model(\\n    X_train: torch.Tensor,\\n    y_train: torch.Tensor,\\n    X_val: torch.Tensor,\\n    y_val: torch.Tensor,\\n    device: torch.device,\\n    # Optimization\\n    epochs: int = 20,\\n    batch_size: int = 256,\\n    lr: float = 1e-3,\\n    weight_decay: float = 1e-4,\\n    scheduler: str = 'cosine',\\n    warmup_epochs: int = 2,\\n    grad_clip_norm: float = 1.0,\\n    seed: int = 42,\\n    # Architecture\\n    d_model: int = 64,\\n    n_heads: int = 4,\\n    num_layers: int = 3,\\n    ffn_mult: int = 2,\\n    dropout: float = 0.1,\\n    conv_kernel: int = 7,\\n    conv_stride: int = 2,\\n    # Augmentation\\n    aug_gauss_std: float = 0.01,\\n    time_warp_max_stretch: float = 0.2,\\n    mixup_alpha: float = 0.2,\\n    # Loss\\n    focal_alpha: float = 0.25,\\n    focal_gamma: float = 2.0,\\n    class_balancing: str = 'effective',  # ['effective','inverse_freq','none']\\n    beta_cb: float = 0.9999,\\n    # Quantization\\n    quantization_bits: int = 8,\\n    quantize_weights: bool = True,\\n    quantize_activations: bool = False,\\n):\\n    \"\"\"\\n    Train Tiny-Transformer-1D classifier on ECG with focal loss + strong augmentation.\\n\\n    Inputs X_* tensors can be shaped (N, 1000, 2) or (N, 2, 1000).\\n    The function builds the model, trains with logging, evaluates each epoch,\\n    and returns a post-training-quantized model (<=256K params) plus metrics.\\n\\n    Returns: quantized_model, metrics_dict\\n    metrics_dict includes: train_losses, val_losses, val_acc, best_val_acc, used_hyperparams, param_count\\n    \"\"\"\\n    set_seed(int(seed))\\n    num_classes = 5\\n\\n    # Ensure tensors are float and on CPU for DataLoader; device used for model/train loop\\n    X_train = X_train.detach().to(torch.float32).cpu()\\n    X_val = X_val.detach().to(torch.float32).cpu()\\n    y_train = y_train.detach().long().cpu()\\n    y_val = y_val.detach().long().cpu()\\n\\n    # Compute per-channel mean/std on training set for normalization\\n    ch_mean, ch_std = _compute_channel_stats(X_train)\\n\\n    # Datasets & Loaders (pin_memory=False per requirement)\\n    train_ds = ECGDataset(X_train, y_train, ch_mean, ch_std, train=True, aug_gauss_std=aug_gauss_std, time_warp_max_stretch=time_warp_max_stretch)\\n    val_ds = ECGDataset(X_val, y_val, ch_mean, ch_std, train=False, aug_gauss_std=0.0, time_warp_max_stretch=0.0)\\n    train_loader = DataLoader(train_ds, batch_size=int(batch_size), shuffle=True, num_workers=0, pin_memory=False, drop_last=False)\\n    val_loader = DataLoader(val_ds, batch_size=int(batch_size), shuffle=False, num_workers=0, pin_memory=False, drop_last=False)\\n\\n    # Build model under parameter cap\\n    model, used_arch = _build_model_with_cap(in_channels=2, num_classes=num_classes, d_model=int(d_model), n_heads=int(n_heads), num_layers=int(num_layers), ffn_mult=int(ffn_mult), dropout=float(dropout), conv_kernel=int(conv_kernel), conv_stride=int(conv_stride), param_cap=256_000)\\n    model = model.to(device)\\n    total_params = count_parameters(model)\\n\\n    # Class weights for focal loss\\n    if class_balancing == 'effective':\\n        class_weights = effective_number_class_weights(y_train, num_classes=num_classes, beta=float(beta_cb))\\n    elif class_balancing == 'inverse_freq':\\n        counts = torch.bincount(y_train, minlength=num_classes).float()\\n        class_weights = (1.0 / counts.clamp_min(1.0)).to(torch.float32)\\n        class_weights = class_weights / class_weights.mean()\\n    else:\\n        class_weights = None\\n    if class_weights is not None:\\n        class_weights = class_weights.to(device)\\n\\n    criterion = FocalLossWithLogits(num_classes=num_classes, alpha=float(focal_alpha), gamma=float(focal_gamma), class_weights=class_weights)\\n    optimizer = AdamW(model.parameters(), lr=float(lr), weight_decay=float(weight_decay))\\n\\n    # Scheduler: cosine with optional warmup (linear)\\n    if scheduler == 'cosine':\\n        cosine = CosineAnnealingLR(optimizer, T_max=max(1, epochs - int(warmup_epochs)))\\n    else:\\n        cosine = None\\n    warmup_epochs = int(max(0, warmup_epochs))\\n\\n    history = {\\n        'train_losses': [],\\n        'val_losses': [],\\n        'val_acc': [],\\n        'best_val_acc': 0.0,\\n        'used_hyperparams': {\\n            'epochs': int(epochs),\\n            'batch_size': int(batch_size),\\n            'lr': float(lr),\\n            'weight_decay': float(weight_decay),\\n            'scheduler': scheduler,\\n            'warmup_epochs': int(warmup_epochs),\\n            'grad_clip_norm': float(grad_clip_norm),\\n            **used_arch,\\n            'aug_gauss_std': float(aug_gauss_std),\\n            'time_warp_max_stretch': float(time_warp_max_stretch),\\n            'mixup_alpha': float(mixup_alpha),\\n            'focal_alpha': float(focal_alpha),\\n            'focal_gamma': float(focal_gamma),\\n            'class_balancing': class_balancing,\\n            'beta_cb': float(beta_cb),\\n            'quantization_bits': int(quantization_bits),\\n            'quantize_weights': bool(quantize_weights),\\n            'quantize_activations': bool(quantize_activations),\\n        },\\n        'param_count': int(total_params),\\n    }\\n\\n    best_state = None\\n    best_val_acc = 0.0\\n\\n    # Training loop\\n    for epoch in range(1, int(epochs) + 1):\\n        model.train()\\n        train_loss_sum = 0.0\\n        n_train = 0\\n        # Warmup linear LR\\n        if scheduler == 'cosine' and epoch <= warmup_epochs:\\n            for g in optimizer.param_groups:\\n                g['lr'] = float(lr) * epoch / max(1, warmup_epochs)\\n\\n        for xb, yb in train_loader:\\n            xb = xb.to(device)  # (B,C,L) normalized\\n            yb = yb.to(device)\\n\\n            # Mixup\\n            if mixup_alpha and mixup_alpha > 0.0:\\n                lam = torch.distributions.Beta(mixup_alpha, mixup_alpha).sample().item()\\n                lam = max(lam, 1 - lam)  # symmetric\\n                indices = torch.randperm(xb.size(0), device=device)\\n                xb_mixed = lam * xb + (1 - lam) * xb[indices]\\n            else:\\n                lam = 1.0\\n                indices = None\\n                xb_mixed = xb\\n\\n            logits = model(xb_mixed)\\n            if indices is not None and lam < 1.0:\\n                loss_a = criterion(logits, yb)\\n                loss_b = criterion(logits, yb[indices])\\n                loss = lam * loss_a + (1 - lam) * loss_b\\n            else:\\n                loss = criterion(logits, yb)\\n\\n            optimizer.zero_grad(set_to_none=True)\\n            loss.backward()\\n            if grad_clip_norm and grad_clip_norm > 0:\\n                nn.utils.clip_grad_norm_(model.parameters(), max_norm=float(grad_clip_norm))\\n            optimizer.step()\\n\\n            bs = xb.size(0)\\n            train_loss_sum += loss.item() * bs\\n            n_train += bs\\n\\n        train_loss_epoch = train_loss_sum / max(1, n_train)\\n\\n        # Step cosine after warmup\\n        if scheduler == 'cosine' and epoch > warmup_epochs and cosine is not None:\\n            cosine.step()\\n\\n        # Validation\\n        model.eval()\\n        val_loss_sum = 0.0\\n        n_val = 0\\n        correct = 0\\n        with torch.no_grad():\\n            for xb, yb in val_loader:\\n                xb = xb.to(device)\\n                yb = yb.to(device)\\n                logits = model(xb)\\n                loss = criterion(logits, yb)\\n\\n                bs = xb.size(0)\\n                val_loss_sum += loss.item() * bs\\n                n_val += bs\\n                pred = logits.argmax(dim=1)\\n                correct += (pred == yb).sum().item()\\n\\n        val_loss_epoch = val_loss_sum / max(1, n_val)\\n        val_acc_epoch = correct / max(1, n_val)\\n\\n        history['train_losses'].append(train_loss_epoch)\\n        history['val_losses'].append(val_loss_epoch)\\n        history['val_acc'].append(val_acc_epoch)\\n\\n        print(f\"Epoch {epoch:03d}/{epochs} - train_loss: {train_loss_epoch:.5f} - val_loss: {val_loss_epoch:.5f} - val_acc: {val_acc_epoch:.4f}\")\\n\\n        if val_acc_epoch > best_val_acc:\\n            best_val_acc = val_acc_epoch\\n            best_state = copy.deepcopy(model.state_dict())\\n\\n    history['best_val_acc'] = float(best_val_acc)\\n\\n    # Load best weights before quantization\\n    if best_state is not None:\\n        model.load_state_dict(best_state)\\n\\n    # ------------------------------\\n    # Post-training quantization\\n    # ------------------------------\\n    model_cpu = copy.deepcopy(model).to('cpu')\\n\\n    # We implement dynamic quantization for Linear layers at 8-bit when quantize_weights=True.\\n    # Note: quantize_activations flag is not supported in this dynamic path and will be ignored.\\n    quantized_model = model_cpu\\n    if bool(quantize_weights) and int(quantization_bits) == 8:\\n        try:\\n            quantized_model = torch.ao.quantization.quantize_dynamic(\\n                model_cpu, {nn.Linear}, dtype=torch.qint8\\n            )\\n        except Exception as e:\\n            print(f\"Warning: Dynamic INT8 quantization failed, returning FP32 model. Error: {e}\")\\n            quantized_model = model_cpu\\n    elif int(quantization_bits) == 16 and bool(quantize_weights):\\n        # FP16 is not strictly quantization via torch.ao.quantization; on CPU support is limited.\\n        # We keep the model in FP32 on CPU to ensure portability.\\n        print(\"Info: FP16 requested; falling back to FP32 on CPU for broad operator support.\")\\n        quantized_model = model_cpu\\n    else:\\n        # 32-bit or quantization disabled\\n        quantized_model = model_cpu\\n\\n    return quantized_model, history\\n",
+  "bo_config": {
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 80
+    },
+    "batch_size": {
+      "default": 256,
+      "type": "Categorical",
+      "categories": [64, 128, 256, 512]
+    },
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-5,
+      "high": 5e-3,
+      "prior": "log-uniform"
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-6,
+      "high": 1e-2,
+      "prior": "log-uniform"
+    },
+    "d_model": {
+      "default": 64,
+      "type": "Integer",
+      "low": 56,
+      "high": 96
+    },
+    "n_heads": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [2, 4, 8]
+    },
+    "num_layers": {
+      "default": 3,
+      "type": "Integer",
+      "low": 2,
+      "high": 3
+    },
+    "ffn_mult": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 3
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.3
+    },
+    "conv_kernel": {
+      "default": 7,
+      "type": "Integer",
+      "low": 5,
+      "high": 9
+    },
+    "conv_stride": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 2
+    },
+    "aug_gauss_std": {
+      "default": 0.01,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.05
+    },
+    "time_warp_max_stretch": {
+      "default": 0.2,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.3
+    },
+    "mixup_alpha": {
+      "default": 0.2,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.4
+    },
+    "focal_alpha": {
+      "default": 0.25,
+      "type": "Real",
+      "low": 0.1,
+      "high": 0.75
+    },
+    "focal_gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 3.0
+    },
+    "class_balancing": {
+      "default": "effective",
+      "type": "Categorical",
+      "categories": ["effective", "inverse_freq", "none"]
+    },
+    "beta_cb": {
+      "default": 0.9999,
+      "type": "Real",
+      "low": 0.9,
+      "high": 0.99999
+    },
+    "scheduler": {
+      "default": "cosine",
+      "type": "Categorical",
+      "categories": ["cosine", "none"]
+   ,
+    "warmup_epochs": {
+      "default": 2,
+      "type": "Integer",
+      "low": 0,
+      "high": 5
+    },
+    "grad_clip_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 2.0
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [8, 16, 32]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [true, false]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [true, false]
+    }
+  },
+  "confidence": 0.86
+}
+2025-09-22 14:56:40,516 - ERROR - __main__ - Unhandled exception: ValueError: Failed to parse AI code recommendation: Missing required field: model_name
+Traceback (most recent call last):
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/_models/ai_code_generator.py", line 414, in _parse_recommendation
+    raise ValueError(f"Missing required field: {field}")
+ValueError: Missing required field: model_name
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/main.py", line 484, in <module>
+    processed_real_data = process_real_data()
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/main.py", line 342, in process_real_data
+    result = process_data_with_ai_enhanced_evaluation(
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/main.py", line 136, in process_data_with_ai_enhanced_evaluation
+    result = train_with_iterative_selection(data, labels, device=device, **kwargs)
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/main.py", line 85, in train_with_iterative_selection
+    best_model, pipeline_results = orchestrator.run_complete_pipeline(
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/evaluation/code_generation_pipeline_orchestrator.py", line 75, in run_complete_pipeline
+    code_rec = self._generate_training_code(input_shape, num_classes)
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/evaluation/code_generation_pipeline_orchestrator.py", line 137, in _generate_training_code
+    code_rec = generate_training_code_for_data(
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/_models/ai_code_generator.py", line 530, in generate_training_code_for_data
+    return ai_code_generator.generate_training_function(
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/_models/ai_code_generator.py", line 469, in generate_training_function
+    recommendation = self._parse_recommendation(response)
+  File "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/_models/ai_code_generator.py", line 442, in _parse_recommendation
+    raise ValueError(f"Failed to parse AI code recommendation: {e}")
+ValueError: Failed to parse AI code recommendation: Missing required field: model_name
+

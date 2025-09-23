@@ -18,6 +18,42 @@ from config import config
 
 logger = logging.getLogger(__name__)
 
+def calculate_model_storage_size_kb(model: torch.nn.Module,
+                                   quantization_bits: int = 32,
+                                   quantize_weights: bool = False,
+                                   quantize_activations: bool = False) -> float:
+    """
+    Calculate actual storage size in KB considering quantization.
+
+    Args:
+        model: PyTorch model
+        quantization_bits: Bits per parameter (8, 16, 32)
+        quantize_weights: Whether weights are quantized
+        quantize_activations: Whether activations are quantized (affects intermediate storage)
+
+    Returns:
+        Storage size in KB
+    """
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    if quantize_weights:
+        # Use specified quantization bits for weights
+        bytes_per_param = quantization_bits / 8
+    else:
+        # Default float32 = 4 bytes per parameter
+        bytes_per_param = 4
+
+    # Calculate base model storage
+    storage_bytes = total_params * bytes_per_param
+
+    # Add overhead for model structure (buffers, non-parameter data)
+    # Typically 5-10% overhead for metadata, buffers, etc.
+    overhead_factor = 1.1
+
+    storage_kb = (storage_bytes * overhead_factor) / 1024
+
+    return storage_kb
+
 class TrainingFunctionExecutor:
     """Executes training functions loaded from JSON files"""
     
@@ -197,16 +233,28 @@ class TrainingFunctionExecutor:
                 'hyperparameters_used': final_hyperparams
             })
             
-            # Validate model size (parameter count)
-            model_size = self._count_model_parameters(model)
-            logger.info(f"Model parameter count: {model_size:,}")
+            # Validate model storage size considering quantization
+            model_param_count = self._count_model_parameters(model)
 
-            # Add model size to metrics
+            # Extract quantization parameters from hyperparameters
+            quantization_bits = final_hyperparams.get('quantization_bits', 32)
+            quantize_weights = final_hyperparams.get('quantize_weights', False)
+            quantize_activations = final_hyperparams.get('quantize_activations', False)
+
+            # Calculate actual storage size in KB
+            storage_size_kb = calculate_model_storage_size_kb(
+                model, quantization_bits, quantize_weights, quantize_activations
+            )
+
+            logger.info(f"Model: {model_param_count:,} parameters, {storage_size_kb:.1f}KB storage")
+
+            # Add model metrics
             if isinstance(metrics, dict):
-                metrics['model_parameter_count'] = model_size
-                metrics['model_size_validation'] = 'PASS' if model_size <= 256_000 else 'FAIL'
-                if model_size > 256_000:
-                    logger.warning(f"Model size {model_size:,} exceeds 256K limit!")
+                metrics['model_parameter_count'] = model_param_count
+                metrics['model_storage_size_kb'] = storage_size_kb
+                metrics['model_size_validation'] = 'PASS' if storage_size_kb <= 256 else 'FAIL'
+                if storage_size_kb > 256:
+                    logger.warning(f"Model storage {storage_size_kb:.1f}KB exceeds 256KB limit!")
 
             logger.info(f"Training completed successfully: {dict(metrics) if metrics else 'None'}")
 
@@ -337,16 +385,16 @@ class BO_TrainingObjective:
         self.X_val = torch.tensor(X_val, dtype=torch.float32, device=self.device)
         self.y_val = torch.tensor(y_val, dtype=torch.long, device=self.device)
 
-    def _calculate_size_penalty(self, model_param_count: int) -> float:
-        """Calculate penalty for model size to encourage compression"""
-        target_size = 256_000  # 256K parameter limit
+    def _calculate_size_penalty(self, storage_size_kb: float) -> float:
+        """Calculate penalty for model storage size to encourage compression"""
+        target_storage_kb = 256.0  # 256KB storage limit
 
-        if model_param_count <= target_size:
+        if storage_size_kb <= target_storage_kb:
             # No penalty for models within size limit
             return 0.0
         else:
             # Heavy penalty for oversized models: penalty increases exponentially
-            excess_ratio = (model_param_count - target_size) / target_size
+            excess_ratio = (storage_size_kb - target_storage_kb) / target_storage_kb
             penalty = min(excess_ratio * 0.5, 0.8)  # Cap penalty at 0.8 to avoid negative objectives
             return penalty
 
@@ -391,15 +439,16 @@ class BO_TrainingObjective:
             else:
                 base_objective = 0.0
 
-            # Apply model size penalty for compression-aware optimization
-            model_param_count = metrics.get('model_parameter_count', 0)
-            size_penalty = self._calculate_size_penalty(model_param_count)
+            # Apply model storage size penalty for compression-aware optimization
+            storage_size_kb = metrics.get('model_storage_size_kb', 0.0)
+            size_penalty = self._calculate_size_penalty(storage_size_kb)
 
             # Final objective = performance - size_penalty
             objective_value = base_objective - size_penalty
 
+            model_param_count = metrics.get('model_parameter_count', 0)
             logger.info(f"BO Objective: base={base_objective:.4f}, size_penalty={size_penalty:.4f}, final={objective_value:.4f}")
-            logger.info(f"Model size: {model_param_count:,} parameters ({'PASS' if model_param_count <= 256_000 else 'FAIL'} 256K limit)")
+            logger.info(f"Model: {model_param_count:,} parameters, {storage_size_kb:.1f}KB ({'PASS' if storage_size_kb <= 256 else 'FAIL'} 256KB limit)")
             
             objective_time = time.time() - t0
             logger.info(f"[PROFILE] objective(train+eval) took {objective_time:.3f}s")

@@ -1,0 +1,68 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Scope and data fit: Your task is 5-class beat-level arrhythmia classification on MIT-BIH (AAMI N/S/V/F/Q) with sequence inputs shaped (1000, 2). MIT-BIH contains 48 half-hour, two-channel recordings at 360 Hz with ~110k annotated beats and is the de facto benchmark for ECG classification. Most recent works segment around R-peaks and follow the AAMI 5-class scheme, though evaluation protocols vary (random intra-patient vs. patient-wise splits), impacting comparability. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))\n\nRecent SOTA models: (1) Tiny Transformer (ViT-style for 1D ECG) achieves 98.97% accuracy on MIT-BIH 5-class with only ~6k parameters, ~0.97 MOPs/inference, 49 kB 8-bit model size, and 4.28 ms/inference (GAP9 MCU). It uses 198-sample beat windows plus pre/post-RR features; reported results are intra-patient. This is the strongest efficiency-oriented result with near-SOTA accuracy. ([arxiv.org](https://arxiv.org/abs/2402.10748)) (2) MB‑MHA‑TCN (multi-branch kernels + multi-head self-attention + dilated TCN) reaches 98.75% accuracy and 96.89% F1 on MIT-BIH (five-fold CV) and explicitly combats class imbalance via SMOTE/Tomek and focal loss; it emphasizes minority-class gains. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124)) (3) CAT‑Net (CNN + Attention + Transformer) reports 99.14% overall accuracy and 94.69% macro‑F1 on MIT-BIH 5-class (and 99.58% on INCART 3-class) using SMOTE‑Tomek; architecture is light-to-moderate complexity. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai)) (4) MambaCapsule (Mamba SSM + Capsule) claims 99.54% overall accuracy on AAMI 5-class, but per-class sensitivity shows weaknesses for S and F (e.g., S sensitivity ~72%, F ~75%), underscoring that overall accuracy can mask minority-class issues. ([arxiv.org](https://arxiv.org/html/2407.20893v1?utm_source=openai))\n\nTrends and caveats: Transformers and hybrid CNN–Transformer models dominate recent work, often outperforming pure CNN/RNN baselines, but reviews caution about class imbalance, computational cost, and interpretability. A 2025 systematic review highlights inconsistent adherence to AAMI and inter‑patient protocols and urges embedded feasibility reporting; a 2025 Frontiers paper likewise notes imbalance and compute as practical limitations for Transformer pipelines. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai)) A 2025 survey synthesizes Transformer/LLM advances for ECG and points to growing use of positional encoding, multi-beat context, and auxiliary rhythm features (e.g., RR intervals). ([link.springer.com](https://link.springer.com/article/10.1007/s10462-025-11259-x?utm_source=openai)) There is also a parallel stream on resource‑constrained deployment (quantized CNN/LSTM/Transformer) with >98% accuracy on MIT-BIH and millisecond‑level inference on microcontrollers. ([mdpi.com](https://www.mdpi.com/2079-9292/14/13/2654?utm_source=openai))\n\nFit to your data: Your (1000, 2) tensors can be handled by 1D models by (a) patchifying the 1000 samples into tokens for a Tiny‑Transformer encoder or (b) using multi-branch 1D convolutions/TCNs with attention. Both readily support two leads (channel dimension=2). Given your need to balance accuracy and efficiency in PyTorch, the Tiny Transformer stands out: it is simple to implement, parameter-efficient, and has demonstrated near‑SOTA MIT‑BIH performance, with practical deployment evidence; you can augment it with class-imbalance remedies (focal loss/weighted sampling) and an RR‑interval side channel. ([arxiv.org](https://arxiv.org/abs/2402.10748))",
+  "key_findings": [
+    "Ultra‑light Transformers can match heavy models on MIT-BIH: Tiny Transformer hits 98.97% 5‑class accuracy with ~6k parameters, ~0.97 MOPs/inference, and 4.28 ms/inference on GAP9 (8‑bit), showing excellent accuracy–efficiency tradeoffs. ([arxiv.org](https://arxiv.org/abs/2402.10748))",
+    "Attention + TCN hybrids improve minority classes: MB‑MHA‑TCN achieved 98.75% accuracy and 96.89% F1 (AAMI 5‑class, five‑fold CV) using multi‑branch convolutions, multi‑head attention, SMOTE/Tomek, and focal loss. ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))",
+    "Hybrid CNN‑Attention‑Transformer pipelines are competitive: CAT‑Net reported 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class (SMOTE‑Tomek), validating local–global feature fusion on heartbeat images/signals. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "High overall accuracy can hide minority‑class deficits: MambaCapsule reported 99.54% overall accuracy but much lower sensitivity for S (~72%) and F (~75%) classes, emphasizing the need to track macro‑F1 and per‑class metrics. ([arxiv.org](https://arxiv.org/html/2407.20893v1?utm_source=openai))",
+    "Evaluation protocol matters: Recent reviews show many works use intra‑patient splits; inter‑patient/AAMI‑compliant setups are rarer but essential for fair generalization claims and embedded feasibility reporting. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Tiny 1D Transformer with RR‑interval side input: Implement a ViT‑style 1D encoder in PyTorch for inputs of shape (B, 2, 1000) by patchifying the sequence (e.g., 25 tokens × 40 samples), projecting 2‑channel patches to d_model, adding absolute positional encodings, and using 2–3 lightweight encoder blocks (e.g., 4 heads, GELU MLP). Concatenate two scalar features (pre‑/post‑RR) before the classifier head. Train with focal loss or class‑weighted CE and minority‑aware sampling. This model closely matches data characteristics, has near‑SOTA MIT‑BIH results with tiny compute/params, and is straightforward to reproduce in PyTorch. ([arxiv.org](https://arxiv.org/abs/2402.10748))"
+  ],
+  "recent_papers": [
+    {
+      "title": "A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (IEEE TBCAS, 2024)",
+      "contribution": "ViT-style 1D classifier using ~6k params with RR-interval features; 98.97% accuracy on 5-class MIT-BIH; 0.09 mJ and 4.28 ms per inference on GAP9 after 8-bit quantization (intra-patient). ([arxiv.org](https://arxiv.org/abs/2402.10748))"
+    },
+    {
+      "title": "Accurate Arrhythmia Classification with Multi-Branch, Multi-Head Attention Temporal Convolutional Networks (Sensors, 2024)",
+      "contribution": "Multi-branch kernels + multi-head attention over TCN; explicit imbalance handling (SMOTE/Tomek, focal loss); 98.75% accuracy and 96.89% F1 on AAMI 5-class (five-fold CV). ([mdpi.com](https://www.mdpi.com/1424-8220/24/24/8124))"
+    },
+    {
+      "title": "CAT-Net: Convolution, Attention, and Transformer for Single-Lead ECG (Biomed. Signal Process. Control, 2024)",
+      "contribution": "Hybrid CNN–Attention–Transformer; SMOTE‑Tomek to boost minority classes; 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5-class; code/results described by the authors. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "MambaCapsule: Mamba SSM + Capsule Network for ECG (arXiv, 2024)",
+      "contribution": "Claims 99.54% total accuracy on AAMI 5-class; per-class analysis reveals lower sensitivity for S and F classes, highlighting the importance of macro-F1 and class-wise reporting. ([arxiv.org](https://arxiv.org/html/2407.20893v1?utm_source=openai))"
+    },
+    {
+      "title": "Transformer-based ECG classification for early detection of arrhythmias (Frontiers in Medicine, 2025)",
+      "contribution": "Transformer pipeline with discussion of practical constraints—class imbalance, computational burden, and interpretability—relevant to real-world deployment. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC12411431/))"
+    },
+    {
+      "title": "Resource-Constrained On-Chip AI Classifier for Beat-by-Beat Real-Time Arrhythmia Detection (Electronics, 2025)",
+      "contribution": "Quantized, lightweight LSTM-based classifier; ~98.09% overall accuracy on AAMI 5-class and real-time inference on ARM Cortex-M4, demonstrating embedded feasibility. ([mdpi.com](https://www.mdpi.com/2079-9292/14/13/2654?utm_source=openai))"
+    },
+    {
+      "title": "A survey of transformers and large language models for ECG diagnosis (AI Review, 2025)",
+      "contribution": "Survey of Transformer/LLM methods for ECG, covering representation design, positional encodings, and challenges (imbalance, generalization). ([link.springer.com](https://link.springer.com/article/10.1007/s10462-025-11259-x?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.72,
+  "timestamp": 1758572413,
+  "generated_time": "2025-09-22 15:20:13",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

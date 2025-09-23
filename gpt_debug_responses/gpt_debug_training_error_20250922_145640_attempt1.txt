@@ -1,0 +1,738 @@
+=== GPT DEBUG RESPONSE ===
+Timestamp: 20250922_145640
+Attempt: 1/4
+Error Type: training_error
+Original Error: Expecting ',' delimiter: line 144 column 2 (char 25810)
+=== RAW GPT RESPONSE ===
+{"bo_config":{"epochs":{"default":20,"type":"Integer","low":5,"high":80},"batch_size":{"default":256,"type":"Categorical","categories":[64,128,256,512]},"lr":{"default":0.001,"type":"Real","low":1e-5,"high":0.005,"prior":"log-uniform"},"weight_decay":{"default":0.0001,"type":"Real","low":1e-6,"high":0.01,"prior":"log-uniform"},"d_model":{"default":64,"type":"Integer","low":56,"high":96},"n_heads":{"default":4,"type":"Categorical","categories":[2,4,8]},"num_layers":{"default":3,"type":"Integer","low":2,"high":3},"ffn_mult":{"default":2,"type":"Integer","low":1,"high":3},"dropout":{"default":0.1,"type":"Real","low":0.0,"high":0.3},"conv_kernel":{"default":7,"type":"Integer","low":5,"high":9},"conv_stride":{"default":2,"type":"Integer","low":1,"high":2},"aug_gauss_std":{"default":0.01,"type":"Real","low":0.0,"high":0.05},"time_warp_max_stretch":{"default":0.2,"type":"Real","low":0.0,"high":0.3},"mixup_alpha":{"default":0.2,"type":"Real","low":0.0,"high":0.4},"focal_alpha":{"default":0.25,"type":"Real","low":0.1,"high":0.75},"focal_gamma":{"default":2.0,"type":"Real","low":1.0,"high":3.0},"class_balancing":{"default":"effective","type":"Categorical","categories":["effective","inverse_freq","none"]},"beta_cb":{"default":0.9999,"type":"Real","low":0.9,"high":0.99999},"scheduler":{"default":"cosine","type":"Categorical","categories":["cosine","none"]},"warmup_epochs":{"default":2,"type":"Integer","low":0,"high":5},"grad_clip_norm":{"default":1.0,"type":"Real","low":0.0,"high":2.0},"quantization_bits":{"default":8,"type":"Categorical","categories":[8,16,32]},"quantize_weights":{"default":true,"type":"Categorical","categories":[true,false]},"quantize_activations":{"default":false,"type":"Categorical","categories":[true,false]}}}
+=== PROMPT USED ===
+CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
+
+Analyze this PyTorch training error and provide either hyperparameter corrections OR fixed training code.
+
+PyTorch Version: 2.8.0+cu128
+Training Error: Expecting ',' delimiter: line 144 column 2 (char 25810)
+BO Config: {}
+Training Code: {
+  "model_name": "TinyTransformer1D-ECG-5cls",
+  "training_code": "import math\
+import copy\
+import random\
+from typing import Dict, Any, Tuple\
+\
+import torch\
+import torch.nn as nn\
+import torch.nn.functional as F\
+from torch.utils.data import Dataset, DataLoader\
+\
+# ------------------------------\
+# Utils\
+# ------------------------------\
+\
+def set_seed(seed: int):\
+    random.seed(seed)\
+    torch.manual_seed(seed)\
+    torch.cuda.manual_seed_all(seed)\
+    torch.backends.cudnn.deterministic = True\
+    torch.backends.cudnn.benchmark = False\
+\
+\
+def count_parameters(model: nn.Module) -> int:\
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)\
+\
+\
+# ------------------------------\
+# Data & Augmentations\
+# ------------------------------\
+class ECGDataset(Dataset):\
+    def __init__(self, X: torch.Tensor, y: torch.Tensor, mean: torch.Tensor, std: torch.Tensor,\
+                 train: bool = True, aug_gauss_std: float = 0.01, time_warp_max_stretch: float = 0.2):\
+        """\
+        X expected shape: (N, L, C) or (N, C, L) with L=1000, C=2\
+        y expected shape: (N,) with class indices in [0,4]\
+        mean, std: per-channel tensors (C,) computed from training set\
+        """\
+        super().__init__()\
+        assert X.ndim == 3, "X must be 3D (N, L, C) or (N, C, L)"\
+        self.X = X\
+        self.y = y.long() if y is not None else None\
+        self.train = train\
+        self.aug_gauss_std = float(aug_gauss_std)\
+        self.time_warp_max_stretch = float(time_warp_max_stretch)\
+        # mean/std expected for channels-first normalization during __getitem__\
+        self.mean = mean.view(-1, 1)  # (C,1)\
+        self.std = std.view(-1, 1).clamp_min(1e-6)  # (C,1)\
+\
+    def __len__(self):\
+        return self.X.size(0)\
+\
+    @staticmethod\
+    def _ensure_ch_first(x: torch.Tensor) -> torch.Tensor:\
+        # Accept (L,C) or (C,L); return (C,L)\
+        if x.size(0) in (1,2) and x.ndim == 2:\
+            # likely (C,L) already\
+            return x\
+        elif x.size(-1) in (1,2):\
+            # (L,C) -> (C,L)\
+            return x.transpose(0, 1)\
+        else:\
+            # default assume (C,L)\
+            return x\
+\
+    @staticmethod\
+    def _random_time_warp(sig: torch.Tensor, max_stretch: float) -> torch.Tensor:\
+        # sig: (C, L)\
+        if max_stretch <= 0.0:\
+            return sig\
+        C, L = sig.shape\
+        scale = 1.0 + (2.0 * torch.rand(1).item() - 1.0) * max_stretch  # [1-max, 1+max]\
+        new_L = max(1, int(round(L * scale)))\
+        sig_b = sig.unsqueeze(0)  # (1,C,L)\
+        sig_res = F.interpolate(sig_b, size=new_L, mode='linear', align_corners=False)  # (1,C,new_L)\
+        sig_res = sig_res.squeeze(0)  # (C,new_L)\
+        if new_L == L:\
+            return sig_res\
+        elif new_L > L:\
+            # center-crop to L\
+            start = (new_L - L) // 2\
+            return sig_res[:, start:start+L]\
+        else:\
+            # pad to L\
+            pad_left = (L - new_L) // 2\
+            pad_right = L - new_L - pad_left\
+            return F.pad(sig_res, (pad_left, pad_right), mode='constant', value=0.0)\
+\
+    def __getitem__(self, idx: int):\
+        x = self.X[idx]\
+        # Bring to (C,L)\
+        if x.ndim != 2:\
+            raise ValueError("Each sample must be 2D: (L,C) or (C,L)")\
+        x = self._ensure_ch_first(x)  # (C,L)\
+        x = x.to(torch.float32)\
+\
+        if self.train:\
+            # Time-warp with 50% probability\
+            if self.time_warp_max_stretch > 0 and random.random() < 0.5:\
+                x = self._random_time_warp(x, self.time_warp_max_stretch)\
+            # Gaussian noise\
+            if self.aug_gauss_std > 0:\
+                noise = torch.randn_like(x) * self.aug_gauss_std\
+                x = x + noise\
+\
+        # Normalize per-channel\
+        x = (x - self.mean) / self.std\
+\
+        if self.y is None:\
+            return x\
+        return x, self.y[idx]\
+\
+\
+# ------------------------------\
+# Model: Tiny Transformer 1D\
+# ------------------------------\
+class SinusoidalPositionalEncoding(nn.Module):\
+    def __init__(self, d_model: int, max_len: int = 5000):\
+        super().__init__()\
+        pe = torch.zeros(max_len, d_model)\
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)\
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))\
+        pe[:, 0::2] = torch.sin(position * div_term)\
+        pe[:, 1::2] = torch.cos(position * div_term)\
+        pe = pe.unsqueeze(0)  # (1, max_len, d_model)\
+        self.register_buffer('pe', pe, persistent=False)\
+\
+    def forward(self, x: torch.Tensor) -> torch.Tensor:\
+        # x: (B, T, C)\
+        T = x.size(1)\
+        return x + self.pe[:, :T, :]\
+\
+\
+class DepthwiseConvFFN(nn.Module):\
+    def __init__(self, d_model: int, ffn_mult: int = 2, dropout: float = 0.1):\
+        super().__init__()\
+        hidden = d_model * ffn_mult\
+        self.dw = nn.Conv1d(d_model, d_model, kernel_size=3, padding=1, groups=d_model, bias=True)\
+        self.pw1 = nn.Conv1d(d_model, hidden, kernel_size=1, bias=True)\
+        self.act = nn.GELU()\
+        self.drop = nn.Dropout(dropout)\
+        self.pw2 = nn.Conv1d(hidden, d_model, kernel_size=1, bias=True)\
+\
+    def forward(self, x: torch.Tensor) -> torch.Tensor:\
+        # x: (B, T, C)\
+        x_c = x.transpose(1, 2)  # (B,C,T)\
+        y = self.dw(x_c)\
+        y = self.pw1(y)\
+        y = self.act(y)\
+        y = self.drop(y)\
+        y = self.pw2(y)\
+        y = self.drop(y)\
+        return y.transpose(1, 2)  # (B,T,C)\
+\
+\
+class TransformerEncoderBlock(nn.Module):\
+    def __init__(self, d_model: int, n_heads: int, dropout: float, ffn_mult: int):\
+        super().__init__()\
+        self.mha = nn.MultiheadAttention(embed_dim=d_model, num_heads=n_heads, dropout=dropout, batch_first=True)\
+        self.drop1 = nn.Dropout(dropout)\
+        self.norm1 = nn.LayerNorm(d_model)\
+        self.ffn = DepthwiseConvFFN(d_model, ffn_mult=ffn_mult, dropout=dropout)\
+        self.drop2 = nn.Dropout(dropout)\
+        self.norm2 = nn.LayerNorm(d_model)\
+\
+    def forward(self, x: torch.Tensor) -> torch.Tensor:\
+        # x: (B,T,C)\
+        attn_out, _ = self.mha(x, x, x, need_weights=False)\
+        x = self.norm1(x + self.drop1(attn_out))\
+        ffn_out = self.ffn(x)\
+        x = self.norm2(x + self.drop2(ffn_out))\
+        return x\
+\
+\
+class TinyTransformer1D(nn.Module):\
+    def __init__(self, in_channels: int = 2, num_classes: int = 5, d_model: int = 64, n_heads: int = 4,\
+                 num_layers: int = 3, ffn_mult: int = 2, dropout: float = 0.1,\
+                 conv_kernel: int = 7, conv_stride: int = 2):\
+        super().__init__()\
+        padding = conv_kernel // 2\
+        self.stem = nn.Sequential(\
+            nn.Conv1d(in_channels, d_model, kernel_size=conv_kernel, stride=conv_stride, padding=padding, bias=False),\
+            nn.BatchNorm1d(d_model),\
+            nn.GELU(),\
+        )\
+        self.posenc = SinusoidalPositionalEncoding(d_model, max_len=5000)\
+        self.blocks = nn.ModuleList([TransformerEncoderBlock(d_model, n_heads, dropout, ffn_mult) for _ in range(num_layers)])\
+        self.head_norm = nn.LayerNorm(d_model)\
+        self.dropout = nn.Dropout(dropout)\
+        self.classifier = nn.Linear(d_model, num_classes)\
+\
+    def forward(self, x: torch.Tensor) -> torch.Tensor:\
+        # Accept x (B, C, L) or (B, L, C) with C=2\
+        if x.ndim != 3:\
+            raise ValueError("Input must be (B,C,L) or (B,L,C)")\
+        if x.size(1) in (1,2):\
+            # (B,C,L)\
+            x_c = x\
+        else:\
+            # (B,L,C)->(B,C,L)\
+            x_c = x.transpose(1, 2)\
+\
+        x_feat = self.stem(x_c)  # (B,d_model,L')\
+        x_feat = x_feat.transpose(1, 2)  # (B,L',d_model)\
+        x_feat = self.posenc(x_feat)\
+        for blk in self.blocks:\
+            x_feat = blk(x_feat)\
+        x_feat = self.head_norm(x_feat)\
+        x_feat = self.dropout(x_feat)\
+        # Global average pooling over time\
+        x_pool = x_feat.mean(dim=1)  # (B,d_model)\
+        logits = self.classifier(x_pool)  # (B,num_classes)\
+        return logits\
+\
+\
+# ------------------------------\
+# Loss: Class-balanced focal loss\
+# ------------------------------\
+class FocalLossWithLogits(nn.Module):\
+    def __init__(self, num_classes: int, alpha: float = 0.25, gamma: float = 2.0, class_weights: torch.Tensor = None, reduction: str = 'mean'):\
+        super().__init__()\
+        self.alpha = alpha\
+        self.gamma = gamma\
+        self.num_classes = num_classes\
+        self.reduction = reduction\
+        self.register_buffer('class_weights', class_weights if class_weights is not None else None, persistent=False)\
+\
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:\
+        # logits: (B,C), targets: (B,)\
+        log_probs = F.log_softmax(logits, dim=1)\
+        probs = log_probs.exp()\
+        # Gather per-sample log_prob and prob for the target class\
+        tgt_logp = log_probs.gather(1, targets.view(-1, 1)).squeeze(1)\
+        tgt_p = probs.gather(1, targets.view(-1, 1)).squeeze(1).clamp_min(1e-8)\
+        ce_loss = -tgt_logp\
+        focal_weight = self.alpha * (1 - tgt_p) ** self.gamma\
+        loss = focal_weight * ce_loss\
+        if self.class_weights is not None:\
+            cw = self.class_weights[targets]  # (B,)\
+            loss = loss * cw\
+        if self.reduction == 'mean':\
+            return loss.mean()\
+        elif self.reduction == 'sum':\
+            return loss.sum()\
+        return loss\
+\
+\
+def effective_number_class_weights(labels: torch.Tensor, num_classes: int, beta: float = 0.9999) -> torch.Tensor:\
+    # labels: (N,) long\
+    counts = torch.bincount(labels, minlength=num_classes).float()\
+    eff_num = 1.0 - torch.pow(beta, counts)\
+    weights = (1.0 - beta) / eff_num.clamp_min(1e-8)\
+    weights = weights / weights.mean()\
+    return weights\
+\
+\
+# ------------------------------\
+# Training function\
+# ------------------------------\
+\
+from torch.optim import AdamW\
+from torch.optim.lr_scheduler import CosineAnnealingLR\
+\
+\
+def _compute_channel_stats(X: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:\
+    # Expect (N,L,C) or (N,C,L). Return per-channel mean/std of shape (C,)\
+    if X.ndim != 3:\
+        raise ValueError('X must be 3D tensor (N,L,C) or (N,C,L)')\
+    if X.size(-1) in (1,2):\
+        # (N,L,C) -> for per-channel stats across N,L\
+        mean = X.mean(dim=(0, 1))\
+        std = X.std(dim=(0, 1))\
+    elif X.size(1) in (1,2):\
+        # (N,C,L)\
+        mean = X.mean(dim=(0, 2))\
+        std = X.std(dim=(0, 2))\
+    else:\
+        raise ValueError('Unable to infer channel dimension. Expect C=2 on either dim=1 or dim=2.')\
+    return mean.float(), std.float()\
+\
+\
+def _adjust_heads(d_model: int, n_heads: int) -> int:\
+    # Ensure heads divides d_model\
+    if d_model % n_heads == 0:\
+        return n_heads\
+    # pick largest divisor <= n_heads\
+    divisors = [h for h in range(min(n_heads, d_model), 0, -1) if d_model % h == 0]\
+    return divisors[0] if divisors else 1\
+\
+\
+def _build_model_with_cap(in_channels: int, num_classes: int, d_model: int, n_heads: int, num_layers: int, ffn_mult: int, dropout: float, conv_kernel: int, conv_stride: int, param_cap: int = 256_000) -> Tuple[nn.Module, Dict[str, Any]]:\
+    # Iteratively adjust hyperparams to fit param cap\
+    used = dict(d_model=int(d_model), n_heads=int(n_heads), num_layers=int(num_layers), ffn_mult=int(ffn_mult), dropout=float(dropout), conv_kernel=int(conv_kernel), conv_stride=int(conv_stride))\
+    used['n_heads'] = _adjust_heads(used['d_model'], used['n_heads'])\
+\
+    def make():\
+        return TinyTransformer1D(in_channels=in_channels, num_classes=num_classes, d_model=used['d_model'], n_heads=used['n_heads'], num_layers=used['num_layers'], ffn_mult=used['ffn_mult'], dropout=used['dropout'], conv_kernel=used['conv_kernel'], conv_stride=used['conv_stride'])\
+\
+    model = make()\
+    params = count_parameters(model)\
+    # Try reduce until under cap\
+    attempts = 0\
+    while params > param_cap and attempts < 20:\
+        # Reduce in priority: num_layers -> d_model -> ffn_mult\
+        if used['num_layers'] > 2:\
+            used['num_layers'] -= 1\
+        elif used['d_model'] > 56:\
+            used['d_model'] = max(56, used['d_model'] - 8)\
+            used['n_heads'] = _adjust_heads(used['d_model'], used['n_heads'])\
+        elif used['ffn_mult'] > 1:\
+            used['ffn_mult'] -= 1\
+        else:\
+            break\
+        model = make()\
+        params = count_parameters(model)\
+        attempts += 1\
+    if params > param_cap:\
+        raise ValueError(f"Model still exceeds parameter cap: {params} > {param_cap}. Try reducing d_model/num_layers.")\
+    return model, used\
+\
+\
+def train_model(\
+    X_train: torch.Tensor,\
+    y_train: torch.Tensor,\
+    X_val: torch.Tensor,\
+    y_val: torch.Tensor,\
+    device: torch.device,\
+    # Optimization\
+    epochs: int = 20,\
+    batch_size: int = 256,\
+    lr: float = 1e-3,\
+    weight_decay: float = 1e-4,\
+    scheduler: str = 'cosine',\
+    warmup_epochs: int = 2,\
+    grad_clip_norm: float = 1.0,\
+    seed: int = 42,\
+    # Architecture\
+    d_model: int = 64,\
+    n_heads: int = 4,\
+    num_layers: int = 3,\
+    ffn_mult: int = 2,\
+    dropout: float = 0.1,\
+    conv_kernel: int = 7,\
+    conv_stride: int = 2,\
+    # Augmentation\
+    aug_gauss_std: float = 0.01,\
+    time_warp_max_stretch: float = 0.2,\
+    mixup_alpha: float = 0.2,\
+    # Loss\
+    focal_alpha: float = 0.25,\
+    focal_gamma: float = 2.0,\
+    class_balancing: str = 'effective',  # ['effective','inverse_freq','none']\
+    beta_cb: float = 0.9999,\
+    # Quantization\
+    quantization_bits: int = 8,\
+    quantize_weights: bool = True,\
+    quantize_activations: bool = False,\
+):\
+    """\
+    Train Tiny-Transformer-1D classifier on ECG with focal loss + strong augmentation.\
+\
+    Inputs X_* tensors can be shaped (N, 1000, 2) or (N, 2, 1000).\
+    The function builds the model, trains with logging, evaluates each epoch,\
+    and returns a post-training-quantized model (<=256K params) plus metrics.\
+\
+    Returns: quantized_model, metrics_dict\
+    metrics_dict includes: train_losses, val_losses, val_acc, best_val_acc, used_hyperparams, param_count\
+    """\
+    set_seed(int(seed))\
+    num_classes = 5\
+\
+    # Ensure tensors are float and on CPU for DataLoader; device used for model/train loop\
+    X_train = X_train.detach().to(torch.float32).cpu()\
+    X_val = X_val.detach().to(torch.float32).cpu()\
+    y_train = y_train.detach().long().cpu()\
+    y_val = y_val.detach().long().cpu()\
+\
+    # Compute per-channel mean/std on training set for normalization\
+    ch_mean, ch_std = _compute_channel_stats(X_train)\
+\
+    # Datasets & Loaders (pin_memory=False per requirement)\
+    train_ds = ECGDataset(X_train, y_train, ch_mean, ch_std, train=True, aug_gauss_std=aug_gauss_std, time_warp_max_stretch=time_warp_max_stretch)\
+    val_ds = ECGDataset(X_val, y_val, ch_mean, ch_std, train=False, aug_gauss_std=0.0, time_warp_max_stretch=0.0)\
+    train_loader = DataLoader(train_ds, batch_size=int(batch_size), shuffle=True, num_workers=0, pin_memory=False, drop_last=False)\
+    val_loader = DataLoader(val_ds, batch_size=int(batch_size), shuffle=False, num_workers=0, pin_memory=False, drop_last=False)\
+\
+    # Build model under parameter cap\
+    model, used_arch = _build_model_with_cap(in_channels=2, num_classes=num_classes, d_model=int(d_model), n_heads=int(n_heads), num_layers=int(num_layers), ffn_mult=int(ffn_mult), dropout=float(dropout), conv_kernel=int(conv_kernel), conv_stride=int(conv_stride), param_cap=256_000)\
+    model = model.to(device)\
+    total_params = count_parameters(model)\
+\
+    # Class weights for focal loss\
+    if class_balancing == 'effective':\
+        class_weights = effective_number_class_weights(y_train, num_classes=num_classes, beta=float(beta_cb))\
+    elif class_balancing == 'inverse_freq':\
+        counts = torch.bincount(y_train, minlength=num_classes).float()\
+        class_weights = (1.0 / counts.clamp_min(1.0)).to(torch.float32)\
+        class_weights = class_weights / class_weights.mean()\
+    else:\
+        class_weights = None\
+    if class_weights is not None:\
+        class_weights = class_weights.to(device)\
+\
+    criterion = FocalLossWithLogits(num_classes=num_classes, alpha=float(focal_alpha), gamma=float(focal_gamma), class_weights=class_weights)\
+    optimizer = AdamW(model.parameters(), lr=float(lr), weight_decay=float(weight_decay))\
+\
+    # Scheduler: cosine with optional warmup (linear)\
+    if scheduler == 'cosine':\
+        cosine = CosineAnnealingLR(optimizer, T_max=max(1, epochs - int(warmup_epochs)))\
+    else:\
+        cosine = None\
+    warmup_epochs = int(max(0, warmup_epochs))\
+\
+    history = {\
+        'train_losses': [],\
+        'val_losses': [],\
+        'val_acc': [],\
+        'best_val_acc': 0.0,\
+        'used_hyperparams': {\
+            'epochs': int(epochs),\
+            'batch_size': int(batch_size),\
+            'lr': float(lr),\
+            'weight_decay': float(weight_decay),\
+            'scheduler': scheduler,\
+            'warmup_epochs': int(warmup_epochs),\
+            'grad_clip_norm': float(grad_clip_norm),\
+            **used_arch,\
+            'aug_gauss_std': float(aug_gauss_std),\
+            'time_warp_max_stretch': float(time_warp_max_stretch),\
+            'mixup_alpha': float(mixup_alpha),\
+            'focal_alpha': float(focal_alpha),\
+            'focal_gamma': float(focal_gamma),\
+            'class_balancing': class_balancing,\
+            'beta_cb': float(beta_cb),\
+            'quantization_bits': int(quantization_bits),\
+            'quantize_weights': bool(quantize_weights),\
+            'quantize_activations': bool(quantize_activations),\
+        },\
+        'param_count': int(total_params),\
+    }\
+\
+    best_state = None\
+    best_val_acc = 0.0\
+\
+    # Training loop\
+    for epoch in range(1, int(epochs) + 1):\
+        model.train()\
+        train_loss_sum = 0.0\
+        n_train = 0\
+        # Warmup linear LR\
+        if scheduler == 'cosine' and epoch <= warmup_epochs:\
+            for g in optimizer.param_groups:\
+                g['lr'] = float(lr) * epoch / max(1, warmup_epochs)\
+\
+        for xb, yb in train_loader:\
+            xb = xb.to(device)  # (B,C,L) normalized\
+            yb = yb.to(device)\
+\
+            # Mixup\
+            if mixup_alpha and mixup_alpha > 0.0:\
+                lam = torch.distributions.Beta(mixup_alpha, mixup_alpha).sample().item()\
+                lam = max(lam, 1 - lam)  # symmetric\
+                indices = torch.randperm(xb.size(0), device=device)\
+                xb_mixed = lam * xb + (1 - lam) * xb[indices]\
+            else:\
+                lam = 1.0\
+                indices = None\
+                xb_mixed = xb\
+\
+            logits = model(xb_mixed)\
+            if indices is not None and lam < 1.0:\
+                loss_a = criterion(logits, yb)\
+                loss_b = criterion(logits, yb[indices])\
+                loss = lam * loss_a + (1 - lam) * loss_b\
+            else:\
+                loss = criterion(logits, yb)\
+\
+            optimizer.zero_grad(set_to_none=True)\
+            loss.backward()\
+            if grad_clip_norm and grad_clip_norm > 0:\
+                nn.utils.clip_grad_norm_(model.parameters(), max_norm=float(grad_clip_norm))\
+            optimizer.step()\
+\
+            bs = xb.size(0)\
+            train_loss_sum += loss.item() * bs\
+            n_train += bs\
+\
+        train_loss_epoch = train_loss_sum / max(1, n_train)\
+\
+        # Step cosine after warmup\
+        if scheduler == 'cosine' and epoch > warmup_epochs and cosine is not None:\
+            cosine.step()\
+\
+        # Validation\
+        model.eval()\
+        val_loss_sum = 0.0\
+        n_val = 0\
+        correct = 0\
+        with torch.no_grad():\
+            for xb, yb in val_loader:\
+                xb = xb.to(device)\
+                yb = yb.to(device)\
+                logits = model(xb)\
+                loss = criterion(logits, yb)\
+\
+                bs = xb.size(0)\
+                val_loss_sum += loss.item() * bs\
+                n_val += bs\
+                pred = logits.argmax(dim=1)\
+                correct += (pred == yb).sum().item()\
+\
+        val_loss_epoch = val_loss_sum / max(1, n_val)\
+        val_acc_epoch = correct / max(1, n_val)\
+\
+        history['train_losses'].append(train_loss_epoch)\
+        history['val_losses'].append(val_loss_epoch)\
+        history['val_acc'].append(val_acc_epoch)\
+\
+        print(f"Epoch {epoch:03d}/{epochs} - train_loss: {train_loss_epoch:.5f} - val_loss: {val_loss_epoch:.5f} - val_acc: {val_acc_epoch:.4f}")\
+\
+        if val_acc_epoch > best_val_acc:\
+            best_val_acc = val_acc_epoch\
+            best_state = copy.deepcopy(model.state_dict())\
+\
+    history['best_val_acc'] = float(best_val_acc)\
+\
+    # Load best weights before quantization\
+    if best_state is not None:\
+        model.load_state_dict(best_state)\
+\
+    # ------------------------------\
+    # Post-training quantization\
+    # ------------------------------\
+    model_cpu = copy.deepcopy(model).to('cpu')\
+\
+    # We implement dynamic quantization for Linear layers at 8-bit when quantize_weights=True.\
+    # Note: quantize_activations flag is not supported in this dynamic path and will be ignored.\
+    quantized_model = model_cpu\
+    if bool(quantize_weights) and int(quantization_bits) == 8:\
+        try:\
+            quantized_model = torch.ao.quantization.quantize_dynamic(\
+                model_cpu, {nn.Linear}, dtype=torch.qint8\
+            )\
+        except Exception as e:\
+            print(f"Warning: Dynamic INT8 quantization failed, returning FP32 model. Error: {e}")\
+            quantized_model = model_cpu\
+    elif int(quantization_bits) == 16 and bool(quantize_weights):\
+        # FP16 is not strictly quantization via torch.ao.quantization; on CPU support is limited.\
+        # We keep the model in FP32 on CPU to ensure portability.\
+        print("Info: FP16 requested; falling back to FP32 on CPU for broad operator support.")\
+        quantized_model = model_cpu\
+    else:\
+        # 32-bit or quantization disabled\
+        quantized_model = model_cpu\
+\
+    return quantized_model, history\
+",
+  "bo_config": {
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 80
+    },
+    "batch_size": {
+      "default": 256,
+      "type": "Categorical",
+      "categories": [64, 128, 256, 512]
+    },
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-5,
+      "high": 5e-3,
+      "prior": "log-uniform"},
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-6,
+      "high": 1e-2,
+      "prior": "log-uniform"},
+    "d_model": {
+      "default": 64,
+      "type": "Integer",
+      "low": 56,
+      "high": 96
+    },
+    "n_heads": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [2, 4, 8]
+    },
+    "num_layers": {
+      "default": 3,
+      "type": "Integer",
+      "low": 2,
+      "high": 3
+    },
+    "ffn_mult": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 3
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.3
+    },
+    "conv_kernel": {
+      "default": 7,
+      "type": "Integer",
+      "low": 5,
+      "high": 9
+    },
+    "conv_stride": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 2
+    },
+    "aug_gauss_std": {
+      "default": 0.01,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.05
+    },
+    "time_warp_max_stretch": {
+      "default": 0.2,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.3
+    },
+    "mixup_alpha": {
+      "default": 0.2,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.4
+    },
+    "focal_alpha": {
+      "default": 0.25,
+      "type": "Real",
+      "low": 0.1,
+      "high": 0.75
+    },
+    "focal_gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 3.0
+    },
+    "class_balancing": {
+      "default": "effective",
+      "type": "Categorical",
+      "categories": ["effective", "inverse_freq", "none"]
+    },
+    "beta_cb": {
+      "default": 0.9999,
+      "type": "Real",
+      "low": 0.9,
+      "high": 0.99999
+    },
+    "scheduler": {
+      "default": "cosine",
+      "type": "Categorical",
+      "categories": ["cosine", "none"]
+   ,
+    "warmup_epochs": {
+      "default": 2,
+      "type": "Integer",
+      "low": 0,
+      "high": 5
+    },
+    "grad_clip_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 2.0
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [8, 16, 32]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [true, false]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [true, false]
+    }
+  },
+  "confidence": 0.86
+}
+
+RESPONSE OPTIONS:
+1. HYPERPARAMETER FIX: If error can be fixed by changing hyperparameters
+   Output: {"bo_config": {"param_name": new_value, "param2": new_value}}
+
+2. CODE FIX: If error requires fixing bugs in the training code
+   Output: {"training_code": "complete_corrected_training_function_code"}
+
+3. CANNOT FIX: If error cannot be resolved
+   Output: {}
+
+RESPONSE FORMAT REQUIREMENTS:
+1. Output ONLY a JSON object with either "bo_config" OR "training_code" field
+2. No explanations, no markdown, no ```json``` blocks
+3. Start with { and end with }
+4. For training_code fixes, include the COMPLETE corrected function
+
+CORRECTION EXAMPLES:
+- "Model has X parameters, exceeds 256k limit" → {"bo_config": {"d_model": 64, "hidden_size": 128}}
+- "'str' object has no attribute 'type'" → {"training_code": "def train_model(...):\n    # fixed implementation"}
+- "Quantization bug in code" → {"training_code": "corrected_training_function"}
+- "mat1 and mat2 shapes cannot be multiplied" → {"bo_config": {"d_model": 128}}
+
+OUTPUT ONLY THE JSON OBJECT:

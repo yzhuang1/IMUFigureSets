@@ -86,6 +86,7 @@ def main():
         "logs",
         "literature_reviews",
         "generated_training_functions",
+        "gpt_debug_responses"
     ]
 
     # Clear each folder

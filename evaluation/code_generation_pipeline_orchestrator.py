@@ -179,7 +179,8 @@ class CodeGenerationPipelineOrchestrator:
         logger.info(f"Running BO for generated training function: {code_rec.model_name}")
 
         # Try BO with potential restart on GPT fixes
-        max_restarts = 2  # Limit restarts to avoid infinite loops
+        from config import config
+        max_restarts = config.debug_chances  # Use DEBUG_CHANCES from .env
         for restart_attempt in range(max_restarts + 1):
             if restart_attempt > 0:
                 logger.info(f"🔄 BO Restart attempt {restart_attempt}/{max_restarts}")
@@ -505,7 +506,7 @@ class CodeGenerationPipelineOrchestrator:
             from pathlib import Path
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            subfolder_name = f"BO_{model_name}_{timestamp}"
+            subfolder_name = f"{timestamp}_BO_{model_name}"
             charts_subfolder = Path("charts") / subfolder_name
             charts_subfolder.mkdir(parents=True, exist_ok=True)
             
