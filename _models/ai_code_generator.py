@@ -100,6 +100,7 @@ Requirements:
   * fill in the real input you need for hyperparams and quantization parameters
   * IMPORTANT: For DataLoader, use pin_memory=False to avoid CUDA tensor pinning errors
   * CRITICAL: ALWAYS train on GPU - ensure ALL tensors (model, inputs, targets, losses) are on the same device (GPU). Use .to(device) consistently throughout training loop.
+  * DEVICE HANDLING: The 'device' parameter may be passed as either a string (e.g., "cuda") or torch.device object. ALWAYS convert it properly: device = torch.device(device) at the start of your function to avoid "'str' object has no attribute 'type'" errors.
 - Final model (after quantization) MUST have ≤ 256KB storage size.
 - Implement post-training quantization using torch.quantization / torch.ao.quantization.
   * Include hyperparams: quantization_bits ∈ {8, 16, 32}, quantize_weights ∈ {true,false}, quantize_activations ∈ {true,false}.
@@ -200,7 +201,7 @@ Response JSON example:
 
         debug_prompt = """CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
 
-Analyze this PyTorch training error and provide either hyperparameter corrections OR fixed training code.
+Analyze this PyTorch training error and provide either hyperparameter corrections, fixed training code, OR indicate if it's a system/environment issue.
 
 PyTorch Version: {}
 Training Error: {}
@@ -214,20 +215,27 @@ RESPONSE OPTIONS:
 2. CODE FIX: If error requires fixing bugs in the training code
    Output: {{"training_code": "complete_corrected_training_function_code"}}
 
-3. CANNOT FIX: If error cannot be resolved
+3. SYSTEM/ENVIRONMENT ISSUE: If error is due to system/environment issues (GPU memory, CUDA, dependencies, data issues, etc.) that cannot be fixed by code or hyperparameter changes
+   Output: {{"system_issue": "STOP_PIPELINE"}}
+
+4. CANNOT FIX: If error cannot be resolved for any other reason
    Output: {{}}
 
 RESPONSE FORMAT REQUIREMENTS:
-1. Output ONLY a JSON object with either "bo_config" OR "training_code" field
+1. Output ONLY a JSON object with either "bo_config", "training_code", "system_issue", or empty object
 2. No explanations, no markdown, no ```json``` blocks
 3. Start with {{ and end with }}
 4. For training_code fixes, include the COMPLETE corrected function
+5. For system_issue, use exactly "STOP_PIPELINE" as the value
 
 CORRECTION EXAMPLES:
 - "Model has X KB storage, exceeds 256KB limit" → {{"bo_config": {{"d_model": 64, "hidden_size": 128}}}}
 - "'str' object has no attribute 'type'" → {{"training_code": "def train_model(...):\\n    # fixed implementation"}}
 - "Quantization bug in code" → {{"training_code": "corrected_training_function"}}
 - "mat1 and mat2 shapes cannot be multiplied" → {{"bo_config": {{"d_model": 128}}}}
+- "CUDA out of memory" → {{"system_issue": "STOP_PIPELINE"}}
+- "No such file or directory" → {{"system_issue": "STOP_PIPELINE"}}
+- "ImportError: No module named" → {{"system_issue": "STOP_PIPELINE"}}
 
 OUTPUT ONLY THE JSON OBJECT:""".format(pytorch_version, error_message, bo_config or {}, decoded_training_code)
 

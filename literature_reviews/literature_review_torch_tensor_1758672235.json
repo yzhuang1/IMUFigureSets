@@ -1,0 +1,60 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Scope and data: We reviewed 2024–2025 work on multi-class ECG arrhythmia classification with emphasis on MIT‑BIH (AAMI 5-class: N, S, V, F, Q), sequence models that map well to 1D torch_tensors, and studies reporting empirical comparisons. Key recent directions include (a) hybrid CNN–Transformer architectures that capture local morphology and long-range rhythm, (b) lightweight Transformers optimized for edge inference, and (c) image-based time–frequency Transformers that trade simplicity of 1D processing for accuracy. Dataset practices: Results vary widely with split protocol; rigorous inter‑patient splits (e.g., AAMI DS1/DS2) are recommended to avoid patient overlap bias. ([github.com](https://github.com/mondejar/ecg-classification?utm_source=openai))\n1) Hybrid CNN–Transformer on MIT‑BIH: CAT‑Net combines 1D convolutions for local beat morphology with a Transformer encoder for global context and uses SMOTE‑Tomek to counter class imbalance. On 5‑class MIT‑BIH it reports 99.14% accuracy and 94.69% macro‑F1; on INCART 3‑class, 99.58% accuracy and 96.15% macro‑F1. This indicates strong average‑class performance rather than accuracy alone. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))\n2) Lightweight Transformer for deployment: A tiny ViT‑like 1D Transformer targeted to microcontrollers achieves 98.97% 5‑class accuracy on MIT‑BIH with only ~6k parameters and ~0.97 MOPs per inference; 8‑bit inference runs in ~4.28 ms at ~0.09 mJ on GAP9. The paper is explicit that its main results use intra‑patient splits; still, its efficiency and robustness-to-noise experiments (augmentation with motion artifacts) make it attractive when compute is constrained. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))\n3) Time–frequency Swin Transformer: Converting ECG to wavelet time–frequency maps and training a Swin Transformer yields 99.34% accuracy (intra‑patient) and 98.37% accuracy (inter‑patient) on MIT‑BIH, highlighting that rigorous inter‑patient evaluation typically lowers performance but remains competitive. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full))\n4) 2025 fusion/efficiency trend: rECGnition‑v2.0 fuses ECG with patient metadata via a Self‑Attentive Canonical Correlation layer inside a Dual‑Pathway Network and reports 98.07% accuracy and 98.05% F1 on 10‑class MIT‑BIH with 82.7M FLOPs per sample; AAMI‑style results on INCART/EDB also remain high. While not exactly the 5‑class setup, it signals a trend toward efficient attention blocks with explicit complexity reporting. ([arxiv.org](https://arxiv.org/abs/2502.16255))\n5) Surveys/meta-perspective: A 2024 survey centered on MIT‑BIH catalogs computational intelligence methods and underscores data scarcity, label imbalance, and the importance of standardized evaluation, supporting the community’s move toward architectures that balance accuracy and efficiency. ([mdpi.com](https://www.mdpi.com/2079-3197/12/2/21?utm_source=openai))\nDesign implications for (1000, 2) torch_tensors: Given two synchronous leads and 1000‑sample windows (~2.8 s at 360 Hz), 1D models can directly ingest shape (C=2, T=1000) via a convolutional patch embedding before Transformer blocks, preserving temporal resolution and permitting class‑balanced training. Channel‑wise attention can exploit multi‑lead inputs. For fair benchmarking, adopt the AAMI DS1/DS2 inter‑patient split, report macro‑F1 alongside accuracy, and consider cost metrics (params/FLOPs/latency). ([arxiv.org](https://arxiv.org/abs/2003.12009?utm_source=openai))",
+  "key_findings": [
+    "Hybrid CNN–Transformer (CAT‑Net) sets strong 5‑class MIT‑BIH baselines with 99.14% accuracy and 94.69% macro‑F1, explicitly addressing imbalance via SMOTE‑Tomek; architecture: 1D conv front‑end + Transformer encoder for context. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "A tiny 1D Transformer achieves 98.97% 5‑class accuracy with ~6k params and ~0.97 MOPs; 8‑bit inference is ~4.28 ms and ~0.09 mJ on GAP9, showing state‑of‑the‑art efficiency; main results are intra‑patient. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))",
+    "Swin Transformer on wavelet time–frequency images attains 98.37% inter‑patient and 99.34% intra‑patient accuracy on MIT‑BIH, quantifying the typical drop when moving to patient‑wise splits. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full))",
+    "Recent fusion models (e.g., rECGnition‑v2.0) report high F1 (≈98%) with explicit compute (≈82.7M FLOPs/sample), indicating a broader shift to attention‑based designs that report complexity, though tasks may differ from AAMI 5‑class. ([arxiv.org](https://arxiv.org/abs/2502.16255))",
+    "Inter‑patient DS1/DS2 split remains the standard for fair MIT‑BIH evaluation; multi‑lead/channel attention improves performance when more than one lead is used. ([github.com](https://github.com/mondejar/ecg-classification?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Tiny 1D Transformer (ViT‑style) with convolutional patch embedding for 2‑lead inputs: Accept (B, 2, 1000), apply 1D conv patchify (e.g., kernel/stride 16) → positional encoding → 2–4 lightweight Transformer encoder blocks (multi‑head self‑attention with small width, e.g., d_model 96–128, 2–4 heads) → class token or pooled output → 5‑class head; add optional channel‑wise attention (SE) before embedding to leverage both leads. Justification: near‑SOTA accuracy with extreme efficiency on MIT‑BIH (≈98.97% 5‑class) and proven low‑latency/energy deployment; architecture maps directly to PyTorch and to (1000, 2) segments, and can be trained with AAMI DS1/DS2 inter‑patient splits using class‑balanced/focal loss to protect minority classes. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))"
+  ],
+  "recent_papers": [
+    {
+      "title": "CAT‑Net: Convolution, attention, and transformer based network for single‑lead ECG arrhythmia classification (BSPC, 2024)",
+      "contribution": "Hybrid 1D CNN + Transformer with imbalance handling (SMOTE‑Tomek); 5‑class MIT‑BIH results: 99.14% accuracy, 94.69% macro‑F1; supports generalization across datasets. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (IEEE TBCAS/arXiv, 2024)",
+      "contribution": "~6k‑parameter ViT‑like 1D Transformer; 98.97% 5‑class MIT‑BIH; ~0.97 MOPs; 8‑bit inference in ~4.28 ms, ~0.09 mJ on GAP9; strong efficiency with intra‑patient protocol. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))"
+    },
+    {
+      "title": "A novel method of Swin Transformer with time–frequency characteristics for ECG‑based arrhythmia detection (Frontiers in Cardiovascular Medicine, 2024)",
+      "contribution": "Wavelet time–frequency inputs + Swin Transformer; 99.34% (intra‑patient) and 98.37% (inter‑patient) accuracy on MIT‑BIH; quantifies generalization gap under patient‑wise evaluation. ([frontiersin.org](https://www.frontiersin.org/journals/cardiovascular-medicine/articles/10.3389/fcvm.2024.1401143/full))"
+    },
+    {
+      "title": "rECGnition_v2.0: Self‑Attentive Canonical Fusion of ECG and Patient Data (arXiv, 2025)",
+      "contribution": "Dual‑pathway network with self‑attentive canonical fusion; 98.07% accuracy/98.05% F1 on 10‑class MIT‑BIH; reports ~82.7M FLOPs per sample; underscores trend toward efficient attention with compute reporting. ([arxiv.org](https://arxiv.org/abs/2502.16255))"
+    },
+    {
+      "title": "Unraveling Arrhythmias with Graph‑Based Analysis: A Survey of the MIT‑BIH Database (Computation, 2024)",
+      "contribution": "Survey emphasizing standardized evaluation, data imbalance, and methodology considerations specific to MIT‑BIH. ([mdpi.com](https://www.mdpi.com/2079-3197/12/2/21?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.78,
+  "timestamp": 1758672235,
+  "generated_time": "2025-09-23 19:03:55",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

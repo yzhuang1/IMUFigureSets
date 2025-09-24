@@ -273,6 +273,22 @@ class TrainingFunctionExecutor:
                 )
                 if corrections and corrections != "{}":
                     logger.info(f"GPT suggested corrections: {corrections}")
+
+                    # Check if GPT identified this as a system issue that should stop the pipeline
+                    try:
+                        import json
+                        correction_data = json.loads(corrections)
+                        if "system_issue" in correction_data and correction_data["system_issue"] == "STOP_PIPELINE":
+                            logger.error("GPT identified this as a system/environment issue that cannot be fixed by code or hyperparameter changes")
+                            logger.error("Stopping pipeline as requested by GPT analysis")
+                            raise SystemExit("Pipeline stopped: GPT identified unfixable system/environment issue")
+                    except json.JSONDecodeError:
+                        logger.warning("Could not parse GPT corrections JSON for system issue check")
+                    except SystemExit:
+                        raise  # Re-raise SystemExit to stop the pipeline
+                    except Exception as check_e:
+                        logger.warning(f"Error checking for system issue in corrections: {check_e}")
+
                     # Store corrections for BO to use
                     try:
                         from error_monitor import _global_terminator
