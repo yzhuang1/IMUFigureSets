@@ -1,0 +1,11 @@
+2025-09-24 03:57:49,450 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti Laptop GPU
+2025-09-24 03:57:50,184 - INFO - __main__ - Logging system initialized successfully
+2025-09-24 03:57:50,184 - INFO - __main__ - Starting AI-Enhanced Machine Learning Pipeline
+2025-09-24 03:57:50,185 - ERROR - __main__ - Unhandled exception: UnboundLocalError: local variable 'config' referenced before assignment
+Traceback (most recent call last):
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 485, in <module>
+    processed_real_data = process_real_data()
+  File "D:\_A\GPT_research\ml_pipeline\main.py", line 297, in process_real_data
+    print(f"PROCESSING REAL DATA FROM data/{config.data_folder}/ DIRECTORY")
+UnboundLocalError: local variable 'config' referenced before assignment
+

@@ -15,6 +15,7 @@ from pathlib import Path
 from adapters.universal_converter import convert_to_torch_dataset
 from evaluation.code_generation_pipeline_orchestrator import CodeGenerationPipelineOrchestrator
 # from visualization import create_charts_folder  # No longer needed - charts handled by orchestrator
+from config import config
 
 # Setup centralized logging
 from logging_config import get_pipeline_logger, get_log_file_path
@@ -139,16 +140,16 @@ def process_data_with_ai_enhanced_evaluation(data, labels=None, **kwargs):
 
 def load_data_from_files():
     """
-    Load data from files in the data/ directory
+    Load data from files in the data/{config.data_folder}/ directory
     Supports CSV, NPY, and other common formats
     
     Returns:
         tuple: (X, y, data_info) or None if no data found
     """
-    data_dir = Path("data")
+    data_dir = Path("data") / config.data_folder
     
     if not data_dir.exists():
-        logger.warning("data/ directory not found")
+        logger.warning(f"data/{config.data_folder}/ directory not found")
         return None
     
     # Look for common data files
@@ -157,7 +158,7 @@ def load_data_from_files():
         data_files.extend(list(data_dir.glob(ext)))
     
     if not data_files:
-        logger.warning("No data files found in data/ directory")
+        logger.warning(f"No data files found in data/{config.data_folder}/ directory")
         logger.info("Supported formats: CSV, NPY, NPZ, PKL, JSON")
         logger.info("Expected structure: features + target column (CSV) or X.npy + y.npy")
         return None
@@ -290,23 +291,23 @@ def load_data_from_files():
     return None
 
 def process_real_data():
-    """Process real data from data/ directory"""
+    """Process real data from data/{config.data_folder}/ directory"""
 
     print("\n" + "=" * 80)
-    print("PROCESSING REAL DATA FROM data/ DIRECTORY")
+    print(f"PROCESSING REAL DATA FROM data/{config.data_folder}/ DIRECTORY")
     print("=" * 80)
-    logger.info("Starting real data processing from data/ directory")
+    logger.info(f"Starting real data processing from data/{config.data_folder}/ directory")
     
     # Try to load data
     data_result = load_data_from_files()
     
     if data_result is None:
         print("\n[NOTICE] No data files found or could not load data")
-        print("\nTo use your own data, place files in the data/ directory:")
+        print(f"\nTo use your own data, place files in the data/{config.data_folder}/ directory:")
         print("  - CSV: dataset.csv (with target column named 'target', 'label', etc.)")
         print("  - NumPy: X.npy + y.npy (or features.npy + labels.npy)")
         print("  - NPZ: data.npz (containing 'X' and 'y' arrays)")
-        logger.info("No data files found in data/ directory")
+        logger.info(f"No data files found in data/{config.data_folder}/ directory")
         return False
     
     X, y, data_info = data_result
@@ -324,7 +325,6 @@ def process_real_data():
     logger.info(f"Data loaded successfully: {data_info['source']}, shape: {data_info['shape']}, device: {device}")
     
     # Check OpenAI API key
-    from config import config
     if not config.is_openai_configured():
         print("\n[NOTICE] OpenAI API key required for AI-enhanced processing!")
         logger.warning("OpenAI API key not configured")
@@ -480,19 +480,19 @@ if __name__ == "__main__":
     print("=" * 80)
     logger.info("Starting AI-Enhanced Machine Learning Pipeline")
 
-    # Process real data from data/ directory
+    # Process real data from data/{config.data_folder}/ directory
     processed_real_data = process_real_data()
     
     # If no real data found, show instructions
     if not processed_real_data:
-        print("\n[NOTICE] No data files found in data/ directory")
-        print("\n📁 To use the AI-enhanced ML pipeline, add your data files to the data/ directory:")
+        print(f"\n[NOTICE] No data files found in data/{config.data_folder}/ directory")
+        print(f"\n📁 To use the AI-enhanced ML pipeline, add your data files to the data/{config.data_folder}/ directory:")
         print("  • CSV: dataset.csv (with target column named 'target', 'label', 'class', 'y', or 'output')")
         print("  • NumPy: X.npy + y.npy (or features.npy + labels.npy)")
         print("  • NPZ: data.npz (containing 'X' and 'y' arrays)")
         print("\n🚀 The pipeline will automatically:")
         print("  1. Load and analyze your data → 2. Generate AI training code → 3. Optimize hyperparameters")
         print("  4. Execute training → 5. Evaluate performance → 6. Generate charts and summaries")
-        print("\n📂 Example: data/my_dataset.csv  or  data/X.npy + data/y.npy")
+        print(f"\n📂 Example: data/{config.data_folder}/my_dataset.csv  or  data/{config.data_folder}/X.npy + data/{config.data_folder}/y.npy")
 
         logger.info("Main execution completed - no data files found")

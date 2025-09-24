@@ -444,18 +444,19 @@ class CodeGenerationPipelineOrchestrator:
         # Get best hyperparameters from BO
         best_params = bo_results['best_params']
         
-        # Execute training with optimized parameters
+        # Execute training with optimized parameters using test set for final evaluation
         logger.info(f"Executing final training with optimized params: {dict(best_params) if best_params else 'None'}")
-        
+        logger.info("Using test set for final training evaluation")
+
         trained_model, training_metrics = training_executor.execute_training_function(
             training_data,
             X_train_final, y_train_final,
-            X_val_final, y_val_final,
+            X_test_tensor, y_test_tensor,  # Use test set instead of validation set
             device=device,
             **best_params
         )
         
-        # Use final validation metrics from training instead of separate evaluation
+        # Use final test metrics from training instead of separate evaluation
         # This avoids preprocessing mismatches since training function handles its own evaluation
         # Extract performance metrics using same logic as BO
         val_f1 = training_metrics.get('val_f1', [])
@@ -478,7 +479,7 @@ class CodeGenerationPipelineOrchestrator:
             'acc': performance_metric,
             'macro_f1': training_metrics.get('macro_f1', None)
         }
-        logger.info("Using final validation metrics from training (avoids preprocessing mismatch)")
+        logger.info("Using final test metrics from training (avoids preprocessing mismatch)")
         
         logger.info(f"Final test metrics: {dict(final_metrics) if final_metrics else 'None'}")
         
