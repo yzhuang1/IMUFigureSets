@@ -14,6 +14,7 @@ import time
 import argparse
 from pathlib import Path
 from sklearn.metrics import confusion_matrix, accuracy_score
+from torch.utils.data import Dataset, DataLoader
 import sys
 import os
 
@@ -40,14 +41,46 @@ def get_model_size_mb(model):
     return size_mb
 
 
-def measure_inference_latency(model, x_val, device, num_runs=100, warmup_runs=10):
-    """Measure inference latency with warmup runs."""
+class ValidationDataset(Dataset):
+    """Dataset wrapper for validation data, matching training function's approach."""
+    def __init__(self, X: torch.Tensor, y: torch.Tensor):
+        assert isinstance(X, torch.Tensor) and isinstance(y, torch.Tensor)
+        self.X = X
+        self.y = y
+        assert self.X.shape[0] == self.y.shape[0]
+
+    def __len__(self):
+        return self.X.shape[0]
+
+    def __getitem__(self, idx):
+        x = self.X[idx]
+        # Handle shape normalization: accept (seq, ch) or (ch, seq)
+        if x.dim() == 2:
+            # Assume seq_len is typically larger than channels
+            if x.shape[0] > x.shape[1]:  # (seq, ch) format
+                x = x.transpose(0, 1)  # Convert to (ch, seq)
+        x = x.to(dtype=torch.float32)
+        y = self.y[idx].to(dtype=torch.long)
+        return x, y
+
+
+def measure_inference_latency(model, val_loader, device, num_runs=100, warmup_runs=10):
+    """Measure inference latency with warmup runs using batched data."""
     model.eval()
+
+    # Get a single batch for consistent latency measurement
+    sample_batch = None
+    for xb, _ in val_loader:
+        sample_batch = xb.to(device, non_blocking=False)
+        break
+
+    if sample_batch is None:
+        raise ValueError("Validation loader is empty")
 
     # Warmup runs
     with torch.no_grad():
         for _ in range(warmup_runs):
-            _ = model(x_val)
+            _ = model(sample_batch)
 
     # Actual measurement
     latencies = []
@@ -57,7 +90,7 @@ def measure_inference_latency(model, x_val, device, num_runs=100, warmup_runs=10
                 torch.cuda.synchronize()
 
             start_time = time.perf_counter()
-            _ = model(x_val)
+            _ = model(sample_batch)
 
             if device.type == 'cuda':
                 torch.cuda.synchronize()
@@ -77,39 +110,49 @@ def measure_inference_latency(model, x_val, device, num_runs=100, warmup_runs=10
     }
 
 
-def compute_confusion_matrix(model, x_val, y_val, device):
-    """Compute confusion matrix and accuracy."""
+def compute_confusion_matrix(model, val_loader, device):
+    """Compute confusion matrix and accuracy using batched inference."""
     model.eval()
 
+    all_predictions = []
+    all_labels = []
+
     with torch.no_grad():
-        outputs = model(x_val)
+        for xb, yb in val_loader:
+            xb = xb.to(device, non_blocking=False)
+            yb = yb.to(device, non_blocking=False)
 
-        # Handle different output formats
-        if isinstance(outputs, torch.Tensor):
-            if outputs.dim() == 1:  # Binary classification or regression
-                predictions = (outputs > 0.5).cpu().numpy().astype(int)
-            else:  # Multi-class classification
-                predictions = torch.argmax(outputs, dim=1).cpu().numpy()
-        else:
-            raise ValueError(f"Unexpected model output type: {type(outputs)}")
+            outputs = model(xb)
 
-    y_true = y_val.cpu().numpy()
-    if y_true.dim() > 1:
-        y_true = y_true.squeeze()
+            # Handle different output formats
+            if isinstance(outputs, torch.Tensor):
+                if outputs.dim() == 1:  # Binary classification or regression
+                    predictions = (outputs > 0.5).cpu().numpy().astype(int)
+                else:  # Multi-class classification
+                    predictions = torch.argmax(outputs, dim=1).cpu().numpy()
+            else:
+                raise ValueError(f"Unexpected model output type: {type(outputs)}")
+
+            all_predictions.extend(predictions)
+            all_labels.extend(yb.cpu().numpy())
+
+    # Convert to numpy arrays
+    all_predictions = np.array(all_predictions)
+    all_labels = np.array(all_labels)
 
     # Compute metrics
-    accuracy = accuracy_score(y_true, predictions)
-    cm = confusion_matrix(y_true, predictions)
+    accuracy = accuracy_score(all_labels, all_predictions)
+    cm = confusion_matrix(all_labels, all_predictions)
 
     return {
         'accuracy': float(accuracy),
         'confusion_matrix': cm.tolist(),
-        'predictions': predictions.tolist(),
-        'true_labels': y_true.tolist()
+        'predictions': all_predictions.tolist(),
+        'true_labels': all_labels.tolist()
     }
 
 
-def analyze_model(model_path, x_val, y_val, output_dir='graph/data'):
+def analyze_model(model_path, x_val, y_val, output_dir='graph/data', batch_size=128):
     """
     Main analysis function.
 
@@ -118,6 +161,7 @@ def analyze_model(model_path, x_val, y_val, output_dir='graph/data'):
         x_val: Validation input tensor
         y_val: Validation labels tensor
         output_dir: Directory to save analysis results
+        batch_size: Batch size for validation DataLoader (default: 128)
     """
     # Setup
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -161,8 +205,12 @@ def analyze_model(model_path, x_val, y_val, output_dir='graph/data'):
         return None
 
     model.to(device)
-    x_val = x_val.to(device)
-    y_val = y_val.to(device)
+
+    # Create validation dataset and dataloader (matching training function approach)
+    print("Creating validation DataLoader...")
+    val_dataset = ValidationDataset(x_val, y_val)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                           num_workers=0, pin_memory=False)
 
     # Extract model name from path
     model_name = Path(model_path).stem
@@ -177,11 +225,11 @@ def analyze_model(model_path, x_val, y_val, output_dir='graph/data'):
 
     # 2. Inference Latency
     print("2. Measuring inference latency...")
-    latency_stats = measure_inference_latency(model, x_val, device)
+    latency_stats = measure_inference_latency(model, val_loader, device)
 
     # 3. Confusion Matrix and Accuracy
     print("3. Computing confusion matrix and accuracy...")
-    classification_metrics = compute_confusion_matrix(model, x_val, y_val, device)
+    classification_metrics = compute_confusion_matrix(model, val_loader, device)
 
     # Compile results
     results = {
@@ -252,6 +300,8 @@ def main():
                        help='Path to validation labels tensor (.pt or .pth)')
     parser.add_argument('--output_dir', type=str, default='graph/data',
                        help='Directory to save analysis results (default: graph/data)')
+    parser.add_argument('--batch_size', type=int, default=128,
+                       help='Batch size for validation DataLoader (default: 128)')
 
     args = parser.parse_args()
 
@@ -261,7 +311,7 @@ def main():
     y_val = torch.load(args.y_val)
 
     # Run analysis
-    analyze_model(args.model_path, x_val, y_val, args.output_dir)
+    analyze_model(args.model_path, x_val, y_val, args.output_dir, args.batch_size)
 
 
 if __name__ == '__main__':

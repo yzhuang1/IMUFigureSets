@@ -467,7 +467,17 @@ class CodeGenerationPipelineOrchestrator:
         y_val_final = val_dataset.y
         X_test_tensor = test_dataset.X
         y_test_tensor = test_dataset.y
-        
+
+        # Save test tensors and model to subfolder
+        from pathlib import Path
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_name = training_executor.load_training_function(json_filepath)['model_name']
+        subfolder_name = f"{timestamp}_{model_name}"
+        trained_models_dir = Path("trained_models") / subfolder_name
+        trained_models_dir.mkdir(parents=True, exist_ok=True)
+
         # Load training function
         training_data = training_executor.load_training_function(json_filepath)
         
@@ -510,9 +520,20 @@ class CodeGenerationPipelineOrchestrator:
             'macro_f1': training_metrics.get('macro_f1', None)
         }
         logger.info("Using final test metrics from training (avoids preprocessing mismatch)")
-        
+
         logger.info(f"Final test metrics: {dict(final_metrics) if final_metrics else 'None'}")
-        
+
+        # Save model and test tensors
+        model_path = trained_models_dir / "model.pt"
+        X_test_path = trained_models_dir / "X_test.pt"
+        y_test_path = trained_models_dir / "y_test.pt"
+
+        torch.save(trained_model.state_dict(), model_path)
+        torch.save(X_test_tensor, X_test_path)
+        torch.save(y_test_tensor, y_test_path)
+
+        logger.info(f"Model and test tensors saved to: {trained_models_dir}")
+
         results = {
             'model': trained_model,
             'model_name': training_data['model_name'],
