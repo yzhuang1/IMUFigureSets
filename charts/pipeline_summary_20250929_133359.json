@@ -1,0 +1,49 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9731376767158508,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "CAT-Net Tiny (1D CNN + Channel Attention + Transformer)",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_CAT-Net_Tiny__1D_CNN_+_Channel_Attention_+_Transformer_1759168527.json",
+      "bo_best_params": {
+        "lr": 0.002441222965902701,
+        "batch_size": "128",
+        "epochs": "40",
+        "weight_decay": 0.0007260605286391634,
+        "dropout": 0.1479640273233849,
+        "stem_channels": "29",
+        "embed_channels": "32",
+        "se_reduction": "2",
+        "d_model": "29",
+        "num_heads": "2",
+        "num_layers": "1",
+        "patch_size": "10",
+        "class_weighting": "none",
+        "label_smoothing": 0.07401352981561041,
+        "grad_clip": 0.48441322903602624,
+        "scheduler": "none",
+        "quantization_bits": "8",
+        "quantize_weights": "True",
+        "quantize_activations": "True",
+        "calibrate_batches": "9"
+      },
+      "bo_best_score": 0.9662949442863464,
+      "final_metrics": {
+        "acc": 0.9731376767158508,
+        "macro_f1": null
+      },
+      "performance_score": 0.9731376767158508,
+      "confidence": 0.86
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "CAT-Net Tiny (1D CNN + Channel Attention + Transformer)",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_CAT-Net Tiny (1D CNN + Channel Attention + Transformer)_20250929_133359.pth"
+}

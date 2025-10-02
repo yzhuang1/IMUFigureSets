@@ -1,0 +1,58 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem framing: You aim to classify ECG sequences from the MIT-BIH Arrhythmia Database into 5 classes (AAMI EC57 superclasses N, S, V, F, Q) using torch tensors shaped (1000, 2), i.e., 1000 time steps with 2 leads per sample. MIT-BIH provides two-channel, 360 Hz ambulatory ECG annotated by cardiologists and is the standard benchmark for arrhythmia classification; inter-patient evaluation splits are recommended to avoid patient leakage. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))\n\nRecent state-of-the-art (2024–2025): Methods trend toward hybrid 1D CNN + Transformer encoders for sequence modeling, often with class-imbalance handling and data augmentation. Notable recent peer-reviewed works include CAT-Net (CNN + multi-head attention + Transformer) reporting 99.14% overall accuracy and 94.69% macro-F1 on MIT-BIH 5-class with SMOTE-Tomek balancing; the paper also validates on INCART to check cross-dataset robustness. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai)) A PyTorch-available Bidirectional Transformer hybrid, ECGTransForm, introduces multi-scale convolutions, channel recalibration, and a context-aware loss; public results show macro-F1 ≈94.26% on MIT-BIH 5-class and an open-source PyTorch implementation is provided. ([researchgate.net](https://www.researchgate.net/publication/378637131_ECGTransForm_Empowering_adaptive_ECG_arrhythmia_classification_framework_with_bidirectional_transformer?utm_source=openai)) For resource-limited deployment, a 6k-parameter Tiny Transformer achieves 98.97% 5-class accuracy on MIT-BIH with 8-bit inference; measured energy is ~0.09 mJ and 4.28 ms per inference on GAP9, underscoring that attention models can be extremely compact. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))\n\nSurveys/meta-analyses (2024–2025): A 2024 MIT-BIH-focused survey synthesizes computational methods (including graph-based analyses) and highlights evaluation pitfalls on this database. ([mdpi.com](https://www.mdpi.com/2079-3197/12/2/21?utm_source=openai)) A 2025 survey in Artificial Intelligence Review specifically covers Transformers/LLMs for ECG diagnosis, outlining advances (e.g., positional encodings, long-range dependency capture), challenges (data imbalance, domain shift), and future directions, supporting the suitability of Transformer hybrids for ECG time series. ([link.springer.com](https://link.springer.com/article/10.1007/s10462-025-11259-x?utm_source=openai))\n\nArchitectural patterns observed: (a) local morphology extractors (1D CNNs, sometimes multi-scale/dilated) front a (b) self-attention encoder for long-range rhythm context, followed by (c) class-imbalance remedies (focal/context-aware losses, re-sampling) and (d) lightweight heads. CAT-Net and ECGTransForm exemplify these design choices and report strong macro-F1 on the AAMI 5-class setup; Tiny Transformer demonstrates the lower bound on compute for near-SOTA accuracy. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))\n\nComputational considerations: When sequences are 1k samples × 2 leads, a compact CNN+Transformer stack remains efficient on modern GPUs/CPUs. CAT-Net’s gains on minority classes rely on SMOTE-Tomek; ECGTransForm’s context-aware loss serves a similar need. If deployment is constrained (edge/wearables), the Tiny Transformer’s 6k parameters with 8-bit inference is a strong reference point for complexity, though its reported results use single-lead inputs and may require adaptation for two leads. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))\n\nEvaluation notes: Use inter-patient splits on MIT-BIH and report macro-F1 and per-class sensitivity (especially S and F classes) to avoid optimistic leakage. The MIT-BIH PhysioNet page documents two-channel signals and standard access details. ([physionet.org](https://physionet.org/physiobank/database/mitdb/?utm_source=openai))",
+  "key_findings": [
+    "Hybrid CNN+Transformer models are currently top-performing for 5-class MIT-BIH: CAT-Net reports 99.14% overall accuracy and 94.69% macro-F1 with SMOTE‑Tomek rebalancing on the AAMI split. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "A Bidirectional Transformer hybrid with multi-scale CNNs and a context-aware loss (ECGTransForm) attains macro‑F1 ≈94.26% on MIT‑BIH 5‑class and offers a PyTorch implementation for reproducibility and adaptation. ([researchgate.net](https://www.researchgate.net/publication/378637131_ECGTransForm_Empowering_adaptive_ECG_arrhythmia_classification_framework_with_bidirectional_transformer?utm_source=openai))",
+    "For compute‑efficiency, a Tiny Transformer with ~6k parameters achieves 98.97% accuracy on MIT‑BIH 5‑class and demonstrates 4.28 ms, 0.09 mJ inference on GAP9 with 8‑bit quantization, indicating feasibility for embedded use. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "ECGTransForm‑style architecture (PyTorch): 2‑lead 1D CNN stem (multi‑scale kernels) → Bidirectional Transformer encoder (4–6 layers, multi‑head self‑attention with relative positional encoding) → channel recalibration → global pooling → 5‑class head; train with a class‑aware/focal loss and SMOTE‑Tomek or similar rebalancing. Rationale: matches your 2‑lead, 1k‑step sequence tensor; demonstrated strong macro‑F1 on MIT‑BIH 5‑class; open PyTorch code eases implementation and tuning for accuracy–efficiency balance. ([github.com](https://github.com/emadeldeen24/ECGTransForm))"
+  ],
+  "recent_papers": [
+    {
+      "title": "CAT-Net: Convolution, attention, and transformer based network for single-lead ECG arrhythmia classification (2024, Biomedical Signal Processing and Control)",
+      "contribution": "Hybrid CNN+Transformer with data imbalance handling (SMOTE‑Tomek) sets benchmarks on MIT‑BIH 5‑class (99.14% acc, 94.69% macro‑F1) and validates across datasets (INCART). ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "ECGTransForm: Empowering adaptive ECG arrhythmia classification framework with bidirectional transformer (2024, BSPC) + code",
+      "contribution": "Introduces Bidirectional Transformer, multi‑scale convolutions, channel recalibration, and a context‑aware loss; public results show macro‑F1 ≈94.26% on MIT‑BIH 5‑class; PyTorch repo available for reproduction. ([researchgate.net](https://www.researchgate.net/publication/378637131_ECGTransForm_Empowering_adaptive_ECG_arrhythmia_classification_framework_with_bidirectional_transformer?utm_source=openai))"
+    },
+    {
+      "title": "A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (2024, arXiv)",
+      "contribution": "Extremely compact Transformer (~6k params) with 98.97% MIT‑BIH 5‑class accuracy; demonstrates 8‑bit deployment with 4.28 ms, 0.09 mJ inference on GAP9. Useful reference for efficiency targets. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))"
+    },
+    {
+      "title": "Unraveling Arrhythmias with Graph‑Based Analysis: A Survey of the MIT‑BIH Database (2024, Computation)",
+      "contribution": "Survey of computational methods on MIT‑BIH, discussing dataset idiosyncrasies and evaluation issues (e.g., inter‑patient splits, imbalance), helpful for methodology design. ([mdpi.com](https://www.mdpi.com/2079-3197/12/2/21?utm_source=openai))"
+    },
+    {
+      "title": "A survey of transformers and large language models for ECG diagnosis (2025, Artificial Intelligence Review)",
+      "contribution": "Meta‑analysis of Transformer architectures for ECG, summarizing advances and open challenges (imbalance, domain shift), supporting the choice of attention‑based sequence classifiers. ([link.springer.com](https://link.springer.com/article/10.1007/s10462-025-11259-x?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.78,
+  "timestamp": 1759165714,
+  "generated_time": "2025-09-29 12:08:34",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem focus: supervised multiclass heartbeat/segment classification on MIT-BIH Arrhythmia Database (2 leads, 360 Hz; 48 records; AAMI 5-class mapping common), with sequence inputs shaped like (T=1000, C=2). MIT-BIH details (two-channel ambulatory ECG, ~110k annotated beats) confirm close alignment to your data specification. ([physionet.org](https://physionet.org/content/mitdb/1.0.0/))\nRecent evidence (2024–2025) shows two dominant, high-performing families for MIT-BIH beat-level 5-class tasks: (1) lightweight 1D CNNs augmented with rhythm-context features (RR intervals; sometimes entropy/handcrafted features), and (2) compact Transformer encoders optimized for on-device inference. Importantly, a 2025 systematic review warns that many works still use patient-mixed (intra-patient) splits that inflate accuracy; inter-patient evaluation under AAMI/Chazal DS1/DS2 remains the fair standard and should guide model selection. ([arxiv.org](https://arxiv.org/abs/2503.07276))\nInter-patient-validated CNN+RR approaches: Berrahou et al. (2024) fuse 1D-CNN morphology with four RR-interval features and entropy-rate features; they report 97.91% accuracy for 5-class inter-patient MIT-BIH and 98.73% for 3-class, plus cross-dataset generalization to INCART (98.20% for 3-class). Computational budget isn’t specified but the stack is modest (1D CNN + small feature MLP). This design closely matches a (1000, 2) window by treating leads as channels and appending rhythm features. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39021157/))\nTiny Transformers for efficiency: Busia et al. (2024, IEEE T-BCAS) propose a 6k-parameter ViT-style model that injects pre/post RR intervals. It achieves 98.97% (5-class) with 8-bit inference, and demonstrates 0.97 MOPs/inference, ~4.28 ms latency and ~0.09 mJ on GAP9 MCU; however, their primary benchmarking is intra-patient. As a result, while excellent for embedded use, numbers are optimistic versus inter-patient splits. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))\nSurveys/meta-analyses: A 2025 systematic review (2017–2024) emphasizes E3C criteria (Embedded, Clinical, Comparative): enforce inter-patient splitting, AAMI mapping, and report embedded feasibility (params/FLOPs/latency/energy). A 2024 Sensors review (368 studies) shows MIT-BIH dominance (61% of studies), CNNs as the most common backbone, and frequent noise removal/augmentation—informing preprocessing choices (e.g., median filtering, low-pass; class rebalancing). ([arxiv.org](https://arxiv.org/abs/2503.07276))\nOther 2024–2025 lines: feature-image 2D pipelines (e.g., 2DPCA + T–F features) claim very high inter-patient accuracy, but add transform overhead and may complicate PyTorch 1D deployments; hybrid CNN/LSTM/attention papers appear with strong headline metrics yet often lack strict patient-independent evaluation. For reproducible, efficient PyTorch deployment matching your (1000,2) tensors and 5 classes, a 1D CNN with RR-feature fusion trained under the DS1/DS2 inter-patient protocol offers the best balance of rigor, accuracy, and efficiency. ([mdpi.com](https://www.mdpi.com/1424-8220/25/4/1220))",
+  "key_findings": [
+    "Inter-patient, 5-class performance near 98% is attainable with 1D CNNs that fuse morphology with RR-interval context: Berrahou et al. (2024) report 97.91% (5-class inter-patient) and 98.73% (3-class) on MIT-BIH, plus 98.20% (INCART 3-class), using a CNN + four RR features + entropy rate features. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39021157/))",
+    "Hardware-feasible Transformers exist: a tiny ViT-like model with ~6k parameters reaches 98.97% (5-class) with 8-bit inference and runs at ~0.09 mJ, ~4.28 ms per inference on GAP9; however, its evaluation is mainly intra-patient, so inter-patient performance remains to be verified. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))",
+    "Fair evaluation matters: a 2025 systematic review highlights that many ECG studies do not comply with inter-patient splits and embedded reporting; adopting E3C (Embedded, Clinical, Comparative) criteria and the AAMI/Chazal DS1/DS2 split is recommended for credible benchmarking. ([arxiv.org](https://arxiv.org/abs/2503.07276))",
+    "Preprocessing patterns: across 368 reviewed studies, 61% used MIT-BIH; CNNs dominate, with frequent noise removal (e.g., baseline wandering filtering) and data augmentation to address class imbalance—useful design inputs for your pipeline. ([mdpi.com](https://www.mdpi.com/2076-3417/13/8/4964?utm_source=openai))",
+    "Alternative pipelines (e.g., 2D feature images with 2DPCA + classifier) report very high inter-patient accuracy (≈99.8%), but require time–frequency transforms and 2D processing that may add complexity without clear gains over lean 1D CNN+RR designs in PyTorch. ([mdpi.com](https://www.mdpi.com/1424-8220/25/4/1220))"
+  ],
+  "recommended_approaches": [
+    "Adopt an inter-patient 1D CNN + RR feature-fusion model (à la Berrahou et al. 2024): input your (B, C=2, T=1000) windows to a lightweight residual 1D-CNN backbone (multi-kernel conv blocks), concatenate four RR-interval features (pre/post/local/global) and a simple entropy-rate feature vector, then classify into 5 AAMI classes with class-balanced or focal loss. This design matches your data shape, has proven inter-patient performance on MIT-BIH (97.91% 5-class), is straightforward in PyTorch, and is computationally efficient; train under the Chazal DS1/DS2 split for fair evaluation. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39021157/))"
+  ],
+  "recent_papers": [
+    {
+      "title": "Arrhythmia detection in inter-patient ECG signals using entropy rate features and RR intervals with CNN architecture (2024)",
+      "contribution": "1D-CNN fused with four RR features and entropy-rate features; 97.91% (5-class inter-patient MIT-BIH), 98.73% (3-class); 98.20% (INCART 3-class). Strong, fair-split evidence close to your setting. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/39021157/))"
+    },
+    {
+      "title": "A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (IEEE T-BCAS, 2024)",
+      "contribution": "6k-parameter ViT-style classifier with RR-feature injection; 98.97% (5-class, intra-patient), 0.97 MOPs, ~4.28 ms, ~0.09 mJ on GAP9; excellent embedded efficiency, but needs inter-patient validation. ([ar5iv.org](https://ar5iv.org/pdf/2402.10748))"
+    },
+    {
+      "title": "A Systematic Review of ECG Arrhythmia Classification: Adherence to Standards, Fair Evaluation, and Embedded Feasibility (2025)",
+      "contribution": "Meta-analysis (2017–2024) advocating E3C criteria: inter-patient splits, AAMI compliance, and embedded metrics for fair comparisons; guides evaluation protocol and reporting. ([arxiv.org](https://arxiv.org/abs/2503.07276))"
+    },
+    {
+      "title": "Deep Learning-Based ECG Arrhythmia Classification: A Systematic Review (2024)",
+      "contribution": "Survey of 368 studies: 61% use MIT-BIH; CNNs most common; frequent denoising and augmentation. Helps prioritize preprocessing and architecture choices. ([mdpi.com](https://www.mdpi.com/2076-3417/13/8/4964?utm_source=openai))"
+    },
+    {
+      "title": "Automated ECG Arrhythmia Classification Using Feature Images with Common Matrix Approach-Based Classifier (2025)",
+      "contribution": "2D feature-image pipeline (2DPCA + classifier) reporting ≈99.8% inter-patient accuracy on MIT-BIH; higher complexity vs. 1D CNN baselines, but indicates ceiling performance claims. ([mdpi.com](https://www.mdpi.com/1424-8220/25/4/1220))"
+    }
+  ],
+  "confidence": 0.78,
+  "timestamp": 1758759803,
+  "generated_time": "2025-09-24 19:23:23",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

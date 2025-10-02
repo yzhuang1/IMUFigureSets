@@ -352,7 +352,7 @@ class CodeGenerationPipelineOrchestrator:
         return bo_results
 
     def _apply_gpt_fixes_and_regenerate(self, original_code_rec):
-        """Reload training function after GPT fixes have been applied to the JSON file"""
+        """Apply GPT fixes to the original JSON file and reload the training function"""
         try:
             from error_monitor import _global_terminator
             if not _global_terminator or not hasattr(_global_terminator, 'last_json_corrections'):
@@ -362,24 +362,54 @@ class CodeGenerationPipelineOrchestrator:
             if not gpt_fixes or gpt_fixes == "{}":
                 return None
 
-            logger.info("🔧 GPT has fixed the training function, reloading from JSON file")
+            logger.info("🔧 Applying GPT fixes to original JSON file")
 
-            # Find the most recent training function JSON (GPT should have fixed it)
+            # Parse the GPT corrections
+            import json
+            try:
+                corrections = json.loads(gpt_fixes)
+            except json.JSONDecodeError:
+                logger.error("Failed to parse GPT corrections JSON")
+                return None
+
+            # Find the most recent training function JSON
             from _models.training_function_executor import training_executor
             functions = training_executor.list_available_training_functions()
 
             if not functions:
-                logger.error("No training functions available to reload")
+                logger.error("No training functions available to fix")
                 return None
 
-            # Get the most recent one (should be the fixed version)
+            # Get the most recent one (the original file we want to fix)
             latest_function = functions[0]  # Already sorted by timestamp
             json_filepath = latest_function['filepath']
 
-            logger.info(f"Reloading fixed training function from: {json_filepath}")
+            logger.info(f"Applying fixes to: {json_filepath}")
 
-            # Load the fixed training function
+            # Load the original training function data
             training_data = training_executor.load_training_function(json_filepath)
+
+            # Apply GPT fixes
+            if 'training_code' in corrections:
+                # Update training code
+                training_data['training_code'] = corrections['training_code']
+                logger.info("✅ Updated training_code with GPT fix")
+
+            if 'bo_config' in corrections:
+                # Update specific BO config parameters
+                for param, value in corrections['bo_config'].items():
+                    if param in training_data['bo_config']:
+                        old_value = training_data['bo_config'][param].get('default', 'N/A')
+                        training_data['bo_config'][param]['default'] = value
+                        logger.info(f"✅ Updated bo_config.{param}: {old_value} → {value}")
+                    else:
+                        logger.warning(f"⚠️ bo_config parameter '{param}' not found in original config")
+
+            # Save the fixed training function back to the same JSON file
+            with open(json_filepath, 'w', encoding='utf-8') as f:
+                json.dump(training_data, f, indent=2, ensure_ascii=False)
+
+            logger.info(f"💾 Saved GPT fixes back to: {json_filepath}")
 
             # Convert back to CodeRecommendation format
             from _models.ai_code_generator import CodeRecommendation

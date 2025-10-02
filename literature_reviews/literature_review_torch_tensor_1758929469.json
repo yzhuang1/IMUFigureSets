@@ -1,0 +1,64 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Scope and problem alignment: We target multiclass heartbeat classification on the MIT-BIH Arrhythmia Database using 1D, two-lead sequences of length ≈1000 samples per segment and 5 AAMI EC57 classes (N, S, V, F, Q). Recent work emphasizes two families of solutions: 1D CNN+Transformer hybrids that learn directly from raw waveforms, and image-based pipelines (CWT/spectrogram + 2D backbones). Inter‑patient evaluation is increasingly recommended to avoid patient‑leakage bias. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC12174755/?utm_source=openai))\n\nState of the art since 2024: (1) ECGTransForm (Bi‑directional Transformer + multi‑scale 1D convolutions with channel recalibration and a context‑aware loss) reports strong per‑class results on MIT‑BIH 5‑class; macro‑F1 ≈94.3% with detailed class metrics, and public PyTorch code is available. This directly matches raw 1D inputs and addresses class imbalance. ([researchgate.net](https://www.researchgate.net/publication/378637131_ECGTransForm_Empowering_adaptive_ECG_arrhythmia_classification_framework_with_bidirectional_transformer?utm_source=openai)) (2) CAT‑Net (CNN + channel attention + Transformer) achieves 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH (5‑class) with SMOTE‑Tomek to boost minority classes; code and open‑access article available. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai)) (3) Tiny Transformer (6k parameters) attains 98.97% accuracy on MIT‑BIH 5‑class and demonstrates 8‑bit inference on GAP9 with 4.28 ms/inference and 0.09 mJ, offering a clear efficiency ceiling for embedded deployment. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai)) (4) Swin‑Transformer on wavelet time‑frequency images reports 99.34% intra‑patient and 98.37% inter‑patient accuracy on MIT‑BIH, but requires a CWT front‑end and 2D backbones. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38911517/)) (5) A hierarchical CNN+BiLSTM+Attention model evaluated on real‑world wearable ECG showed 0.993 F1 on MIT‑BIH benchmarking and discussed robustness vs. noisy multi‑label data. ([journals.sagepub.com](https://journals.sagepub.com/doi/10.1177/20552076241278942?utm_source=openai))\n\nSurveys/meta‑analyses: A 2025 systematic review stresses fair evaluation: patient‑independent splits, AAMI mapping, and embedded feasibility; it identifies that many high numbers arise from non‑standard splits and under‑reported compute. A 2025 survey of Transformers for ECG consolidates design choices (positional encoding, local convolutional stems) and highlights attention to class imbalance. These inform best practice for your setting. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))\n\nModel patterns that transfer to (1000, 2) tensors: (a) CNN front‑ends with multi‑scale kernels capture QRS/P/T morphology and denoise; (b) light Transformer encoders (2–4 blocks, modest d_model, 4–8 heads) capture beat‑to‑beat dependencies across 1000 samples; (c) class‑imbalance handling (context‑aware loss, focal/cost‑sensitive weighting, or SMOTE‑Tomek at the heartbeat level) improves S/V/F/Q performance; (d) inter‑patient splitting and AAMI mapping for valid comparisons. ECGTransForm and CAT‑Net embody (a)–(c) and are directly implementable in PyTorch. ([github.com](https://github.com/emadeldeen24/ECGTransForm))\n\nComputational notes: ECGTransForm and CAT‑Net employ compact 1D conv stems plus few Transformer layers and have been trained on single‑GPU setups in public repos; Tiny Transformer gives a strict lower‑compute bound (≈6k params; successful 8‑bit deployment) if embedded constraints dominate. Image pipelines (e.g., Swin + CWT) trade accuracy for extra preprocessing and higher memory. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))\n\nRecommendation rationale: For raw two‑lead, 1000‑sample segments and 5 AAMI classes, a CNN+Transformer hybrid with explicit imbalance handling offers the best balance of accuracy, robustness, and engineering effort. ECGTransForm in particular provides (i) strong peer‑reviewed MIT‑BIH results with macro‑F1 ≈94% and detailed per‑class behavior, (ii) a design that natively supports multi‑channel 1D inputs, (iii) a PyTorch reference, and (iv) a principled loss for skewed classes. For extreme resource limits, a Tiny‑Transformer variant is a proven fallback with near‑SOTA accuracy at orders‑of‑magnitude lower compute. ([researchgate.net](https://www.researchgate.net/publication/378637131_ECGTransForm_Empowering_adaptive_ECG_arrhythmia_classification_framework_with_bidirectional_transformer?utm_source=openai))",
+  "key_findings": [
+    "ECGTransForm (Bi-Transformer + multi-scale 1D CNN + context-aware loss) reports macro-F1 ≈94.26% on MIT-BIH 5-class, with public PyTorch code, directly addressing class imbalance and temporal context. ([researchgate.net](https://www.researchgate.net/publication/378637131_ECGTransForm_Empowering_adaptive_ECG_arrhythmia_classification_framework_with_bidirectional_transformer?utm_source=openai))",
+    "CAT-Net (CNN + channel attention + Transformer) achieves 99.14% accuracy and 94.69% macro-F1 on MIT-BIH (5-class) using SMOTE-Tomek for minority classes, validating hybrid local–global modeling. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "A Tiny Transformer reaches 98.97% accuracy on MIT-BIH 5-class with only ~6k parameters; demonstrated 8-bit deployment (4.28 ms inference, 0.09 mJ), establishing a strong efficiency baseline. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))",
+    "Swin-Transformer + wavelet time–frequency images yields 99.34% intra-patient and 98.37% inter-patient accuracy on MIT-BIH, but adds CWT preprocessing and 2D compute overhead. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38911517/))",
+    "Systematic review (2017–2024) highlights that many high scores stem from non-inter-patient splits and missing hardware metrics; it recommends patient-independent evaluation, AAMI grouping, and embedded feasibility reporting. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "ECGTransForm-style 1D CNN + Bidirectional Transformer with context-aware loss (PyTorch): multi-scale 1D conv stem (in_channels=2) → positional encoding → 2–4 lightweight Transformer encoder blocks (d_model 128–256, 4–8 heads) → global pooling → 5-way classifier; train with inter-patient split and class-weighted/context-aware loss. This matches (1000,2) raw tensors, has proven MIT-BIH performance, addresses class imbalance, and is readily reproducible from the public PyTorch reference. ([github.com](https://github.com/emadeldeen24/ECGTransForm))"
+  ],
+  "recent_papers": [
+    {
+      "title": "ECGTransForm: Empowering adaptive ECG arrhythmia classification framework with bidirectional transformer (BSPC, 2024)",
+      "contribution": "Hybrid 1D CNN + Bi-Transformer with channel recalibration and context-aware loss; macro-F1 ≈94.26% on MIT-BIH 5-class; code in PyTorch. ([researchgate.net](https://www.researchgate.net/publication/378637131_ECGTransForm_Empowering_adaptive_ECG_arrhythmia_classification_framework_with_bidirectional_transformer?utm_source=openai))"
+    },
+    {
+      "title": "CAT-Net: Convolution, attention, and transformer based network for single-lead ECG arrhythmia classification (BSPC, 2024)",
+      "contribution": "SMOTE‑Tomek balancing; 99.14% accuracy and 94.69% macro‑F1 on MIT‑BIH 5‑class; open‑access article and repo. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (2024)",
+      "contribution": "6k‑parameter transformer achieving 98.97% accuracy on MIT‑BIH 5‑class; 8‑bit inference on GAP9 (4.28 ms, 0.09 mJ); template for highly efficient PyTorch implementations. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))"
+    },
+    {
+      "title": "A novel method of Swin Transformer with time-frequency characteristics for ECG arrhythmia detection (Frontiers in Cardiovascular Medicine, 2024)",
+      "contribution": "CWT → Swin‑Transformer pipeline; 99.34% intra‑patient and 98.37% inter‑patient accuracy on MIT‑BIH; shows competitiveness of image-based approaches with fairer inter‑patient testing. ([pubmed.ncbi.nlm.nih.gov](https://pubmed.ncbi.nlm.nih.gov/38911517/))"
+    },
+    {
+      "title": "Hierarchical deep learning for autonomous multi‑label arrhythmia detection on real‑world wearable ECG (Digital Health, 2024)",
+      "contribution": "CNN+BiLSTM+Attention; benchmarked on MIT‑BIH with ~0.993 F1 and evaluated on noisy wearable data; underscores real‑world robustness needs. ([journals.sagepub.com](https://journals.sagepub.com/doi/10.1177/20552076241278942?utm_source=openai))"
+    },
+    {
+      "title": "A Systematic Review of ECG Arrhythmia Classification: Adherence to Standards, Fair Evaluation, and Embedded Feasibility (2025)",
+      "contribution": "Synthesizes 2017–2024 studies; advocates inter‑patient splits, AAMI grouping, and embedded‑system reporting; informs fair benchmarking. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.74,
+  "timestamp": 1758929469,
+  "generated_time": "2025-09-26 18:31:09",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

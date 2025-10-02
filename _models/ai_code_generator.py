@@ -53,6 +53,10 @@ class AICodeGenerator:
 
     def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None) -> str:
         """Create enhanced prompt for GPT-5 code generation with literature review insights"""
+        import torch
+
+        # Get PyTorch version for context
+        pytorch_version = torch.__version__
 
         # Dataset context for better model selection
         dataset_context = ""
@@ -76,6 +80,7 @@ class AICodeGenerator:
         prompt = f"""
 Generate a PyTorch training function for a {num_classes}-class classifier.
 
+PyTorch Version: {pytorch_version}
 Data: {data_profile['data_type']}, input shape {input_shape}, {num_samples} samples{dataset_context}
 Sequence length: {sequence_length if sequence_length else 'N/A'}
 
@@ -232,6 +237,9 @@ CORRECTION EXAMPLES:
 - "Model has X KB storage, exceeds 256KB limit" → {{"bo_config": {{"d_model": 64, "hidden_size": 128}}}}
 - "'str' object has no attribute 'type'" → {{"training_code": "def train_model(...):\\n    # fixed implementation"}}
 - "Quantization bug in code" → {{"training_code": "corrected_training_function"}}
+- "AcceleratorError in DataLoader worker process" → {{"bo_config": {{"num_workers": 0}}}}
+- "CUDA error: initialization error" → {{"bo_config": {{"num_workers": 0}}}}
+- "DataLoader worker CUDA context" → {{"bo_config": {{"num_workers": 0}}}}
 - "mat1 and mat2 shapes cannot be multiplied" → {{"bo_config": {{"d_model": 128}}}}
 - "CUDA out of memory" → {{"system_issue": "STOP_PIPELINE"}}
 - "No such file or directory" → {{"system_issue": "STOP_PIPELINE"}}

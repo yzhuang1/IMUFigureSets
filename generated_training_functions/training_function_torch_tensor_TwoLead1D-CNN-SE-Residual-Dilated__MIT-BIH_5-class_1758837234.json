@@ -1,0 +1,166 @@
+{
+  "model_name": "TwoLead1D-CNN-SE-Residual-Dilated (MIT-BIH 5-class)",
+  "training_code": "def train_model(\n    X_train, y_train, X_val, y_val, device,\n    lr=1e-3, batch_size=256, epochs=20, weight_decay=1e-4,\n    dropout=0.1, label_smoothing=0.1, grad_clip_norm=1.0, use_scheduler=True,\n    channels_base=16, se_reduction=8, dilation_b1=1, dilation_b2=2, dilation_b3=1,\n    quantization_bits=8, quantize_weights=True, quantize_activations=True, calibrate_steps=64, seed=42\n):\n    import copy\n    import torch\n    import torch.nn as nn\n    import torch.nn.functional as F\n    from torch.utils.data import DataLoader, Dataset\n    try:\n        from torch.ao.quantization import get_default_qconfig\n        try:\n            from torch.ao.quantization import QConfigMapping\n        except Exception:\n            from torch.ao.quantization.qconfig_mapping import QConfigMapping\n    except Exception:\n        from torch.ao.quantization import get_default_qconfig\n        from torch.ao.quantization.qconfig_mapping import QConfigMapping\n\n    class TensorDatasetECG(Dataset):\n        def __init__(self, X, y):\n            X_t = torch.as_tensor(X)\n            y_t = torch.as_tensor(y)\n            # Ensure dataset tensors are on CPU so DataLoader pin_memory works correctly\n            if X_t.is_cuda:\n                X_t = X_t.detach().cpu()\n            if y_t.is_cuda:\n                y_t = y_t.detach().cpu()\n            if X_t.dtype != torch.float32:\n                X_t = X_t.float()\n            # Ensure [N, C, L] when possible; expect C=2 for ECGNet1D(in_ch=2)\n            if X_t.ndim == 3 and X_t.shape[1] != 2 and X_t.shape[-1] == 2:\n                # Convert [N, L, 2] -> [N, 2, L]\n                X_t = X_t.permute(0, 2, 1).contiguous()\n            elif X_t.ndim == 2:\n                # If missing channel dim, add one channel\n                X_t = X_t.unsqueeze(1)\n            if y_t.dtype != torch.long:\n                y_t = y_t.long()\n            self.X = X_t.contiguous()\n            self.y = y_t.contiguous()\n        def __len__(self):\n            return self.X.shape[0]\n        def __getitem__(self, idx):\n            return self.X[idx], self.y[idx]\n\n    def _make_class_weights(y, num_classes, device):\n        y_t = torch.as_tensor(y).long().view(-1)\n        counts = torch.bincount(y_t, minlength=num_classes).float()\n        # Inverse frequency weighting with stability\n        counts = torch.clamp(counts, min=1.0)\n        weights = counts.sum() / (counts * num_classes)\n        return weights.to(device)\n\n    def _evaluate(model, loader, device, criterion):\n        model.eval()\n        total_loss = 0.0\n        total = 0\n        correct = 0\n        with torch.inference_mode():\n            for xb, yb in loader:\n                xb = xb.to(device, non_blocking=False)\n                yb = yb.to(device, non_blocking=False)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                total_loss += loss.item() * xb.size(0)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                total += xb.size(0)\n        val_loss = total_loss / max(1, total)\n        val_acc = (correct / max(1, total)) if total > 0 else 0.0\n        return val_loss, val_acc\n\n    class SqueezeExcite1D(nn.Module):\n        def __init__(self, channels, reduction=8):\n            super().__init__()\n            hidden = max(1, channels // int(reduction))\n            self.pool = nn.AdaptiveAvgPool1d(1)\n            self.fc = nn.Sequential(\n                nn.Conv1d(channels, hidden, kernel_size=1, bias=True),\n                nn.ReLU(inplace=True),\n                nn.Conv1d(hidden, channels, kernel_size=1, bias=True),\n                nn.Sigmoid(),\n            )\n        def forward(self, x):\n            w = self.pool(x)\n            w = self.fc(w)\n            return x * w\n\n    class ConvBlock1D(nn.Module):\n        def __init__(self, in_ch, out_ch, k, dilation=1, dropout=0.0, se_reduction=8):\n            super().__init__()\n            pad = (k - 1) // 2 * dilation\n            self.conv = nn.Conv1d(in_ch, out_ch, kernel_size=k, padding=pad, dilation=dilation, bias=False)\n            self.bn = nn.BatchNorm1d(out_ch)\n            self.relu = nn.ReLU(inplace=True)\n            self.do = nn.Dropout(p=dropout) if dropout and dropout > 0 else nn.Identity()\n            self.se = SqueezeExcite1D(out_ch, reduction=se_reduction)\n            self.residual = (in_ch == out_ch)\n        def forward(self, x):\n            out = self.conv(x)\n            out = self.bn(out)\n            out = self.relu(out)\n            out = self.do(out)\n            out = self.se(out)\n            if self.residual:\n                out = out + x\n            return out\n\n    class ECGNet1D(nn.Module):\n        def __init__(self, in_ch=2, base_ch=16, k_init=7, k_mid=5, k_small=3,\n                     d_b1=1, d_b2=2, d_b3=1, dropout=0.1, se_reduction=8, n_classes=5):\n            super().__init__()\n            pad_init = (k_init - 1) // 2\n            self.stem = nn.Sequential(\n                nn.Conv1d(in_ch, base_ch, kernel_size=k_init, padding=pad_init, bias=False),\n                nn.BatchNorm1d(base_ch),\n                nn.ReLU(inplace=True),\n            )\n            self.block1 = ConvBlock1D(base_ch, base_ch, k=k_mid, dilation=d_b1, dropout=dropout, se_reduction=se_reduction)\n            self.block2 = ConvBlock1D(base_ch, base_ch * 2, k=k_mid, dilation=d_b2, dropout=dropout, se_reduction=se_reduction)\n            self.block3 = ConvBlock1D(base_ch * 2, base_ch * 4, k=k_small, dilation=d_b3, dropout=dropout, se_reduction=se_reduction)\n            self.head = nn.Sequential(\n                nn.Dropout(p=dropout) if dropout and dropout > 0 else nn.Identity(),\n                nn.Linear(base_ch * 4, n_classes)\n            )\n        def forward(self, x):\n            x = self.stem(x)\n            x = self.block1(x)\n            x = self.block2(x)\n            x = self.block3(x)\n            x = F.adaptive_avg_pool1d(x, 1).squeeze(-1)\n            x = self.head(x)\n            return x\n\n    def _resolve_device(dev):\n        if isinstance(dev, torch.device):\n            if dev.type == 'cuda' and not torch.cuda.is_available():\n                return torch.device('cpu')\n            return dev\n        if isinstance(dev, str):\n            if dev.startswith('cuda') and torch.cuda.is_available():\n                return torch.device(dev)\n            return torch.device('cpu')\n        return torch.device('cuda' if torch.cuda.is_available() else 'cpu')\n\n    device = _resolve_device(device)\n    torch.manual_seed(seed)\n    if device.type == 'cuda':\n        torch.cuda.manual_seed_all(seed)\n\n    num_classes = 5\n\n    train_ds = TensorDatasetECG(X_train, y_train)\n    val_ds = TensorDatasetECG(X_val, y_val)\n    pin_mem = device.type == 'cuda'\n    train_loader = DataLoader(train_ds, batch_size=int(batch_size), shuffle=True, num_workers=0, pin_memory=pin_mem, drop_last=False)\n    val_loader = DataLoader(val_ds, batch_size=int(batch_size), shuffle=False, num_workers=0, pin_memory=pin_mem, drop_last=False)\n\n    model = ECGNet1D(\n        in_ch=2, base_ch=int(channels_base), k_init=7, k_mid=5, k_small=3,\n        d_b1=int(dilation_b1), d_b2=int(dilation_b2), d_b3=int(dilation_b3),\n        dropout=float(dropout), se_reduction=int(se_reduction), n_classes=num_classes\n    ).to(device)\n\n    class_weights = _make_class_weights(y_train, num_classes, device)\n    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=float(label_smoothing)).to(device)\n\n    optimizer = torch.optim.AdamW(model.parameters(), lr=float(lr), weight_decay=float(weight_decay))\n    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=int(epochs), eta_min=float(lr) * 0.1) if use_scheduler else None\n\n    train_losses = []\n    val_losses = []\n    val_accs = []\n\n    for epoch in range(1, int(epochs) + 1):\n        model.train()\n        running_loss = 0.0\n        seen = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=False)\n            yb = yb.to(device, non_blocking=False)\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if grad_clip_norm and grad_clip_norm > 0.0:\n                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float(grad_clip_norm))\n            optimizer.step()\n            running_loss += loss.detach().item() * xb.size(0)\n            seen += xb.size(0)\n        train_loss = running_loss / max(1, seen)\n\n        val_loss, val_acc = _evaluate(model, val_loader, device, criterion)\n\n        if scheduler is not None:\n            scheduler.step()\n\n        train_losses.append(train_loss)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n\n        print(f'Epoch {epoch:03d}/{int(epochs):03d} - train_loss: {train_loss:.6f} - val_loss: {val_loss:.6f} - val_acc: {val_acc:.4f}')\n\n    def _quantize_int8_fx_local(model_fp32, calib_loader, example_input, quantize_activations=True):\n        from torch.ao.quantization.quantize_fx import prepare_fx, convert_fx\n        model_cpu = copy.deepcopy(model_fp32).to('cpu').eval()\n        torch.backends.quantized.engine = 'fbgemm'\n        qconfig = get_default_qconfig('fbgemm')\n        if not quantize_activations:\n            return model_cpu\n        qconfig_mapping = QConfigMapping().set_global(qconfig)\n        prepared = prepare_fx(model_cpu, qconfig_mapping, example_inputs=example_input)\n        with torch.inference_mode():\n            for xb, _ in calib_loader:\n                xb = xb.to('cpu')\n                prepared(xb)\n        quantized_model = convert_fx(prepared)\n        return quantized_model\n\n    calib_bs = int(min(int(batch_size), 256))\n    calib_count = int(calibrate_steps)\n    if calib_count <= 0:\n        calib_count = 1\n    calib_indices = torch.arange(min(len(train_ds), calib_bs * calib_count))\n    X_calib = train_ds.X[calib_indices]\n    y_calib = train_ds.y[calib_indices]\n    calib_loader = DataLoader(TensorDatasetECG(X_calib, y_calib), batch_size=calib_bs, shuffle=False, num_workers=0, pin_memory=False)\n\n    try:\n        ex_xb, _ = next(iter(calib_loader))\n    except StopIteration:\n        ex_xb = torch.zeros(1, 2, 1000)\n    if ex_xb.ndim == 3 and ex_xb.shape[1] != 2 and ex_xb.shape[-1] == 2:\n        ex_xb = ex_xb.permute(0, 2, 1)\n\n    quantized_model = None\n    if quantize_weights and int(quantization_bits) == 8:\n        try:\n            quantized_model = _quantize_int8_fx_local(model.to('cpu'), calib_loader, example_input=(ex_xb,), quantize_activations=bool(quantize_activations))\n        except Exception:\n            quantized_model = copy.deepcopy(model).to('cpu')\n    elif quantize_weights and int(quantization_bits) == 16:\n        quantized_model = copy.deepcopy(model).to('cpu').half()\n    else:\n        quantized_model = copy.deepcopy(model).to('cpu')\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.005,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 256,
+      "type": "Categorical",
+      "categories": [
+        64,
+        128,
+        256,
+        512
+      ]
+    },
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "label_smoothing": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "grad_clip_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "use_scheduler": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "channels_base": {
+      "default": 16,
+      "type": "Integer",
+      "low": 8,
+      "high": 32
+    },
+    "se_reduction": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "dilation_b1": {
+      "default": 1,
+      "type": "Categorical",
+      "categories": [
+        1,
+        2,
+        4
+      ]
+    },
+    "dilation_b2": {
+      "default": 2,
+      "type": "Categorical",
+      "categories": [
+        1,
+        2,
+        4
+      ]
+    },
+    "dilation_b3": {
+      "default": 1,
+      "type": "Categorical",
+      "categories": [
+        1,
+        2,
+        4
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "calibrate_steps": {
+      "default": 64,
+      "type": "Integer",
+      "low": 16,
+      "high": 256
+    },
+    "seed": {
+      "default": 42,
+      "type": "Integer",
+      "low": 0,
+      "high": 10000
+    }
+  },
+  "confidence": 0.78,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1758837234,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

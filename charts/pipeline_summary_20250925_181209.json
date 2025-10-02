@@ -1,0 +1,47 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9522091251703954,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "TwoLead1D-CNN-SE-Residual-Dilated (MIT-BIH 5-class)",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_TwoLead1D-CNN-SE-Residual-Dilated__MIT-BIH_5-class_1758837234.json",
+      "bo_best_params": {
+        "lr": 0.0008558398871419747,
+        "batch_size": "64",
+        "epochs": "12",
+        "weight_decay": 0.007411798255374396,
+        "dropout": 0.19438171582950015,
+        "label_smoothing": 0.0008425141906321933,
+        "grad_clip_norm": 2.087033752913602,
+        "use_scheduler": "False",
+        "channels_base": "27",
+        "se_reduction": "7",
+        "dilation_b1": "2",
+        "dilation_b2": "2",
+        "dilation_b3": "4",
+        "quantization_bits": "32",
+        "quantize_weights": "True",
+        "quantize_activations": "False",
+        "calibrate_steps": "133",
+        "seed": "9542"
+      },
+      "bo_best_score": 0.9517604310236812,
+      "final_metrics": {
+        "acc": 0.9522091251703954,
+        "macro_f1": null
+      },
+      "performance_score": 0.9522091251703954,
+      "confidence": 0.78
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "TwoLead1D-CNN-SE-Residual-Dilated (MIT-BIH 5-class)",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_TwoLead1D-CNN-SE-Residual-Dilated (MIT-BIH 5-class)_20250925_181209.pth"
+}
