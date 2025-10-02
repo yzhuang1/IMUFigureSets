@@ -1,0 +1,49 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.979352510774782,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "Tiny1D-ViT-SE-Transformer-MITBIH",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_Tiny1D-ViT-SE-Transformer-MITBIH_1758672582.json",
+      "bo_best_params": {
+        "lr": 0.0026665934327606286,
+        "batch_size": "128",
+        "epochs": "57",
+        "d_model": "54",
+        "n_heads": "4",
+        "num_layers": "3",
+        "mlp_ratio": 3.8907241640412216,
+        "dropout": 0.027113858497890504,
+        "weight_decay": 1.5574130714285916e-05,
+        "patch_size": "40",
+        "label_smoothing": 0.10595857977887042,
+        "use_focal_loss": "True",
+        "focal_gamma": 1.4828268480269653,
+        "grad_clip_norm": 0.87219932560886,
+        "scheduler": "cosine",
+        "class_weights": "none",
+        "seed": "44609",
+        "quantization_bits": "32",
+        "quantize_weights": "False",
+        "quantize_activations": "False"
+      },
+      "bo_best_score": 0.9744392933216389,
+      "final_metrics": {
+        "acc": 0.979352510774782,
+        "macro_f1": null
+      },
+      "performance_score": 0.979352510774782,
+      "confidence": 0.9
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "Tiny1D-ViT-SE-Transformer-MITBIH",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_Tiny1D-ViT-SE-Transformer-MITBIH_20250923_200844.pth"
+}
