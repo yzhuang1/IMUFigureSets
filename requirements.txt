@@ -22,6 +22,7 @@ tqdm>=4.65.0
 
 # Data Visualization
 matplotlib>=3.7.0
+seaborn>=0.12.0  # For enhanced visualization
 
 # Web/API Requests (for OpenAI API)
 requests>=2.31.0
@@ -34,7 +35,7 @@ opencv-python>=4.8.0
 # Note: Standard library modules used in this project:
 # - json, logging, sys, os, time, threading, pathlib
 # - ast, re, subprocess, importlib, tempfile, io, atexit
-# - typing, dataclasses, datetime
+# - typing, dataclasses, datetime, argparse, shutil
 # These are included with Python and don't need to be installed
 
 # Optional: For enhanced development experience
