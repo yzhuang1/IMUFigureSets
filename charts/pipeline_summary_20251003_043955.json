@@ -1,0 +1,52 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9755432603640446,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "CATNet1D-TransTiny",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_CATNet1D-TransTiny_1759469794.json",
+      "bo_best_params": {
+        "lr": 0.0005656578768263601,
+        "batch_size": "512",
+        "epochs": "65",
+        "base_channels": "10",
+        "ds_kernel_size": "9",
+        "n_ds_blocks": "2",
+        "d_model": "64",
+        "head_dim": "32",
+        "num_transformer_layers": "2",
+        "ff_multiplier": "4",
+        "dropout": 0.016186003247183004,
+        "weight_decay": 1.8729002784383675e-05,
+        "gamma_focal": 1.8127093680882647,
+        "effective_beta": 0.9881155853593956,
+        "label_smoothing": 0.09952206042048854,
+        "use_amp": "False",
+        "use_smote_tomek": "False",
+        "smote_target_min_frac": 0.18215786857000849,
+        "smote_max_multiplier": "3",
+        "quantization_bits": "16",
+        "quantize_weights": "True",
+        "quantize_activations": "False",
+        "quant_calibrate_batches": "3"
+      },
+      "bo_best_score": 0.9698032827966421,
+      "final_metrics": {
+        "acc": 0.9755432603640446,
+        "macro_f1": null
+      },
+      "performance_score": 0.9755432603640446,
+      "confidence": 0.83
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "CATNet1D-TransTiny",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_CATNet1D-TransTiny_20251003_043955.pth"
+}

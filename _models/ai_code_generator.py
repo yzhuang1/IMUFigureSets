@@ -116,9 +116,10 @@ Bayesian Optimization:
 - Each item MUST have: "default", "type" ∈ {"Real","Integer","Categorical"}, and valid ranges:
   * Real: low, high, optional prior ∈ {"uniform","log-uniform"} (if log-uniform, low > 0, e.g., 1e-6)
   * Integer: low, high (inclusive)
-  * Categorical: categories [..]
+  * Categorical: categories [..] - IMPORTANT: ALL category values MUST be hashable (strings, numbers, booleans, or tuples). NEVER use lists as category values.
 - Only include params actually consumed by training_code.{f'''
 - CRITICAL: For transformer models with patch_size, it must divide sequence length ({sequence_length}). Use only valid divisors: {valid_patch_sizes}''' if valid_patch_sizes else ""}
+- DIVISIBILITY CONSTRAINTS: If param A must be divisible by param B, keep smaller param B normal, configure bigger param A as multiplication factor (e.g., A_factor). In code: A = B * A_factor.
 
 Response JSON example:
 {

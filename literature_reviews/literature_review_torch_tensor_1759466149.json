@@ -1,0 +1,56 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem and data: We target multiclass sequence classification of MIT-BIH Arrhythmia (two leads, 360 Hz; 48 × 30-min records; ≈110k annotated beats) with 5 classes, on per-beat windows of shape (1000, 2) as torch tensors. The database contains two simultaneously sampled leads and severe class imbalance (e.g., N≫S,V,F,Q), which affects macro-F1 unless addressed. Recommended practice is inter-patient evaluation using DS1/DS2 splits (Chazal protocol). ([physionet.org](https://physionet.org/content/mitdb/1.0.0/mitdbdir/samples/?utm_source=openai))\n\nRecent evidence (2024–2025): Lightweight transformer and hybrid CNN–RNN/attention models dominate recent ECG literature on MIT-BIH, often reporting near-SOTA accuracy while reducing compute.\n- Tiny Transformer (Busia et al., 2024) achieves 98.97% accuracy on 5-class MIT-BIH with only ~6k parameters and 8‑bit integer inference; worst-case post-deployment accuracy 98.36% under motion artifacts, and real-time deployment on GAP9 (4.28 ms, 0.09 mJ). This directly supports an efficient transformer backbone for beat-level classification. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))\n- Hierarchical CNN+BiLSTM with attention (Zheng et al., 2024, Sage Digital Health) reports 0.997 accuracy and 0.993 F1 (5-fold CV) on MIT-BIH 5-class; the pipeline uses wavelet denoising, z-score normalization, class rebalancing, and attention over BiLSTM outputs, providing a strong hybrid baseline. ([journals.sagepub.com](https://journals.sagepub.com/doi/10.1177/20552076241278942?utm_source=openai))\n- rECGnition_v2.0 (2025) proposes dual-pathway CNN with depthwise separable convolutions and a self‑attentive canonical correlation (SACC) fusion block; on MIT-BIH, it reaches 98.07% accuracy / 98.05% F1 for 10-class tasks with only ~82.7M FLOPs per sample, highlighting an interpretable and compute-conscious design. ([arxiv.org](https://arxiv.org/abs/2502.16255?utm_source=openai))\n- Practical repositories and hybrids show similar trends: a CNN–Attention–Transformer “CAT-Net” reports 99.14% accuracy and 94.69 macro‑F1 on MIT-BIH 5-class (with SMOTE‑Tomek), illustrating the effectiveness of CNN stems plus lightweight attention/transformers; though not peer‑reviewed, it provides concrete engineering choices. ([github.com](https://github.com/rabiul-ai/Arrhythmia_Classification?utm_source=openai))\n- A 2025 systematic review emphasizes fair evaluation (inter‑patient), AAMI compliance, and embedded feasibility (E3C), finding many high scores stem from non‑standard splits or intra‑patient CV; it recommends reporting energy/memory alongside accuracy—aligning with the Tiny Transformer deployment results. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))\n\nArchitectural patterns that work: (i) CNN front‑ends (often depthwise‑separable) for local morphology; (ii) temporal modeling via either BiLSTM or compact Transformer encoders for beat context; (iii) attention pooling or class tokens; (iv) imbalance handling (class weights, focal loss, or SMOTE‑Tomek); and (v) quantization-aware training or 8‑bit inference for deployment. For two‑lead inputs like (1000,2), all cited models adapt naturally by treating leads as channels in 1D CNN stems and projecting to token embeddings for a Transformer head. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))\n\nBenchmarks and compute: Tiny Transformer demonstrates strong Accuracy–Efficiency trade‑offs (≈6k params; 4.28 ms inference; 0.09 mJ on GAP9) with robustness to artifacts; rECGnition_v2.0 provides explicit FLOP budgets (~82.7M/sample) with high 10‑class F1; several works use wavelet denoising and beat segmentation consistent with MIT-BIH signal characteristics. Use DS1/DS2 inter‑patient splits or 5-fold inter‑patient CV to avoid leakage in 5‑class AAMI experiments; report macro‑F1 and per‑class F1 for S and F classes given imbalance. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))\n\nTakeaway for this setup: For torch tensors of shape (1000,2) and 5 classes on MIT-BIH, the most practical state-of-the-art pattern is a CNN–Transformer lite hybrid: a small depthwise 1D CNN stem on two leads, short tokenization (e.g., stride 8–16 → ~64–128 tokens), 2–3 tiny Transformer encoder blocks with multihead attention (e.g., 4 heads, d_model 64–128), and a class token or attention pooling head. This matches the strongest 2024 evidence on accuracy–efficiency (Tiny Transformer) and the robustness of hybrid pipelines (CNN+BiLSTM+Attention), while remaining straightforward to implement and deploy in PyTorch with quantization-aware training. Use inter‑patient splits and class‑balanced training objectives to achieve reliable macro‑F1 on minority classes. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))",
+  "key_findings": [
+    "Tiny Transformer (6k params) reached 98.97% 5-class accuracy on MIT-BIH with 8-bit inference; worst-case post-deployment accuracy 98.36%, 4.28 ms inference and 0.09 mJ on GAP9, showing high accuracy at ultra-low compute. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))",
+    "A hierarchical CNN+BiLSTM with attention achieved 0.997 accuracy and 0.993 F1 on MIT-BIH 5-class (5-fold CV) using denoising, z-score normalization, and class rebalancing—evidence that lightweight attention on top of CNN/RNN is highly competitive. ([journals.sagepub.com](https://journals.sagepub.com/doi/10.1177/20552076241278942?utm_source=openai))",
+    "rECGnition_v2.0 combined dual-path CNN and Self-Attentive Canonical Correlation fusion, obtaining 98.07% accuracy and 98.05% F1 on 10-class MIT-BIH with ~82.7M FLOPs/sample, demonstrating interpretable, compute-aware design. ([arxiv.org](https://arxiv.org/abs/2502.16255?utm_source=openai))",
+    "A 2025 systematic review highlights that many MIT-BIH results overstate performance due to non-inter-patient splits; it advocates E3C criteria (inter‑patient, AAMI compliance, embedded feasibility) for fair, deployable comparisons. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))",
+    "MIT-BIH is two-channel, 360 Hz with ≈110k beats and severe class imbalance (e.g., N dominates S/V/F/Q), so macro‑F1 and per-class F1 must be reported; DS1/DS2 inter‑patient splitting is standard. ([physionet.org](https://physionet.org/content/mitdb/1.0.0/mitdbdir/samples/?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Recommend a CNN–Transformer Lite (2‑lead) architecture in PyTorch: 1D depthwise‑separable CNN stem over input (B, C=2, T=1000) → patch embedding (stride 8–16) → 2–3 tiny Transformer encoder blocks (d_model 64–128, 4 heads, dropout 0.1) with relative positional encoding → class token or attention pooling → 5‑way linear head. Train with inter‑patient DS1/DS2 split, weighted cross‑entropy or focal loss for class imbalance, and light ECG augmentations (jitter, scaling, baseline drift). Quantization-aware training enables 8‑bit deployment. Justification: Matches 2024 Tiny Transformer’s accuracy–efficiency evidence while retaining the robustness of hybrid CNN+temporal attention models on MIT-BIH; minimal parameters and FLOPs with proven deployability. ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))"
+  ],
+  "recent_papers": [
+    {
+      "title": "A Tiny Transformer for Low-Power Arrhythmia Classification on Microcontrollers (2024)",
+      "contribution": "Ultra-compact transformer (~6k params) achieves 98.97% 5-class accuracy on MIT-BIH; 8-bit inference, 4.28 ms and 0.09 mJ on GAP9; robustness under motion artifacts (98.36% worst-case). ([arxiv.org](https://arxiv.org/abs/2402.10748?utm_source=openai))"
+    },
+    {
+      "title": "Hierarchical deep learning for autonomous multi-label arrhythmia detection and classification on real-world wearable ECG data (2024)",
+      "contribution": "CNN+BiLSTM+Attention; on MIT-BIH 5-class benchmark: 0.997 accuracy and 0.993 F1 (5-fold CV); details on denoising, rebalancing, and attention pooling. ([journals.sagepub.com](https://journals.sagepub.com/doi/10.1177/20552076241278942?utm_source=openai))"
+    },
+    {
+      "title": "rECGnition_v2.0: Self‑Attentive Canonical Fusion of ECG and Patient Data (2025)",
+      "contribution": "Dual-path CNN with SACC fusion; 98.07% accuracy and 98.05% F1 on 10-class MIT-BIH with ~82.7M FLOPs per sample; interpretable and efficient design. ([arxiv.org](https://arxiv.org/abs/2502.16255?utm_source=openai))"
+    },
+    {
+      "title": "A Systematic Review of ECG Arrhythmia Classification: Adherence to Standards, Fair Evaluation, and Embedded Feasibility (2025)",
+      "contribution": "Meta-analysis of 2017–2024 studies; stresses inter‑patient splits, AAMI compliance, and embedded metrics (E3C) for fair SOTA comparisons and practical deployment. ([arxiv.org](https://arxiv.org/abs/2503.07276?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.78,
+  "timestamp": 1759466149,
+  "generated_time": "2025-10-02 23:35:49",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

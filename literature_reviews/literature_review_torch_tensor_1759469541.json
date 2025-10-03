@@ -1,0 +1,60 @@
+{
+  "query": "ECG classification arrhythmia detection heart rhythm analysis sequence classification time series machine learning multiclass sequence classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem framing: You have multivariate ECG beat sequences as torch_tensors shaped (T=1000, C=2), five classes, from the MIT-BIH Arrhythmia Database. MIT-BIH provides 48 half‑hour two‑channel ambulatory ECG records sampled at 360 Hz with >110k beat annotations, which aligns with 2‑lead, multi‑second windows like your 1000×2 input. This is a standard benchmark for AAMI 5‑class heartbeat classification (N, S, V, F, Q). ([physionet.org](https://physionet.org/content/mitdb/1.0.0/))\n\nWhat recent evidence shows: 2024–2025 work centers on hybrid 1D CNN + attention/Transformers and time‑frequency pipelines, with careful imbalance handling and increasingly efficient models.\n- CNN + attention + Transformer (CAT‑Net, 2024) achieves 99.14% overall accuracy and 94.69% macro‑F1 on 5‑class MIT‑BIH, explicitly tackling class imbalance with SMOTE‑Tomek; it uses 1D convolutions for local morphology and a Transformer encoder for global context. These design choices map directly to 2‑lead sequences by treating leads as channels in Conv1d. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))\n- Tiny Transformer (2024, IEEE TBioCAS) targets embedded efficiency: ~6k parameters, 8‑bit inference, 98.97% accuracy on MIT‑BIH 5‑class, with 4.28 ms, 0.09 mJ inference on GAP9; a robust post‑deployment worst‑case of 98.36% was reported. This sets a strong efficiency bar if you need low‑latency deployment; it is also adaptable to 2 channels. ([arxiv.org](https://arxiv.org/abs/2402.10748))\n- Time–frequency approaches: a 2025 study converts 1D ECG to 2D S‑transform spectrograms and trains a 2D hybrid CNN–Transformer, reaching 99.58% (MIT‑BIH, 5‑class) and 97.8% (Icentia11k, 4‑class), and notably does not require R‑peak detection—useful when segmentation is noisy. This supports adding spectral cues if pure 1D models plateau. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC11885558/?utm_source=openai))\n- PyTorch‑first Transformer hybrids exist: ECGTransForm (2024, code available) uses multi‑scale convolutions, a bidirectional Transformer, and a context‑aware loss to handle imbalance; the authors report improvements over contemporary baselines on MIT‑BIH/PTB. This is directly reusable in PyTorch pipelines. ([github.com](https://github.com/emadeldeen24/ECGTransForm))\n- Model complexity/interpretability trade‑offs: a 2025 Hierarchical Attention Network (HAN) matched CAT‑Net closely on MIT‑BIH (98.55% vs. 99.14% test accuracy) while cutting parameters by 15.6×, highlighting avenues for parameter‑efficient 1D attention architectures if compute is tight or interpretability is a priority. ([arxiv.org](https://arxiv.org/abs/2504.03703?utm_source=openai))\n- For compute accounting, rECGnition v2.0 (2025) reports 98.07% accuracy and 98.05% F1 on MIT‑BIH (10‑class) at 82.7M FLOPs/sample via dual‑pathway depthwise separable convs plus a self‑attentive CCA fusion. While not a 5‑class setup, it provides recent FLOPs‑level reporting for comparison. ([arxiv.org](https://arxiv.org/abs/2502.16255?utm_source=openai))\n\nImplications for your (1000,2) tensor: 1D CNN→attention/Transformer encoders remain state‑of‑the‑art on MIT‑BIH with strong macro‑F1 under class imbalance, match your two‑lead input naturally, and are straightforward in PyTorch. If you face noisy segmentation or want cross‑dataset robustness, adding a lightweight time‑frequency branch (or data augmentation) is supported by evidence. For edge devices, the Tiny Transformer results show you can push to kiloparameter regimes without sacrificing much accuracy.\n\nRecommended architecture (see below) is a PyTorch CAT‑Net‑style 1D hybrid adapted for two leads and 1000‑sample windows, trained with class‑balanced loss; this maximizes proven MIT‑BIH accuracy/macrof‑F1 while keeping computation moderate and implementation simple. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+  "key_findings": [
+    "Hybrid 1D CNN + Transformer models deliver the strongest peer‑reviewed MIT‑BIH 5‑class results: CAT‑Net reports 99.14% accuracy and 94.69% macro‑F1 with SMOTE‑Tomek balancing, combining Conv1d for local morphology and a Transformer encoder for global context. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))",
+    "Efficiency can be extreme without large accuracy loss: a Tiny Transformer achieves 98.97% (5‑class MIT‑BIH) with ~6k parameters, 8‑bit inference, 4.28 ms latency and 0.09 mJ on GAP9; worst‑case post‑deployment accuracy is 98.36%. ([arxiv.org](https://arxiv.org/abs/2402.10748))",
+    "Time‑frequency 2D pipelines improve robustness and can avoid R‑peak detection: an S‑transform + CNN‑Transformer hybrid reached 99.58% on MIT‑BIH (5‑class) and 97.8% on Icentia11k (4‑class), supporting the value of spectral representations when pure 1D models plateau. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC11885558/?utm_source=openai))",
+    "PyTorch‑ready bidirectional Transformer hybrids (ECGTransForm) integrate multi‑scale convs and a context‑aware loss to mitigate class imbalance and report gains over baselines on MIT‑BIH/PTB, easing direct adoption in Torch codebases. ([github.com](https://github.com/emadeldeen24/ECGTransForm))",
+    "Model size vs. accuracy trade‑off: a 2025 Hierarchical Attention Network attained 98.55% on MIT‑BIH with 15.6× fewer parameters than CAT‑Net, indicating substantial room to compress attention models while retaining accuracy. ([arxiv.org](https://arxiv.org/abs/2504.03703?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Adopt a CAT‑Net–style 1D CNN + channel‑attention + Transformer encoder in PyTorch, configured for 2 leads and 1000‑sample windows (Conv1d with C=2 input, multi‑scale kernels for P‑QRS‑T morphology, SE/ECA attention, 1–2 Transformer encoder blocks with d_model≈128 and 4–8 heads), followed by GAP + MLP. Train with SMOTE‑Tomek (offline) and class‑balanced focal or effective‑number weighting; use stratified record‑wise or inter‑patient splits per your protocol. This mirrors the best peer‑reviewed MIT‑BIH results (99.14% accuracy, 94.69% macro‑F1) while remaining simpler than 2D spectrogram pipelines and readily implementable in PyTorch for (1000,2) inputs. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+  ],
+  "recent_papers": [
+    {
+      "title": "CAT‑Net: Convolution, attention, and transformer based network for single‑lead ECG arrhythmia classification (Biomedical Signal Processing and Control, 2024)",
+      "contribution": "1D Conv + Transformer encoder with class‑imbalance handling (SMOTE‑Tomek); SOTA on MIT‑BIH 5‑class with 99.14% accuracy and 94.69% macro‑F1; design generalizes to multi‑lead by treating leads as channels. ([sciencedirect.com](https://www.sciencedirect.com/science/article/pii/S1746809424002696?utm_source=openai))"
+    },
+    {
+      "title": "A Tiny Transformer for Low‑Power Arrhythmia Classification on Microcontrollers (IEEE TBioCAS, 2024)",
+      "contribution": "~6k‑parameter Transformer with 8‑bit inference achieving 98.97% on MIT‑BIH 5‑class; 4.28 ms, 0.09 mJ inference on GAP9; demonstrates strong accuracy‑per‑FLOP for edge deployment. ([arxiv.org](https://arxiv.org/abs/2402.10748))"
+    },
+    {
+      "title": "A hybrid CNN‑Transformer with Stockwell transform (2025)",
+      "contribution": "Avoids R‑peak detection by using S‑transform spectrograms; 99.58% on MIT‑BIH (5‑class) and 97.8% on Icentia11k (4‑class), evidencing benefits of time‑frequency features for generalization. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC11885558/?utm_source=openai))"
+    },
+    {
+      "title": "ECGTransForm: Empowering adaptive ECG arrhythmia classification with bidirectional Transformer (BSPC, 2024) + PyTorch repo",
+      "contribution": "Multi‑scale convs + bidirectional Transformer + context‑aware loss; authors report improvements over contemporary baselines; open PyTorch implementation facilitates direct reuse. ([github.com](https://github.com/emadeldeen24/ECGTransForm))"
+    },
+    {
+      "title": "Hierarchical Attention Network for Interpretable ECG‑based Classification (arXiv, 2025)",
+      "contribution": "Matches CAT‑Net closely on MIT‑BIH (98.55% vs 99.14%) with 15.6× fewer parameters, highlighting parameter‑efficient attention designs and improved interpretability. ([arxiv.org](https://arxiv.org/abs/2504.03703?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.78,
+  "timestamp": 1759469541,
+  "generated_time": "2025-10-03 00:32:21",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      62352,
+      1000,
+      2
+    ],
+    "dtype": "float32",
+    "feature_count": 2,
+    "sample_count": 62352,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9667227968887819,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "Two\u2011Lead CAT\u2011Net (1D CNN + SE Channel Attention + Transformer Encoder)",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_Two\u2011Lead_CAT\u2011Net__1D_CNN_+_SE_Channel_Attention_+_Transformer_Encoder_1759459520.json",
+      "bo_best_params": {
+        "epochs": "37",
+        "batch_size": "32",
+        "lr": 0.004111029158116247,
+        "weight_decay": 0.0001680838775444637,
+        "stem_channels": "24",
+        "nhead": "1",
+        "d_model_factor": "10",
+        "num_layers": "2",
+        "ff_factor": "3",
+        "dropout": 0.27589837466691197,
+        "use_focal_loss": "False",
+        "focal_gamma": 2.4022071626903534,
+        "label_smoothing": 0.018839562214466435,
+        "grad_clip_norm": 0.6105298155255798,
+        "sched_step": "9",
+        "sched_gamma": 0.9802751497189455,
+        "quantization_bits": "16",
+        "quantize_weights": "True",
+        "quantize_activations": "False"
+      },
+      "bo_best_score": 0.968675604560832,
+      "final_metrics": {
+        "acc": 0.9667227968887819,
+        "macro_f1": null
+      },
+      "performance_score": 0.9667227968887819,
+      "confidence": 0.86
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "Two\u2011Lead CAT\u2011Net (1D CNN + SE Channel Attention + Transformer Encoder)",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_Two\u2011Lead CAT\u2011Net (1D CNN + SE Channel Attention + Transformer Encoder)_20251002_233329.pth"
+}

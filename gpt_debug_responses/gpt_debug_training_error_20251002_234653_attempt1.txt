@@ -1,0 +1,434 @@
+=== GPT DEBUG RESPONSE ===
+Timestamp: 20251002_234653
+Attempt: 1/4
+Error Type: training_error
+Original Error: too many values to unpack (expected 2)
+=== RAW GPT RESPONSE ===
+{"training_code": "def train_model(\n    X_train,\n    y_train,\n    X_val,\n    y_val,\n    device,\n    # Architecture hyperparams\n    seq_len: int = 1000,\n    patch_size: int = 10,\n    head_dim: int = 12,\n    n_heads: int = 4,\n    n_layers: int = 2,\n    d_ff_factor: int = 2,\n    stem_channels: int = 8,\n    ds_kernel1: int = 7,\n    ds_kernel2: int = 5,\n    dropout: float = 0.1,\n    num_classes: int = 5,\n    max_rel_positions: int = 128,\n    # Optimization hyperparams\n    epochs: int = 15,\n    batch_size: int = 128,\n    lr: float = 5e-4,\n    weight_decay: float = 1e-4,\n    grad_clip_norm: float = 1.0,\n    use_focal_loss: bool = False,\n    focal_gamma: float = 2.0,\n    label_smoothing: float = 0.0,\n    compute_class_weights: bool = True,\n    # Augmentations\n    aug_prob: float = 0.5,\n    aug_jitter_std: float = 0.005,\n    aug_scale_low: float = 0.9,\n    aug_scale_high: float = 1.1,\n    aug_drift_max_amp: float = 0.05,\n    normalize: bool = True,\n    # Quantization params (post-training)\n    quantization_bits: int = 8,\n    quantize_weights: bool = True,\n    quantize_activations: bool = True,\n    # Reproducibility\n    seed: int = 42\n) -> tuple:\n    \"\"\"\n    Trains a compact CNN-Transformer Lite (2-lead ECG) model and returns (quantized_model, metrics).\n\n    Notes:\n    - ALWAYS trains on the provided GPU device.\n    - All tensors and the model are moved to the same device during training.\n    - DataLoader pin_memory is set to False as required.\n    - Inputs X_* expected as float tensors shaped (N, 2, 1000) or (N, 1000, 2).\n    \"\"\"\n    import random\n    import math\n    import torch\n    import torch.nn as nn\n    import torch.nn.functional as F\n    from torch.utils.data import DataLoader, Dataset\n\n    # Normalize device argument\n    device = torch.device(device)\n\n    # Reproducibility\n    torch.manual_seed(seed)\n    random.seed(seed)\n\n    # ----------------------\n    # Local dataset (fixes NameError: ECGDataset)\n    # ----------------------\n    class ECGDataset(Dataset):\n        def __init__(\n            self,\n            X,\n            y,\n            seq_len: int,\n            augment: bool = False,\n            aug_prob: float = 0.5,\n            aug_jitter_std: float = 0.005,\n            aug_scale_low: float = 0.9,\n            aug_scale_high: float = 1.1,\n            aug_drift_max_amp: float = 0.05,\n            normalize: bool = True,\n        ):\n            self.x = torch.as_tensor(X, dtype=torch.float32)\n            self.y = torch.as_tensor(y, dtype=torch.long)\n            if self.x.dim() != 3:\n                raise ValueError(f\"Expected X to have 3 dims, got {self.x.shape}\")\n            # Standardize to (N, 2, T)\n            if self.x.shape[1] == seq_len and self.x.shape[2] == 2:\n                self.x = self.x.permute(0, 2, 1).contiguous()\n            elif self.x.shape[1] == 2 and self.x.shape[2] == seq_len:\n                pass\n            else:\n                raise ValueError(f\"X must be (N, 2, {seq_len}) or (N, {seq_len}, 2), got {self.x.shape}\")\n            if self.y.shape[0] != self.x.shape[0]:\n                raise ValueError(\"Mismatch between number of samples in X and y\")\n            self.seq_len = seq_len\n            self.augment = augment\n            self.aug_prob = float(aug_prob)\n            self.aug_jitter_std = float(aug_jitter_std)\n            self.aug_scale_low = float(aug_scale_low)\n            self.aug_scale_high = float(aug_scale_high)\n            self.aug_drift_max_amp = float(aug_drift_max_amp)\n            self.normalize = bool(normalize)\n\n        def __len__(self):\n            return self.x.shape[0]\n\n        def _normalize(self, x: torch.Tensor) -> torch.Tensor:\n            # Channel-wise z-score over time\n            mean = x.mean(dim=1, keepdim=True)\n            std = x.std(dim=1, keepdim=True).clamp_min(1e-6)\n            return (x - mean) / std\n\n        def _augment(self, x: torch.Tensor) -> torch.Tensor:\n            # Jitter\n            if self.aug_jitter_std > 0.0:\n                noise = torch.randn_like(x) * self.aug_jitter_std\n                x = x + noise\n            # Scale\n            if self.aug_scale_high > 0.0:\n                scale = random.uniform(self.aug_scale_low, self.aug_scale_high)\n                x = x * scale\n            # Low-frequency drift (sinusoidal)\n            if self.aug_drift_max_amp > 0.0:\n                T = x.shape[-1]\n                freq = random.uniform(0.25, 2.0)  # cycles over the window\n                t = torch.linspace(0, 2 * math.pi * freq, T, dtype=x.dtype, device=x.device)\n                amp = random.uniform(-self.aug_drift_max_amp, self.aug_drift_max_amp)\n                drift = amp * torch.sin(t)[None, :]\n                x = x + drift\n            return x\n\n        def __getitem__(self, idx):\n            x = self.x[idx]\n            y = self.y[idx]\n            if self.normalize:\n                x = self._normalize(x)\n            if self.augment and random.random() < self.aug_prob:\n                x = self._augment(x)\n            return x, y\n\n    # ----------------------\n    # Local FocalLoss (optional usage)\n    # ----------------------\n    class FocalLoss(nn.Module):\n        def __init__(self, gamma: float = 2.0, weight: torch.Tensor | None = None, label_smoothing: float = 0.0):\n            super().__init__()\n            self.gamma = gamma\n            self.register_buffer('weight', weight if weight is not None else None)\n            self.label_smoothing = float(label_smoothing)\n\n        def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:\n            ce = F.cross_entropy(\n                logits,\n                targets,\n                weight=self.weight,\n                reduction='none',\n                label_smoothing=self.label_smoothing,\n            )\n            pt = torch.exp(-ce)\n            loss = ((1.0 - pt) ** self.gamma) * ce\n            return loss.mean()\n\n    # ----------------------\n    # Post-training quantization stub\n    # ----------------------\n    def apply_post_training_quantization(model: nn.Module, bits: int, quantize_weights: bool, quantize_activations: bool) -> nn.Module:\n        # Identity stub (no-op). Replace with real PTQ if available in the environment.\n        return model\n\n    # ----------------------\n    # Fallback simple model if CNNTransformerLite1D is not available in globals\n    # ----------------------\n    class _SimpleECGNet(nn.Module):\n        def __init__(self, in_ch: int = 2, stem_ch: int = 8, k1: int = 7, k2: int = 5, dropout: float = 0.1, num_classes: int = 5):\n            super().__init__()\n            p1 = k1 // 2\n            p2 = k2 // 2\n            self.net = nn.Sequential(\n                nn.Conv1d(in_ch, stem_ch, kernel_size=k1, padding=p1),\n                nn.BatchNorm1d(stem_ch),\n                nn.ReLU(inplace=True),\n                nn.MaxPool1d(kernel_size=2),\n                nn.Conv1d(stem_ch, stem_ch * 2, kernel_size=k2, padding=p2),\n                nn.BatchNorm1d(stem_ch * 2),\n                nn.ReLU(inplace=True),\n                nn.Dropout(p=dropout),\n                nn.Conv1d(stem_ch * 2, stem_ch * 4, kernel_size=k2, padding=p2),\n                nn.BatchNorm1d(stem_ch * 4),\n                nn.ReLU(inplace=True),\n                nn.AdaptiveAvgPool1d(1),\n            )\n            self.head = nn.Linear(stem_ch * 4, num_classes)\n\n        def forward(self, x):\n            x = self.net(x)\n            x = x.squeeze(-1)\n            return self.head(x)\n\n    # Datasets & Loaders\n    train_ds = ECGDataset(\n        X_train, y_train, seq_len=seq_len, augment=True, aug_prob=aug_prob,\n        aug_jitter_std=aug_jitter_std, aug_scale_low=aug_scale_low, aug_scale_high=aug_scale_high,\n        aug_drift_max_amp=aug_drift_max_amp, normalize=normalize\n    )\n    val_ds = ECGDataset(\n        X_val, y_val, seq_len=seq_len, augment=False, normalize=normalize\n    )\n\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False)\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)\n\n    # Build model (use CNNTransformerLite1D if defined, else fallback)\n    if 'CNNTransformerLite1D' in globals() and callable(globals()['CNNTransformerLite1D']):\n        model = globals()['CNNTransformerLite1D'](\n            seq_len=seq_len, in_ch=2, stem_ch=stem_channels, ds_kernel1=ds_kernel1, ds_kernel2=ds_kernel2,\n            patch_size=patch_size, head_dim=head_dim, n_heads=n_heads, n_layers=n_layers,\n            d_ff_factor=d_ff_factor, dropout=dropout, num_classes=num_classes, max_rel_positions=max_rel_positions\n        )\n    else:\n        model = _SimpleECGNet(in_ch=2, stem_ch=stem_channels, k1=ds_kernel1, k2=ds_kernel2, dropout=dropout, num_classes=num_classes)\n\n    # Move model to GPU\n    model = model.to(device)\n\n    # Class weights (optional)\n    if compute_class_weights:\n        with torch.no_grad():\n            yt = train_ds.y\n            counts = torch.bincount(yt, minlength=num_classes).float().clamp_min(1.0)\n            weights = counts.sum() / counts\n            weights = weights / weights.mean()\n            class_weights = weights.to(device)\n    else:\n        class_weights = None\n\n    # Loss\n    if use_focal_loss:\n        criterion = FocalLoss(gamma=focal_gamma, weight=class_weights, label_smoothing=label_smoothing)\n    else:\n        criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing).to(device)\n\n    # Optimizer\n    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\n    scheduler = None  # optionally add schedulers here if desired\n\n    # Helper to robustly unpack batches that may include extra items\n    def _unpack_batch(batch):\n        if isinstance(batch, (list, tuple)):\n            if len(batch) < 2:\n                raise ValueError(\"Batch must contain at least 2 elements (inputs, targets)\")\n            return batch[0], batch[1]\n        if isinstance(batch, dict):\n            # Try common key names\n            x_keys = [\"x\", \"inputs\", \"data\", \"features\"]\n            y_keys = [\"y\", \"labels\", \"target\", \"targets\"]\n            for xk in x_keys:\n                for yk in y_keys:\n                    if xk in batch and yk in batch:\n                        return batch[xk], batch[yk]\n            tensors = [v for v in batch.values() if torch.is_tensor(v)]\n            if len(tensors) >= 2:\n                return tensors[0], tensors[1]\n            raise ValueError(\"Could not unpack batch dict into (inputs, targets)\")\n        raise ValueError(f\"Unexpected batch type: {type(batch)}\")\n\n    def _get_logits(out):\n        return out[0] if isinstance(out, (tuple, list)) else out\n\n    # Training loop\n    train_losses, val_losses, val_accs = [], [], []\n\n    for epoch in range(epochs):\n        model.train()\n        running_loss = 0.0\n        total_train = 0\n\n        for batch in train_loader:\n            xb, yb = _unpack_batch(batch)\n\n            # Move to GPU\n            xb = xb.to(device, non_blocking=False)\n            yb = yb.to(device, non_blocking=False)\n\n            # Ensure shape (B, 2, T)\n            if xb.dim() == 3 and xb.shape[1] == seq_len and xb.shape[2] == 2:\n                xb = xb.permute(0, 2, 1).contiguous()\n\n            optimizer.zero_grad(set_to_none=True)\n            logits = _get_logits(model(xb))\n            loss = criterion(logits, yb)\n            loss = loss.to(device)\n\n            loss.backward()\n            if grad_clip_norm is not None and grad_clip_norm > 0:\n                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)\n            optimizer.step()\n\n            running_loss += loss.item() * xb.size(0)\n            total_train += xb.size(0)\n\n        epoch_train_loss = running_loss / max(1, total_train)\n        train_losses.append(epoch_train_loss)\n\n        # Validation\n        model.eval()\n        val_running_loss = 0.0\n        correct = 0\n        total = 0\n        with torch.no_grad():\n            for batch in val_loader:\n                xb, yb = _unpack_batch(batch)\n                xb = xb.to(device, non_blocking=False)\n                yb = yb.to(device, non_blocking=False)\n                if xb.dim() == 3 and xb.shape[1] == seq_len and xb.shape[2] == 2:\n                    xb = xb.permute(0, 2, 1).contiguous()\n                logits = _get_logits(model(xb))\n                loss = criterion(logits, yb)\n                loss = loss.to(device)\n\n                val_running_loss += loss.item() * xb.size(0)\n                preds = torch.argmax(logits, dim=1)\n                correct += (preds == yb).sum().item()\n                total += xb.size(0)\n\n        epoch_val_loss = val_running_loss / max(1, total)\n        epoch_val_acc = correct / max(1, total)\n        val_losses.append(epoch_val_loss)\n        val_accs.append(epoch_val_acc)\n\n        if scheduler is not None:\n            scheduler.step()\n\n        print(f\"Epoch {epoch+1}/{epochs}: train_loss={epoch_train_loss:.5f} val_loss={epoch_val_loss:.5f} val_acc={epoch_val_acc:.4f}\")\n\n    # Move to CPU for post-training quantization\n    model_cpu = model.to('cpu')\n    model_cpu.eval()\n\n    quantized_model = apply_post_training_quantization(model_cpu, quantization_bits, quantize_weights, quantize_activations)\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'config': {\n            'seq_len': seq_len,\n            'patch_size': patch_size,\n            'head_dim': head_dim,\n            'n_heads': n_heads,\n            'n_layers': n_layers,\n            'd_ff_factor': d_ff_factor,\n            'stem_channels': stem_channels,\n            'ds_kernel1': ds_kernel1,\n            'ds_kernel2': ds_kernel2,\n            'dropout': dropout,\n            'num_classes': num_classes,\n            'epochs': epochs,\n            'batch_size': batch_size,\n            'lr': lr,\n            'weight_decay': weight_decay,\n            'grad_clip_norm': grad_clip_norm,\n            'use_focal_loss': use_focal_loss,\n            'focal_gamma': focal_gamma,\n            'label_smoothing': label_smoothing,\n            'compute_class_weights': compute_class_weights,\n            'augmentations': {\n                'aug_prob': aug_prob,\n                'aug_jitter_std': aug_jitter_std,\n                'aug_scale_low': aug_scale_low,\n                'aug_scale_high': aug_scale_high,\n                'aug_drift_max_amp': aug_drift_max_amp,\n                'normalize': normalize\n            },\n            'quantization': {\n                'quantization_bits': quantization_bits,\n                'quantize_weights': quantize_weights,\n                'quantize_activations': quantize_activations\n            },\n            'seed': seed\n        }\n    }\n\n    # Return as a 2-tuple to avoid unpacking errors in callers expecting (model, metrics)\n    return quantized_model, metrics\n"}
+=== PROMPT USED ===
+CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
+
+Analyze this PyTorch training error and provide either hyperparameter corrections, fixed training code, OR indicate if it's a system/environment issue.
+
+PyTorch Version: 2.8.0+cu128
+Training Error: too many values to unpack (expected 2)
+BO Config: {'lr': {'default': 0.0005, 'type': 'Real', 'low': 1e-06, 'high': 0.01, 'prior': 'log-uniform'}, 'batch_size': {'default': 128, 'type': 'Categorical', 'categories': [32, 64, 128, 256]}, 'epochs': {'default': 15, 'type': 'Integer', 'low': 5, 'high': 50}, 'head_dim': {'default': 12, 'type': 'Integer', 'low': 8, 'high': 24}, 'n_heads': {'default': 4, 'type': 'Categorical', 'categories': [2, 4, 6, 8]}, 'n_layers': {'default': 2, 'type': 'Integer', 'low': 1, 'high': 3}, 'd_ff_factor': {'default': 2, 'type': 'Integer', 'low': 1, 'high': 4}, 'stem_channels': {'default': 8, 'type': 'Categorical', 'categories': [8, 12, 16]}, 'ds_kernel1': {'default': 7, 'type': 'Categorical', 'categories': [3, 5, 7, 9]}, 'ds_kernel2': {'default': 5, 'type': 'Categorical', 'categories': [3, 5, 7]}, 'patch_size': {'default': 10, 'type': 'Categorical', 'categories': [5, 8, 10, 20, 25, 40, 50, 100]}, 'dropout': {'default': 0.1, 'type': 'Real', 'low': 0.0, 'high': 0.5}, 'weight_decay': {'default': 0.0001, 'type': 'Real', 'low': 1e-06, 'high': 0.01, 'prior': 'log-uniform'}, 'grad_clip_norm': {'default': 1.0, 'type': 'Real', 'low': 0.0, 'high': 5.0}, 'use_focal_loss': {'default': False, 'type': 'Categorical', 'categories': [True, False]}, 'focal_gamma': {'default': 2.0, 'type': 'Real', 'low': 0.5, 'high': 5.0}, 'label_smoothing': {'default': 0.0, 'type': 'Real', 'low': 0.0, 'high': 0.2}, 'compute_class_weights': {'default': True, 'type': 'Categorical', 'categories': [True, False]}, 'aug_prob': {'default': 0.5, 'type': 'Real', 'low': 0.0, 'high': 1.0}, 'aug_jitter_std': {'default': 0.005, 'type': 'Real', 'low': 0.0, 'high': 0.05}, 'aug_scale_low': {'default': 0.9, 'type': 'Real', 'low': 0.8, 'high': 1.0}, 'aug_scale_high': {'default': 1.1, 'type': 'Real', 'low': 1.0, 'high': 1.2}, 'aug_drift_max_amp': {'default': 0.05, 'type': 'Real', 'low': 0.0, 'high': 0.2}, 'normalize': {'default': True, 'type': 'Categorical', 'categories': [True, False]}, 'quantization_bits': {'default': 8, 'type': 'Categorical', 'categories': [8, 16, 32]}, 'quantize_weights': {'default': True, 'type': 'Categorical', 'categories': [True, False]}, 'quantize_activations': {'default': True, 'type': 'Categorical', 'categories': [True, False]}, 'seed': {'default': 42, 'type': 'Integer', 'low': 0, 'high': 1000000}}
+Training Code: def train_model(
+    X_train,
+    y_train,
+    X_val,
+    y_val,
+    device,
+    # Architecture hyperparams
+    seq_len: int = 1000,
+    patch_size: int = 10,
+    head_dim: int = 12,
+    n_heads: int = 4,
+    n_layers: int = 2,
+    d_ff_factor: int = 2,
+    stem_channels: int = 8,
+    ds_kernel1: int = 7,
+    ds_kernel2: int = 5,
+    dropout: float = 0.1,
+    num_classes: int = 5,
+    max_rel_positions: int = 128,
+    # Optimization hyperparams
+    epochs: int = 15,
+    batch_size: int = 128,
+    lr: float = 5e-4,
+    weight_decay: float = 1e-4,
+    grad_clip_norm: float = 1.0,
+    use_focal_loss: bool = False,
+    focal_gamma: float = 2.0,
+    label_smoothing: float = 0.0,
+    compute_class_weights: bool = True,
+    # Augmentations
+    aug_prob: float = 0.5,
+    aug_jitter_std: float = 0.005,
+    aug_scale_low: float = 0.9,
+    aug_scale_high: float = 1.1,
+    aug_drift_max_amp: float = 0.05,
+    normalize: bool = True,
+    # Quantization params (post-training)
+    quantization_bits: int = 8,
+    quantize_weights: bool = True,
+    quantize_activations: bool = True,
+    # Reproducibility
+    seed: int = 42
+) -> dict:
+    """
+    Trains a compact CNN-Transformer Lite (2-lead ECG) model and returns a quantized model and metrics.
+
+    Notes:
+    - ALWAYS trains on the provided GPU device.
+    - All tensors and the model are moved to the same device during training.
+    - DataLoader pin_memory is set to False as required.
+    - Inputs X_* expected as float tensors shaped (N, 2, 1000) or (N, 1000, 2).
+    """
+    import random
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from torch.utils.data import DataLoader, Dataset
+
+    # Normalize device argument
+    device = torch.device(device)
+
+    # Reproducibility
+    torch.manual_seed(seed)
+    random.seed(seed)
+
+    # ----------------------
+    # Local dataset (fixes NameError: ECGDataset)
+    # ----------------------
+    class ECGDataset(Dataset):
+        def __init__(
+            self,
+            X,
+            y,
+            seq_len: int,
+            augment: bool = False,
+            aug_prob: float = 0.5,
+            aug_jitter_std: float = 0.005,
+            aug_scale_low: float = 0.9,
+            aug_scale_high: float = 1.1,
+            aug_drift_max_amp: float = 0.05,
+            normalize: bool = True,
+        ):
+            self.x = torch.as_tensor(X, dtype=torch.float32)
+            self.y = torch.as_tensor(y, dtype=torch.long)
+            if self.x.dim() != 3:
+                raise ValueError(f"Expected X to have 3 dims, got {self.x.shape}")
+            # Standardize to (N, 2, T)
+            if self.x.shape[1] == seq_len and self.x.shape[2] == 2:
+                self.x = self.x.permute(0, 2, 1).contiguous()
+            elif self.x.shape[1] == 2 and self.x.shape[2] == seq_len:
+                pass
+            else:
+                raise ValueError(f"X must be (N, 2, {seq_len}) or (N, {seq_len}, 2), got {self.x.shape}")
+            if self.y.shape[0] != self.x.shape[0]:
+                raise ValueError("Mismatch between number of samples in X and y")
+            self.seq_len = seq_len
+            self.augment = augment
+            self.aug_prob = float(aug_prob)
+            self.aug_jitter_std = float(aug_jitter_std)
+            self.aug_scale_low = float(aug_scale_low)
+            self.aug_scale_high = float(aug_scale_high)
+            self.aug_drift_max_amp = float(aug_drift_max_amp)
+            self.normalize = bool(normalize)
+
+        def __len__(self):
+            return self.x.shape[0]
+
+        def _normalize(self, x: torch.Tensor) -> torch.Tensor:
+            # Channel-wise z-score over time
+            mean = x.mean(dim=1, keepdim=True)
+            std = x.std(dim=1, keepdim=True).clamp_min(1e-6)
+            return (x - mean) / std
+
+        def _augment(self, x: torch.Tensor) -> torch.Tensor:
+            # Jitter
+            if self.aug_jitter_std > 0.0:
+                noise = torch.randn_like(x) * self.aug_jitter_std
+                x = x + noise
+            # Scale
+            if self.aug_scale_high > 0.0:
+                scale = random.uniform(self.aug_scale_low, self.aug_scale_high)
+                x = x * scale
+            # Low-frequency drift (sinusoidal)
+            if self.aug_drift_max_amp > 0.0:
+                T = x.shape[-1]
+                freq = random.uniform(0.25, 2.0)  # cycles over the window
+                t = torch.linspace(0, 2 * math.pi * freq, T, dtype=x.dtype, device=x.device)
+                amp = random.uniform(-self.aug_drift_max_amp, self.aug_drift_max_amp)
+                drift = amp * torch.sin(t)[None, :]
+                x = x + drift
+            return x
+
+        def __getitem__(self, idx):
+            x = self.x[idx]
+            y = self.y[idx]
+            if self.normalize:
+                x = self._normalize(x)
+            if self.augment and random.random() < self.aug_prob:
+                x = self._augment(x)
+            return x, y
+
+    # ----------------------
+    # Local FocalLoss (optional usage)
+    # ----------------------
+    class FocalLoss(nn.Module):
+        def __init__(self, gamma: float = 2.0, weight: torch.Tensor | None = None, label_smoothing: float = 0.0):
+            super().__init__()
+            self.gamma = gamma
+            self.register_buffer('weight', weight if weight is not None else None)
+            self.label_smoothing = float(label_smoothing)
+
+        def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            ce = F.cross_entropy(
+                logits,
+                targets,
+                weight=self.weight,
+                reduction='none',
+                label_smoothing=self.label_smoothing,
+            )
+            pt = torch.exp(-ce)
+            loss = ((1.0 - pt) ** self.gamma) * ce
+            return loss.mean()
+
+    # ----------------------
+    # Post-training quantization stub
+    # ----------------------
+    def apply_post_training_quantization(model: nn.Module, bits: int, quantize_weights: bool, quantize_activations: bool) -> nn.Module:
+        # Identity stub (no-op). Replace with real PTQ if available in the environment.
+        return model
+
+    # ----------------------
+    # Fallback simple model if CNNTransformerLite1D is not available in globals
+    # ----------------------
+    class _SimpleECGNet(nn.Module):
+        def __init__(self, in_ch: int = 2, stem_ch: int = 8, k1: int = 7, k2: int = 5, dropout: float = 0.1, num_classes: int = 5):
+            super().__init__()
+            p1 = k1 // 2
+            p2 = k2 // 2
+            self.net = nn.Sequential(
+                nn.Conv1d(in_ch, stem_ch, kernel_size=k1, padding=p1),
+                nn.BatchNorm1d(stem_ch),
+                nn.ReLU(inplace=True),
+                nn.MaxPool1d(kernel_size=2),
+                nn.Conv1d(stem_ch, stem_ch * 2, kernel_size=k2, padding=p2),
+                nn.BatchNorm1d(stem_ch * 2),
+                nn.ReLU(inplace=True),
+                nn.Dropout(p=dropout),
+                nn.Conv1d(stem_ch * 2, stem_ch * 4, kernel_size=k2, padding=p2),
+                nn.BatchNorm1d(stem_ch * 4),
+                nn.ReLU(inplace=True),
+                nn.AdaptiveAvgPool1d(1),
+            )
+            self.head = nn.Linear(stem_ch * 4, num_classes)
+
+        def forward(self, x):
+            x = self.net(x)
+            x = x.squeeze(-1)
+            return self.head(x)
+
+    # Datasets & Loaders
+    train_ds = ECGDataset(
+        X_train, y_train, seq_len=seq_len, augment=True, aug_prob=aug_prob,
+        aug_jitter_std=aug_jitter_std, aug_scale_low=aug_scale_low, aug_scale_high=aug_scale_high,
+        aug_drift_max_amp=aug_drift_max_amp, normalize=normalize
+    )
+    val_ds = ECGDataset(
+        X_val, y_val, seq_len=seq_len, augment=False, normalize=normalize
+    )
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)
+
+    # Build model (use CNNTransformerLite1D if defined, else fallback)
+    if 'CNNTransformerLite1D' in globals() and callable(globals()['CNNTransformerLite1D']):
+        model = globals()['CNNTransformerLite1D'](
+            seq_len=seq_len, in_ch=2, stem_ch=stem_channels, ds_kernel1=ds_kernel1, ds_kernel2=ds_kernel2,
+            patch_size=patch_size, head_dim=head_dim, n_heads=n_heads, n_layers=n_layers,
+            d_ff_factor=d_ff_factor, dropout=dropout, num_classes=num_classes, max_rel_positions=max_rel_positions
+        )
+    else:
+        model = _SimpleECGNet(in_ch=2, stem_ch=stem_channels, k1=ds_kernel1, k2=ds_kernel2, dropout=dropout, num_classes=num_classes)
+
+    # Move model to GPU
+    model = model.to(device)
+
+    # Class weights (optional)
+    if compute_class_weights:
+        with torch.no_grad():
+            yt = train_ds.y
+            counts = torch.bincount(yt, minlength=num_classes).float().clamp_min(1.0)
+            weights = counts.sum() / counts
+            weights = weights / weights.mean()
+            class_weights = weights.to(device)
+    else:
+        class_weights = None
+
+    # Loss
+    if use_focal_loss:
+        criterion = FocalLoss(gamma=focal_gamma, weight=class_weights, label_smoothing=label_smoothing)
+    else:
+        criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing).to(device)
+
+    # Optimizer
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = None  # optionally add schedulers here if desired
+
+    # Helper to robustly unpack batches that may include extra items
+    def _unpack_batch(batch):
+        if isinstance(batch, (list, tuple)):
+            if len(batch) < 2:
+                raise ValueError("Batch must contain at least 2 elements (inputs, targets)")
+            return batch[0], batch[1]
+        if isinstance(batch, dict):
+            # Try common key names
+            x_keys = ["x", "inputs", "data", "features"]
+            y_keys = ["y", "labels", "target", "targets"]
+            for xk in x_keys:
+                for yk in y_keys:
+                    if xk in batch and yk in batch:
+                        return batch[xk], batch[yk]
+            tensors = [v for v in batch.values() if torch.is_tensor(v)]
+            if len(tensors) >= 2:
+                return tensors[0], tensors[1]
+            raise ValueError("Could not unpack batch dict into (inputs, targets)")
+        raise ValueError(f"Unexpected batch type: {type(batch)}")
+
+    # Training loop
+    train_losses, val_losses, val_accs = [], [], []
+
+    for epoch in range(epochs):
+        model.train()
+        running_loss = 0.0
+        total_train = 0
+
+        for batch in train_loader:
+            xb, yb = _unpack_batch(batch)
+
+            # Move to GPU
+            xb = xb.to(device, non_blocking=False)
+            yb = yb.to(device, non_blocking=False)
+
+            # Ensure shape (B, 2, T)
+            if xb.dim() == 3 and xb.shape[1] == seq_len and xb.shape[2] == 2:
+                xb = xb.permute(0, 2, 1).contiguous()
+
+            optimizer.zero_grad(set_to_none=True)
+            logits = model(xb)
+            loss = criterion(logits, yb)
+            loss = loss.to(device)
+
+            loss.backward()
+            if grad_clip_norm is not None and grad_clip_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)
+            optimizer.step()
+
+            running_loss += loss.item() * xb.size(0)
+            total_train += xb.size(0)
+
+        epoch_train_loss = running_loss / max(1, total_train)
+        train_losses.append(epoch_train_loss)
+
+        # Validation
+        model.eval()
+        val_running_loss = 0.0
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for batch in val_loader:
+                xb, yb = _unpack_batch(batch)
+                xb = xb.to(device, non_blocking=False)
+                yb = yb.to(device, non_blocking=False)
+                if xb.dim() == 3 and xb.shape[1] == seq_len and xb.shape[2] == 2:
+                    xb = xb.permute(0, 2, 1).contiguous()
+                logits = model(xb)
+                loss = criterion(logits, yb)
+                loss = loss.to(device)
+
+                val_running_loss += loss.item() * xb.size(0)
+                preds = torch.argmax(logits, dim=1)
+                correct += (preds == yb).sum().item()
+                total += xb.size(0)
+
+        epoch_val_loss = val_running_loss / max(1, total)
+        epoch_val_acc = correct / max(1, total)
+        val_losses.append(epoch_val_loss)
+        val_accs.append(epoch_val_acc)
+
+        if scheduler is not None:
+            scheduler.step()
+
+        print(f"Epoch {epoch+1}/{epochs}: train_loss={epoch_train_loss:.5f} val_loss={epoch_val_loss:.5f} val_acc={epoch_val_acc:.4f}")
+
+    # Move to CPU for post-training quantization
+    model_cpu = model.to('cpu')
+    model_cpu.eval()
+
+    quantized_model = apply_post_training_quantization(model_cpu, quantization_bits, quantize_weights, quantize_activations)
+
+    # Return artifacts
+    return {
+        'model': quantized_model,
+        'metrics': {
+            'train_losses': train_losses,
+            'val_losses': val_losses,
+            'val_acc': val_accs
+        },
+        'config': {
+            'seq_len': seq_len,
+            'patch_size': patch_size,
+            'head_dim': head_dim,
+            'n_heads': n_heads,
+            'n_layers': n_layers,
+            'd_ff_factor': d_ff_factor,
+            'stem_channels': stem_channels,
+            'ds_kernel1': ds_kernel1,
+            'ds_kernel2': ds_kernel2,
+            'dropout': dropout,
+            'num_classes': num_classes,
+            'epochs': epochs,
+            'batch_size': batch_size,
+            'lr': lr,
+            'weight_decay': weight_decay,
+            'grad_clip_norm': grad_clip_norm,
+            'use_focal_loss': use_focal_loss,
+            'focal_gamma': focal_gamma,
+            'label_smoothing': label_smoothing,
+            'compute_class_weights': compute_class_weights,
+            'augmentations': {
+                'aug_prob': aug_prob,
+                'aug_jitter_std': aug_jitter_std,
+                'aug_scale_low': aug_scale_low,
+                'aug_scale_high': aug_scale_high,
+                'aug_drift_max_amp': aug_drift_max_amp,
+                'normalize': normalize
+            },
+            'quantization': {
+                'quantization_bits': quantization_bits,
+                'quantize_weights': quantize_weights,
+                'quantize_activations': quantize_activations
+            },
+            'seed': seed
+        }
+    }
+
+
+RESPONSE OPTIONS:
+1. HYPERPARAMETER FIX: If error can be fixed by changing hyperparameters
+   Output: {"bo_config": {"param_name": new_value, "param2": new_value}}
+
+2. CODE FIX: If error requires fixing bugs in the training code
+   Output: {"training_code": "complete_corrected_training_function_code"}
+
+3. SYSTEM/ENVIRONMENT ISSUE: If error is due to system/environment issues (GPU memory, CUDA, dependencies, data issues, etc.) that cannot be fixed by code or hyperparameter changes
+   Output: {"system_issue": "STOP_PIPELINE"}
+
+4. CANNOT FIX: If error cannot be resolved for any other reason
+   Output: {}
+
+RESPONSE FORMAT REQUIREMENTS:
+1. Output ONLY a JSON object with either "bo_config", "training_code", "system_issue", or empty object
+2. No explanations, no markdown, no ```json``` blocks
+3. Start with { and end with }
+4. For training_code fixes, include the COMPLETE corrected function
+5. For system_issue, use exactly "STOP_PIPELINE" as the value
+
+CORRECTION EXAMPLES:
+- "Model has X KB storage, exceeds 256KB limit" → {"bo_config": {"d_model": 64, "hidden_size": 128}}
+- "'str' object has no attribute 'type'" → {"training_code": "def train_model(...):\n    # fixed implementation"}
+- "Quantization bug in code" → {"training_code": "corrected_training_function"}
+- "AcceleratorError in DataLoader worker process" → {"bo_config": {"num_workers": 0}}
+- "CUDA error: initialization error" → {"bo_config": {"num_workers": 0}}
+- "DataLoader worker CUDA context" → {"bo_config": {"num_workers": 0}}
+- "mat1 and mat2 shapes cannot be multiplied" → {"bo_config": {"d_model": 128}}
+- "CUDA out of memory" → {"system_issue": "STOP_PIPELINE"}
+- "No such file or directory" → {"system_issue": "STOP_PIPELINE"}
+- "ImportError: No module named" → {"system_issue": "STOP_PIPELINE"}
+
+OUTPUT ONLY THE JSON OBJECT:

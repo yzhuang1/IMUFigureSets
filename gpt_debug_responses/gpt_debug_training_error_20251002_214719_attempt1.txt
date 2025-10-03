@@ -1,0 +1,386 @@
+=== GPT DEBUG RESPONSE ===
+Timestamp: 20251002_214719
+Attempt: 1/4
+Error Type: training_error
+Original Error: Unsupported nonlinearity gelu
+=== RAW GPT RESPONSE ===
+{"training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    import math\n    import io\n    import copy\n    import torch\n    import torch.nn as nn\n    import torch.nn.functional as F\n    from torch.utils.data import Dataset, DataLoader\n    from torch.ao.quantization import get_default_qconfig, prepare, convert, quantize_dynamic\n\n    # Robust device handling (string or torch.device)\n    device = torch.device(device)\n    if device.type != 'cuda':\n        raise ValueError(\"This function requires a CUDA device; pass device='cuda' or torch.device('cuda').\")\n\n    # Defaults and hyperparams\n    num_classes = 5\n    seq_len = 1000\n\n    epochs = int(hyperparams.get('epochs', 10))\n    batch_size = int(hyperparams.get('batch_size', 128))\n    lr = float(hyperparams.get('lr', 1e-3))\n    weight_decay = float(hyperparams.get('weight_decay', 1e-4))\n\n    stem_channels = int(hyperparams.get('stem_channels', 12))\n    nhead = int(hyperparams.get('nhead', 2))\n    d_model_factor = int(hyperparams.get('d_model_factor', 12))\n    d_model = nhead * d_model_factor  # ensure divisibility\n    num_layers = int(hyperparams.get('num_layers', 1))\n    ff_factor = int(hyperparams.get('ff_factor', 2))\n    dropout = float(hyperparams.get('dropout', 0.1))\n\n    use_focal_loss = bool(hyperparams.get('use_focal_loss', True))\n    focal_gamma = float(hyperparams.get('focal_gamma', 2.0))\n    label_smoothing = float(hyperparams.get('label_smoothing', 0.0))\n    grad_clip_norm = float(hyperparams.get('grad_clip_norm', 0.5))\n\n    sched_step = int(hyperparams.get('sched_step', 0))  # 0 disables scheduler\n    sched_gamma = float(hyperparams.get('sched_gamma', 0.9))\n\n    # Quantization params\n    quantization_bits = int(hyperparams.get('quantization_bits', 8))  # {8,16,32}\n    quantize_weights = bool(hyperparams.get('quantize_weights', True))\n    quantize_activations = bool(hyperparams.get('quantize_activations', True))\n\n    # Dataset wrapper ensuring shape [C=2, T=1000]\n    class ECGDataset(Dataset):\n        def __init__(self, X, y):\n            assert isinstance(X, torch.Tensor), 'X must be a torch.Tensor'\n            assert isinstance(y, torch.Tensor), 'y must be a torch.Tensor'\n            assert X.dim() == 3, 'X must be [N, T, C] or [N, C, T]'\n            self.X = X\n            self.y = y\n        def __len__(self):\n            return self.X.shape[0]\n        def __getitem__(self, idx):\n            x = self.X[idx]\n            # Normalize input to [C=2, T=1000]\n            if x.dim() == 2:\n                if x.shape == (2, seq_len):\n                    x_ct = x\n                elif x.shape == (seq_len, 2):\n                    x_ct = x.transpose(0,1)\n                else:\n                    # Try to infer channels-last\n                    if x.shape[-1] == 2:\n                        x_ct = x.transpose(0,1)\n                    elif x.shape[0] == 2:\n                        x_ct = x\n                    else:\n                        raise ValueError(f'Unsupported sample shape {tuple(x.shape)}; expected (2,{seq_len}) or ({seq_len},2).')\n            else:\n                raise ValueError(f'Unsupported sample rank {x.dim()}')\n            x_ct = x_ct.to(dtype=torch.float32)\n            y_i = self.y[idx].to(dtype=torch.long)\n            return x_ct, y_i\n\n    train_ds = ECGDataset(X_train, y_train)\n    val_ds = ECGDataset(X_val, y_val)\n\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False)\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)\n\n    # Helper: output length of conv1d\n    def conv1d_out_len(L, kernel_size, stride=1, padding=0, dilation=1):\n        return math.floor((L + 2*padding - dilation*(kernel_size - 1) - 1) / stride + 1)\n\n    # SE Block for channel attention\n    class SEBlock(nn.Module):\n        def __init__(self, channels, reduction=4):\n            super().__init__()\n            hidden = max(channels // reduction, 1)\n            self.avg = nn.AdaptiveAvgPool1d(1)\n            self.fc1 = nn.Conv1d(channels, hidden, kernel_size=1, bias=True)\n            self.fc2 = nn.Conv1d(hidden, channels, kernel_size=1, bias=True)\n        def forward(self, x):  # x: [B, C, T]\n            s = self.avg(x)\n            s = F.gelu(self.fc1(s))\n            s = torch.sigmoid(self.fc2(s))\n            return x * s\n\n    # Model: Two-Lead CAT-Net (Conv -> SE -> Transformer)\n    class TwoLeadCATNet(nn.Module):\n        def __init__(self, seq_len=1000, stem_channels=12, d_model=24, nhead=2, num_layers=1, ff_factor=2, dropout=0.1, num_classes=5):\n            super().__init__()\n            self.seq_len = seq_len\n            self.conv1 = nn.Conv1d(2, stem_channels, kernel_size=7, stride=2, padding=3, bias=True)\n            self.conv2 = nn.Conv1d(stem_channels, stem_channels, kernel_size=5, stride=2, padding=2, bias=True)\n            self.se = SEBlock(stem_channels, reduction=4)\n            self.proj = nn.Conv1d(stem_channels, d_model, kernel_size=1, bias=True)\n            # Compute output length after convs\n            L1 = conv1d_out_len(seq_len, 7, stride=2, padding=3)\n            L2 = conv1d_out_len(L1, 5, stride=2, padding=2)\n            self.time_len = L2\n            self.pos_emb = nn.Parameter(torch.zeros(1, self.time_len, d_model))\n            encoder_layer = nn.TransformerEncoderLayer(\n                d_model=d_model,\n                nhead=nhead,\n                dim_feedforward=max(d_model * ff_factor, 1),\n                dropout=dropout,\n                activation='gelu',\n                batch_first=True,\n                norm_first=True,\n            )\n            self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)\n            self.norm = nn.LayerNorm(d_model)\n            self.head = nn.Linear(d_model, num_classes)\n            self.dropout = nn.Dropout(dropout)\n            self._init_weights()\n        def _init_weights(self):\n            for m in self.modules():\n                if isinstance(m, nn.Conv1d):\n                    # Use 'relu' gain for Kaiming init; 'gelu' is not supported\n                    nn.init.kaiming_normal_(m.weight, nonlinearity='relu')\n                    if m.bias is not None:\n                        nn.init.zeros_(m.bias)\n                elif isinstance(m, nn.Linear):\n                    nn.init.trunc_normal_(m.weight, std=0.02)\n                    if m.bias is not None:\n                        nn.init.zeros_(m.bias)\n                elif isinstance(m, nn.LayerNorm):\n                    nn.init.ones_(m.weight)\n                    nn.init.zeros_(m.bias)\n            nn.init.trunc_normal_(self.pos_emb, std=0.02)\n        def forward(self, x):  # x: [B, 2, T]\n            x = F.gelu(self.conv1(x))\n            x = F.gelu(self.conv2(x))\n            x = self.se(x)\n            x = self.proj(x)  # [B, d_model, L]\n            x = x.transpose(1, 2)  # [B, L, d_model]\n            x = x + self.pos_emb\n            x = self.encoder(x)\n            x = self.norm(x)\n            x = self.dropout(x)\n            x = x.mean(dim=1)  # global average pooling over time\n            logits = self.head(x)\n            return logits\n\n    # Losses\n    class FocalLoss(nn.Module):\n        def __init__(self, weight=None, gamma=2.0, reduction='mean'):\n            super().__init__()\n            self.register_buffer('weight', weight if weight is not None else None)\n            self.gamma = gamma\n            self.reduction = reduction\n        def forward(self, logits, target):\n            ce = F.cross_entropy(logits, target, weight=self.weight, reduction='none')\n            pt = torch.exp(-ce)\n            loss = (1 - pt) ** self.gamma * ce\n            if self.reduction == 'mean':\n                return loss.mean()\n            elif self.reduction == 'sum':\n                return loss.sum()\n            else:\n                return loss\n\n    # Compute class weights from training labels (CPU), then move to device for loss\n    with torch.no_grad():\n        y_cpu = y_train.detach().to('cpu').view(-1).long()\n        counts = torch.bincount(y_cpu, minlength=num_classes).to(torch.float32)\n        eps = 1e-6\n        inv_freq = 1.0 / (counts + eps)\n        class_weights = (num_classes * inv_freq) / (inv_freq.sum())  # normalized\n    class_weights = class_weights.to(device)\n\n    # Build model and optimizer\n    model = TwoLeadCATNet(seq_len=seq_len, stem_channels=stem_channels, d_model=d_model, nhead=nhead, num_layers=num_layers, ff_factor=ff_factor, dropout=dropout, num_classes=num_classes).to(device)\n    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\n    scheduler = None\n    if sched_step and sched_step > 0:\n        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=sched_step, gamma=sched_gamma)\n\n    if use_focal_loss:\n        criterion = FocalLoss(weight=class_weights, gamma=focal_gamma)\n    else:\n        criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing)\n    criterion = criterion.to(device)\n\n    train_losses, val_losses, val_accs = [], [], []\n    best_state = copy.deepcopy(model.state_dict())\n    best_acc = -1.0\n\n    def evaluate(model, loader):\n        model.eval()\n        total_loss = 0.0\n        correct = 0\n        total = 0\n        with torch.no_grad():\n            for xb, yb in loader:\n                xb = xb.to(device, non_blocking=False)\n                yb = yb.to(device, non_blocking=False)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                total_loss += loss.detach().item() * xb.size(0)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                total += xb.size(0)\n        return total_loss / max(total, 1), (correct / max(total, 1))\n\n    for epoch in range(1, epochs + 1):\n        model.train()\n        running = 0.0\n        seen = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=False)\n            yb = yb.to(device, non_blocking=False)\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if grad_clip_norm and grad_clip_norm > 0:\n                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)\n            optimizer.step()\n            running += loss.detach().item() * xb.size(0)\n            seen += xb.size(0)\n        if scheduler is not None:\n            scheduler.step()\n        train_loss = running / max(seen, 1)\n        val_loss, val_acc = evaluate(model, val_loader)\n        train_losses.append(train_loss)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n        print(f\"Epoch {epoch:03d} | train_loss={train_loss:.5f} | val_loss={val_loss:.5f} | val_acc={val_acc:.4f}\")\n        if val_acc > best_acc:\n            best_acc = val_acc\n            best_state = copy.deepcopy(model.state_dict())\n\n    # Load best weights before quantization\n    model.load_state_dict(best_state)\n    model.eval()\n\n    # Move to CPU for post-training quantization\n    model_cpu = copy.deepcopy(model).to('cpu')\n\n    # Quantization logic\n    def static_calibrate_and_convert(m_float, loader, max_batches=10):\n        # Choose backend\n        backend = 'fbgemm' if 'fbgemm' in torch.backends.quantized.supported_engines else 'qnnpack'\n        torch.backends.quantized.engine = backend\n        m_float.qconfig = get_default_qconfig(backend)\n        m_prep = prepare(m_float, inplace=False)\n        m_prep.eval()\n        seen_batches = 0\n        with torch.inference_mode():\n            for xb, _ in loader:\n                # For calibration we only need activations; keep CPU\n                xb = xb.to('cpu', dtype=torch.float32)\n                m_prep(xb)\n                seen_batches += 1\n                if seen_batches >= max_batches:\n                    break\n        m_quant = convert(m_prep, inplace=False)\n        return m_quant\n\n    quantized_model = model_cpu\n    if quantize_weights:\n        if quantization_bits == 8:\n            if quantize_activations:\n                # Static PTQ (Linear layers will be quantized; conv stays float)\n                calib_loader = DataLoader(train_ds, batch_size=min(256, batch_size), shuffle=False, num_workers=0, pin_memory=False)\n                quantized_model = static_calibrate_and_convert(model_cpu, calib_loader, max_batches=10)\n            else:\n                # Dynamic quantization (weight-only)\n                quantized_model = quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.qint8)\n        elif quantization_bits == 16:\n            # Weight cast to FP16 (simple weight-size reduction)\n            quantized_model = copy.deepcopy(model_cpu).half()\n        elif quantization_bits == 32:\n            quantized_model = model_cpu\n        else:\n            raise ValueError('quantization_bits must be one of {8,16,32}')\n    else:\n        # No weight quantization\n        if quantization_bits == 16:\n            quantized_model = copy.deepcopy(model_cpu).half()\n        else:\n            quantized_model = model_cpu\n\n    # Compute serialized size (approximate storage footprint)\n    def serialized_size_bytes(m):\n        buf = io.BytesIO()\n        torch.save(m.state_dict(), buf)\n        return len(buf.getvalue())\n\n    model_size_bytes = serialized_size_bytes(quantized_model)\n    print(f'Quantized model serialized size: {model_size_bytes} bytes')\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'best_val_acc': best_acc,\n        'model_size_bytes': int(model_size_bytes),\n        'config_used': {\n            'epochs': epochs,\n            'batch_size': batch_size,\n            'lr': lr,\n            'weight_decay': weight_decay,\n            'stem_channels': stem_channels,\n            'nhead': nhead,\n            'd_model': d_model,\n            'num_layers': num_layers,\n            'ff_factor': ff_factor,\n            'dropout': dropout,\n            'use_focal_loss': use_focal_loss,\n            'focal_gamma': focal_gamma,\n            'label_smoothing': label_smoothing,\n            'grad_clip_norm': grad_clip_norm,\n            'sched_step': sched_step,\n            'sched_gamma': sched_gamma,\n            'quantization_bits': quantization_bits,\n            'quantize_weights': quantize_weights,\n            'quantize_activations': quantize_activations\n        }\n    }\n\n    return quantized_model, metrics\n"}
+=== PROMPT USED ===
+CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
+
+Analyze this PyTorch training error and provide either hyperparameter corrections, fixed training code, OR indicate if it's a system/environment issue.
+
+PyTorch Version: 2.8.0+cu128
+Training Error: Unsupported nonlinearity gelu
+BO Config: {'epochs': {'default': 10, 'type': 'Integer', 'low': 5, 'high': 50}, 'batch_size': {'default': 128, 'type': 'Categorical', 'categories': [32, 64, 128, 256]}, 'lr': {'default': 0.001, 'type': 'Real', 'low': 1e-06, 'high': 0.005, 'prior': 'log-uniform'}, 'weight_decay': {'default': 0.0001, 'type': 'Real', 'low': 1e-07, 'high': 0.001, 'prior': 'log-uniform'}, 'stem_channels': {'default': 12, 'type': 'Integer', 'low': 8, 'high': 24}, 'nhead': {'default': 2, 'type': 'Categorical', 'categories': [1, 2, 4]}, 'd_model_factor': {'default': 12, 'type': 'Integer', 'low': 8, 'high': 16}, 'num_layers': {'default': 1, 'type': 'Integer', 'low': 1, 'high': 2}, 'ff_factor': {'default': 2, 'type': 'Integer', 'low': 1, 'high': 4}, 'dropout': {'default': 0.1, 'type': 'Real', 'low': 0.0, 'high': 0.3}, 'use_focal_loss': {'default': True, 'type': 'Categorical', 'categories': [True, False]}, 'focal_gamma': {'default': 2.0, 'type': 'Real', 'low': 1.0, 'high': 3.0}, 'label_smoothing': {'default': 0.0, 'type': 'Real', 'low': 0.0, 'high': 0.1}, 'grad_clip_norm': {'default': 0.5, 'type': 'Real', 'low': 0.0, 'high': 1.0}, 'sched_step': {'default': 0, 'type': 'Integer', 'low': 0, 'high': 10}, 'sched_gamma': {'default': 0.9, 'type': 'Real', 'low': 0.1, 'high': 0.99}, 'quantization_bits': {'default': 8, 'type': 'Categorical', 'categories': [8, 16, 32]}, 'quantize_weights': {'default': True, 'type': 'Categorical', 'categories': [True, False]}, 'quantize_activations': {'default': True, 'type': 'Categorical', 'categories': [True, False]}}
+Training Code: def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):
+    import math
+    import io
+    import copy
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from torch.utils.data import Dataset, DataLoader
+    from torch.ao.quantization import get_default_qconfig, prepare, convert, quantize_dynamic
+
+    # Robust device handling (string or torch.device)
+    device = torch.device(device)
+    if device.type != 'cuda':
+        raise ValueError("This function requires a CUDA device; pass device='cuda' or torch.device('cuda').")
+
+    # Defaults and hyperparams
+    num_classes = 5
+    seq_len = 1000
+
+    epochs = int(hyperparams.get('epochs', 10))
+    batch_size = int(hyperparams.get('batch_size', 128))
+    lr = float(hyperparams.get('lr', 1e-3))
+    weight_decay = float(hyperparams.get('weight_decay', 1e-4))
+
+    stem_channels = int(hyperparams.get('stem_channels', 12))
+    nhead = int(hyperparams.get('nhead', 2))
+    d_model_factor = int(hyperparams.get('d_model_factor', 12))
+    d_model = nhead * d_model_factor  # ensure divisibility
+    num_layers = int(hyperparams.get('num_layers', 1))
+    ff_factor = int(hyperparams.get('ff_factor', 2))
+    dropout = float(hyperparams.get('dropout', 0.1))
+
+    use_focal_loss = bool(hyperparams.get('use_focal_loss', True))
+    focal_gamma = float(hyperparams.get('focal_gamma', 2.0))
+    label_smoothing = float(hyperparams.get('label_smoothing', 0.0))
+    grad_clip_norm = float(hyperparams.get('grad_clip_norm', 0.5))
+
+    sched_step = int(hyperparams.get('sched_step', 0))  # 0 disables scheduler
+    sched_gamma = float(hyperparams.get('sched_gamma', 0.9))
+
+    # Quantization params
+    quantization_bits = int(hyperparams.get('quantization_bits', 8))  # {8,16,32}
+    quantize_weights = bool(hyperparams.get('quantize_weights', True))
+    quantize_activations = bool(hyperparams.get('quantize_activations', True))
+
+    # Dataset wrapper ensuring shape [C=2, T=1000]
+    class ECGDataset(Dataset):
+        def __init__(self, X, y):
+            assert isinstance(X, torch.Tensor), 'X must be a torch.Tensor'
+            assert isinstance(y, torch.Tensor), 'y must be a torch.Tensor'
+            assert X.dim() == 3, 'X must be [N, T, C] or [N, C, T]'
+            self.X = X
+            self.y = y
+        def __len__(self):
+            return self.X.shape[0]
+        def __getitem__(self, idx):
+            x = self.X[idx]
+            # Normalize input to [C=2, T=1000]
+            if x.dim() == 2:
+                if x.shape == (2, seq_len):
+                    x_ct = x
+                elif x.shape == (seq_len, 2):
+                    x_ct = x.transpose(0,1)
+                else:
+                    # Try to infer channels-last
+                    if x.shape[-1] == 2:
+                        x_ct = x.transpose(0,1)
+                    elif x.shape[0] == 2:
+                        x_ct = x
+                    else:
+                        raise ValueError(f'Unsupported sample shape {tuple(x.shape)}; expected (2,{seq_len}) or ({seq_len},2).')
+            else:
+                raise ValueError(f'Unsupported sample rank {x.dim()}')
+            x_ct = x_ct.to(dtype=torch.float32)
+            y_i = self.y[idx].to(dtype=torch.long)
+            return x_ct, y_i
+
+    train_ds = ECGDataset(X_train, y_train)
+    val_ds = ECGDataset(X_val, y_val)
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)
+
+    # Helper: output length of conv1d
+    def conv1d_out_len(L, kernel_size, stride=1, padding=0, dilation=1):
+        return math.floor((L + 2*padding - dilation*(kernel_size - 1) - 1) / stride + 1)
+
+    # SE Block for channel attention
+    class SEBlock(nn.Module):
+        def __init__(self, channels, reduction=4):
+            super().__init__()
+            hidden = max(channels // reduction, 1)
+            self.avg = nn.AdaptiveAvgPool1d(1)
+            self.fc1 = nn.Conv1d(channels, hidden, kernel_size=1, bias=True)
+            self.fc2 = nn.Conv1d(hidden, channels, kernel_size=1, bias=True)
+        def forward(self, x):  # x: [B, C, T]
+            s = self.avg(x)
+            s = F.gelu(self.fc1(s))
+            s = torch.sigmoid(self.fc2(s))
+            return x * s
+
+    # Model: Two-Lead CAT-Net (Conv -> SE -> Transformer)
+    class TwoLeadCATNet(nn.Module):
+        def __init__(self, seq_len=1000, stem_channels=12, d_model=24, nhead=2, num_layers=1, ff_factor=2, dropout=0.1, num_classes=5):
+            super().__init__()
+            self.seq_len = seq_len
+            self.conv1 = nn.Conv1d(2, stem_channels, kernel_size=7, stride=2, padding=3, bias=True)
+            self.conv2 = nn.Conv1d(stem_channels, stem_channels, kernel_size=5, stride=2, padding=2, bias=True)
+            self.se = SEBlock(stem_channels, reduction=4)
+            self.proj = nn.Conv1d(stem_channels, d_model, kernel_size=1, bias=True)
+            # Compute output length after convs
+            L1 = conv1d_out_len(seq_len, 7, stride=2, padding=3)
+            L2 = conv1d_out_len(L1, 5, stride=2, padding=2)
+            self.time_len = L2
+            self.pos_emb = nn.Parameter(torch.zeros(1, self.time_len, d_model))
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=nhead,
+                dim_feedforward=max(d_model * ff_factor, 1),
+                dropout=dropout,
+                activation='gelu',
+                batch_first=True,
+                norm_first=True,
+            )
+            self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+            self.norm = nn.LayerNorm(d_model)
+            self.head = nn.Linear(d_model, num_classes)
+            self.dropout = nn.Dropout(dropout)
+            self._init_weights()
+        def _init_weights(self):
+            for m in self.modules():
+                if isinstance(m, nn.Conv1d):
+                    nn.init.kaiming_normal_(m.weight, nonlinearity='gelu')
+                    if m.bias is not None:
+                        nn.init.zeros_(m.bias)
+                elif isinstance(m, nn.Linear):
+                    nn.init.trunc_normal_(m.weight, std=0.02)
+                    if m.bias is not None:
+                        nn.init.zeros_(m.bias)
+                elif isinstance(m, nn.LayerNorm):
+                    nn.init.ones_(m.weight)
+                    nn.init.zeros_(m.bias)
+            nn.init.trunc_normal_(self.pos_emb, std=0.02)
+        def forward(self, x):  # x: [B, 2, T]
+            x = F.gelu(self.conv1(x))
+            x = F.gelu(self.conv2(x))
+            x = self.se(x)
+            x = self.proj(x)  # [B, d_model, L]
+            x = x.transpose(1, 2)  # [B, L, d_model]
+            x = x + self.pos_emb
+            x = self.encoder(x)
+            x = self.norm(x)
+            x = self.dropout(x)
+            x = x.mean(dim=1)  # global average pooling over time
+            logits = self.head(x)
+            return logits
+
+    # Losses
+    class FocalLoss(nn.Module):
+        def __init__(self, weight=None, gamma=2.0, reduction='mean'):
+            super().__init__()
+            self.register_buffer('weight', weight if weight is not None else None)
+            self.gamma = gamma
+            self.reduction = reduction
+        def forward(self, logits, target):
+            ce = F.cross_entropy(logits, target, weight=self.weight, reduction='none')
+            pt = torch.exp(-ce)
+            loss = (1 - pt) ** self.gamma * ce
+            if self.reduction == 'mean':
+                return loss.mean()
+            elif self.reduction == 'sum':
+                return loss.sum()
+            else:
+                return loss
+
+    # Compute class weights from training labels (CPU), then move to device for loss
+    with torch.no_grad():
+        y_cpu = y_train.detach().to('cpu').view(-1).long()
+        counts = torch.bincount(y_cpu, minlength=num_classes).to(torch.float32)
+        eps = 1e-6
+        inv_freq = 1.0 / (counts + eps)
+        class_weights = (num_classes * inv_freq) / (inv_freq.sum())  # normalized
+    class_weights = class_weights.to(device)
+
+    # Build model and optimizer
+    model = TwoLeadCATNet(seq_len=seq_len, stem_channels=stem_channels, d_model=d_model, nhead=nhead, num_layers=num_layers, ff_factor=ff_factor, dropout=dropout, num_classes=num_classes).to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = None
+    if sched_step and sched_step > 0:
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=sched_step, gamma=sched_gamma)
+
+    if use_focal_loss:
+        criterion = FocalLoss(weight=class_weights, gamma=focal_gamma)
+    else:
+        criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing)
+    criterion = criterion.to(device)
+
+    train_losses, val_losses, val_accs = [], [], []
+    best_state = copy.deepcopy(model.state_dict())
+    best_acc = -1.0
+
+    def evaluate(model, loader):
+        model.eval()
+        total_loss = 0.0
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for xb, yb in loader:
+                xb = xb.to(device, non_blocking=False)
+                yb = yb.to(device, non_blocking=False)
+                logits = model(xb)
+                loss = criterion(logits, yb)
+                total_loss += loss.detach().item() * xb.size(0)
+                preds = logits.argmax(dim=1)
+                correct += (preds == yb).sum().item()
+                total += xb.size(0)
+        return total_loss / max(total, 1), (correct / max(total, 1))
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        running = 0.0
+        seen = 0
+        for xb, yb in train_loader:
+            xb = xb.to(device, non_blocking=False)
+            yb = yb.to(device, non_blocking=False)
+            optimizer.zero_grad(set_to_none=True)
+            logits = model(xb)
+            loss = criterion(logits, yb)
+            loss.backward()
+            if grad_clip_norm and grad_clip_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)
+            optimizer.step()
+            running += loss.detach().item() * xb.size(0)
+            seen += xb.size(0)
+        if scheduler is not None:
+            scheduler.step()
+        train_loss = running / max(seen, 1)
+        val_loss, val_acc = evaluate(model, val_loader)
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        val_accs.append(val_acc)
+        print(f"Epoch {epoch:03d} | train_loss={train_loss:.5f} | val_loss={val_loss:.5f} | val_acc={val_acc:.4f}")
+        if val_acc > best_acc:
+            best_acc = val_acc
+            best_state = copy.deepcopy(model.state_dict())
+
+    # Load best weights before quantization
+    model.load_state_dict(best_state)
+    model.eval()
+
+    # Move to CPU for post-training quantization
+    model_cpu = copy.deepcopy(model).to('cpu')
+
+    # Quantization logic
+    def static_calibrate_and_convert(m_float, loader, max_batches=10):
+        # Choose backend
+        backend = 'fbgemm' if 'fbgemm' in torch.backends.quantized.supported_engines else 'qnnpack'
+        torch.backends.quantized.engine = backend
+        m_float.qconfig = get_default_qconfig(backend)
+        m_prep = prepare(m_float, inplace=False)
+        m_prep.eval()
+        seen_batches = 0
+        with torch.inference_mode():
+            for xb, _ in loader:
+                # For calibration we only need activations; keep CPU
+                xb = xb.to('cpu', dtype=torch.float32)
+                m_prep(xb)
+                seen_batches += 1
+                if seen_batches >= max_batches:
+                    break
+        m_quant = convert(m_prep, inplace=False)
+        return m_quant
+
+    quantized_model = model_cpu
+    if quantize_weights:
+        if quantization_bits == 8:
+            if quantize_activations:
+                # Static PTQ (Linear layers will be quantized; conv stays float)
+                calib_loader = DataLoader(train_ds, batch_size=min(256, batch_size), shuffle=False, num_workers=0, pin_memory=False)
+                quantized_model = static_calibrate_and_convert(model_cpu, calib_loader, max_batches=10)
+            else:
+                # Dynamic quantization (weight-only)
+                quantized_model = quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.qint8)
+        elif quantization_bits == 16:
+            # Weight cast to FP16 (simple weight-size reduction)
+            quantized_model = copy.deepcopy(model_cpu).half()
+        elif quantization_bits == 32:
+            quantized_model = model_cpu
+        else:
+            raise ValueError('quantization_bits must be one of {8,16,32}')
+    else:
+        # No weight quantization
+        if quantization_bits == 16:
+            quantized_model = copy.deepcopy(model_cpu).half()
+        else:
+            quantized_model = model_cpu
+
+    # Compute serialized size (approximate storage footprint)
+    def serialized_size_bytes(m):
+        buf = io.BytesIO()
+        torch.save(m.state_dict(), buf)
+        return len(buf.getvalue())
+
+    model_size_bytes = serialized_size_bytes(quantized_model)
+    print(f'Quantized model serialized size: {model_size_bytes} bytes')
+
+    metrics = {
+        'train_losses': train_losses,
+        'val_losses': val_losses,
+        'val_acc': val_accs,
+        'best_val_acc': best_acc,
+        'model_size_bytes': int(model_size_bytes),
+        'config_used': {
+            'epochs': epochs,
+            'batch_size': batch_size,
+            'lr': lr,
+            'weight_decay': weight_decay,
+            'stem_channels': stem_channels,
+            'nhead': nhead,
+            'd_model': d_model,
+            'num_layers': num_layers,
+            'ff_factor': ff_factor,
+            'dropout': dropout,
+            'use_focal_loss': use_focal_loss,
+            'focal_gamma': focal_gamma,
+            'label_smoothing': label_smoothing,
+            'grad_clip_norm': grad_clip_norm,
+            'sched_step': sched_step,
+            'sched_gamma': sched_gamma,
+            'quantization_bits': quantization_bits,
+            'quantize_weights': quantize_weights,
+            'quantize_activations': quantize_activations
+        }
+    }
+
+    return quantized_model, metrics
+
+
+RESPONSE OPTIONS:
+1. HYPERPARAMETER FIX: If error can be fixed by changing hyperparameters
+   Output: {"bo_config": {"param_name": new_value, "param2": new_value}}
+
+2. CODE FIX: If error requires fixing bugs in the training code
+   Output: {"training_code": "complete_corrected_training_function_code"}
+
+3. SYSTEM/ENVIRONMENT ISSUE: If error is due to system/environment issues (GPU memory, CUDA, dependencies, data issues, etc.) that cannot be fixed by code or hyperparameter changes
+   Output: {"system_issue": "STOP_PIPELINE"}
+
+4. CANNOT FIX: If error cannot be resolved for any other reason
+   Output: {}
+
+RESPONSE FORMAT REQUIREMENTS:
+1. Output ONLY a JSON object with either "bo_config", "training_code", "system_issue", or empty object
+2. No explanations, no markdown, no ```json``` blocks
+3. Start with { and end with }
+4. For training_code fixes, include the COMPLETE corrected function
+5. For system_issue, use exactly "STOP_PIPELINE" as the value
+
+CORRECTION EXAMPLES:
+- "Model has X KB storage, exceeds 256KB limit" → {"bo_config": {"d_model": 64, "hidden_size": 128}}
+- "'str' object has no attribute 'type'" → {"training_code": "def train_model(...):\n    # fixed implementation"}
+- "Quantization bug in code" → {"training_code": "corrected_training_function"}
+- "AcceleratorError in DataLoader worker process" → {"bo_config": {"num_workers": 0}}
+- "CUDA error: initialization error" → {"bo_config": {"num_workers": 0}}
+- "DataLoader worker CUDA context" → {"bo_config": {"num_workers": 0}}
+- "mat1 and mat2 shapes cannot be multiplied" → {"bo_config": {"d_model": 128}}
+- "CUDA out of memory" → {"system_issue": "STOP_PIPELINE"}
+- "No such file or directory" → {"system_issue": "STOP_PIPELINE"}
+- "ImportError: No module named" → {"system_issue": "STOP_PIPELINE"}
+
+OUTPUT ONLY THE JSON OBJECT:

@@ -1,0 +1,266 @@
+=== GPT DEBUG RESPONSE ===
+Timestamp: 20251002_191934
+Attempt: 1/4
+Error Type: training_error
+Original Error: name '_ECGDataset' is not defined
+=== RAW GPT RESPONSE ===
+{"training_code": "def train_model(\n    X_train, y_train, X_val, y_val, device,\n    epochs=20,\n    batch_size=256,\n    lr=3e-4,\n    weight_decay=1e-3,\n    patch_size=10,\n    n_heads=3,\n    head_dim=8,\n    num_layers=2,\n    mlp_ratio=2,\n    dropout=0.1,\n    attn_dropout=0.0,\n    augment_noise_std=0.01,\n    augment_scale_range=(0.9, 1.1),\n    augment_scale_low=None,\n    augment_scale_high=None,\n    use_focal_loss=False,\n    focal_gamma=2.0,\n    class_weighted=True,\n    grad_clip=1.0,\n    quantization_bits=8,\n    quantize_weights=True,\n    quantize_activations=True\n):\n    \"\"\"\n    Train a compact 1D Tiny-Transformer on ECG (MIT-BIH) and return a post-training quantized model.\n\n    Inputs:\n      - X_*: torch.Tensor of shape (N, 1000, 2) or (N, 2, 1000)\n      - y_*: torch.LongTensor labels in [0..4]\n      - device: string or torch.device (always training on GPU). Example: \"cuda\".\n\n    Notes:\n      - augment_scale_low / augment_scale_high are accepted for compatibility with external BO configs.\n        If provided, they override values from augment_scale_range (missing bound falls back to the tuple).\n\n    Returns:\n      quantized_model (on CPU), metrics_dict with lists: train_losses, val_losses, val_acc, and size_bytes.\n    \"\"\"\n    import io\n    import torch\n    import torch.nn as nn\n    import torch.nn.functional as F\n    from torch.utils.data import DataLoader, Dataset\n\n    # -------------------------------\n    # Local helper implementations\n    # -------------------------------\n    class _ECGDataset(Dataset):\n        def __init__(self, X, y, train=True, noise_std=0.0, scale_low=1.0, scale_high=1.0):\n            self.X = X\n            self.y = y\n            self.train = train\n            self.noise_std = float(noise_std)\n            self.scale_low = float(scale_low)\n            self.scale_high = float(scale_high)\n\n        def __len__(self):\n            return int(self.X.shape[0])\n\n        def __getitem__(self, idx):\n            x = self.X[idx]\n            y = self.y[idx].long()\n            # Ensure channel-first shape (2, 1000)\n            if x.dim() != 2:\n                raise ValueError(\"Each sample in X must be 2-D: (1000,2) or (2,1000)\")\n            if x.shape == (1000, 2):\n                x = x.transpose(0, 1)\n            elif x.shape == (2, 1000):\n                pass\n            else:\n                # Try to coerce: if last dim is 1000 and first is 2\n                if x.shape[-1] == 1000 and x.shape[0] == 2:\n                    x = x\n                elif x.shape[0] == 1000 and x.shape[-1] == 2:\n                    x = x.transpose(0, 1)\n                else:\n                    raise ValueError(\"Unexpected sample shape in X: expected (1000,2) or (2,1000)\")\n            x = x.float()\n\n            if self.train:\n                # Amplitude scaling\n                if not (self.scale_low == 1.0 and self.scale_high == 1.0):\n                    scale = torch.empty(1).uniform_(self.scale_low, self.scale_high).item()\n                    x = x * scale\n                # Additive Gaussian noise\n                if self.noise_std > 0.0:\n                    noise = torch.randn_like(x) * self.noise_std\n                    x = x + noise\n\n            return x, y\n\n    class FocalLoss(nn.Module):\n        def __init__(self, gamma=2.0, weight=None, reduction='mean'):\n            super().__init__()\n            self.gamma = float(gamma)\n            self.reduction = reduction\n            self.weight = weight  # tensor or None\n\n        def forward(self, logits, target):\n            logpt = F.log_softmax(logits, dim=1)\n            pt = logpt.exp()\n            logpt_t = logpt.gather(1, target.unsqueeze(1)).squeeze(1)\n            pt_t = pt.gather(1, target.unsqueeze(1)).squeeze(1)\n            if self.weight is not None:\n                alpha_t = self.weight.gather(0, target)\n            else:\n                alpha_t = 1.0\n            loss = -alpha_t * ((1.0 - pt_t) ** self.gamma) * logpt_t\n            if self.reduction == 'mean':\n                return loss.mean()\n            elif self.reduction == 'sum':\n                return loss.sum()\n            else:\n                return loss\n\n    class Tiny1DTransformer(nn.Module):\n        def __init__(self, in_ch=2, seq_len=1000, patch_size=10, d_model=64, n_heads=2, num_layers=2, mlp_ratio=2, dropout=0.1, attn_dropout=0.0, num_classes=5):\n            super().__init__()\n            assert seq_len % patch_size == 0, \"patch_size must divide the sequence length\"\n            self.seq_len = int(seq_len)\n            self.patch_size = int(patch_size)\n            self.n_patches = self.seq_len // self.patch_size\n            self.d_model = int(d_model)\n\n            # Patch embedding: Conv1d with stride=patch_size to create tokens\n            self.patch_embed = nn.Conv1d(in_ch, self.d_model, kernel_size=self.patch_size, stride=self.patch_size, bias=False)\n\n            # Positional embedding\n            self.pos_embed = nn.Parameter(torch.zeros(1, self.n_patches, self.d_model))\n\n            # Transformer encoder\n            ff_dim = int(self.d_model * int(mlp_ratio))\n            encoder_layer = nn.TransformerEncoderLayer(\n                d_model=self.d_model,\n                nhead=int(n_heads),\n                dim_feedforward=ff_dim,\n                dropout=float(dropout),\n                activation='gelu',\n                batch_first=True,\n            )\n            # Set separate attention dropout if requested\n            try:\n                encoder_layer.self_attn.dropout = float(attn_dropout)\n            except Exception:\n                pass\n            self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=int(num_layers))\n\n            self.norm = nn.LayerNorm(self.d_model)\n            self.head = nn.Linear(self.d_model, int(num_classes))\n\n        def forward(self, x):\n            # x: (B, 2, 1000)\n            x = self.patch_embed(x)  # (B, d_model, n_patches)\n            x = x.transpose(1, 2)    # (B, n_patches, d_model)\n            x = x + self.pos_embed\n            x = self.encoder(x)      # (B, n_patches, d_model)\n            x = self.norm(x)\n            x = x.mean(dim=1)        # global average pooling over tokens\n            logits = self.head(x)\n            return logits\n\n    # -------------------------------\n    # Robust device handling\n    # -------------------------------\n    device = torch.device(device)\n    if device.type != 'cuda' or not torch.cuda.is_available():\n        raise RuntimeError(\"CUDA device is required for training. Please pass device='cuda' and ensure a GPU is available.\")\n\n    # Validate dimensions\n    if X_train.dim() != 3 or X_val.dim() != 3:\n        raise ValueError(\"X_train and X_val must be 3-D tensors\")\n\n    # Resolve augmentation scale range with compatibility for separate low/high args\n    if augment_scale_low is not None or augment_scale_high is not None:\n        base_low, base_high = augment_scale_range if augment_scale_range is not None else (0.9, 1.1)\n        scale_low = float(augment_scale_low) if augment_scale_low is not None else float(base_low)\n        scale_high = float(augment_scale_high) if augment_scale_high is not None else float(base_high)\n    else:\n        scale_low = float(augment_scale_range[0])\n        scale_high = float(augment_scale_range[1])\n    if scale_high < scale_low:\n        scale_low, scale_high = scale_high, scale_low\n\n    # -------------------------------\n    # Dataset and loaders\n    # -------------------------------\n    train_ds = _ECGDataset(X_train, y_train, train=True, noise_std=augment_noise_std, scale_low=scale_low, scale_high=scale_high)\n    val_ds = _ECGDataset(X_val, y_val, train=False, noise_std=0.0, scale_low=1.0, scale_high=1.0)\n    train_loader = DataLoader(train_ds, batch_size=int(batch_size), shuffle=True, num_workers=0, pin_memory=False, drop_last=False)\n    val_loader = DataLoader(val_ds, batch_size=int(batch_size), shuffle=False, num_workers=0, pin_memory=False, drop_last=False)\n\n    # Hyper-parameters derived\n    d_model = int(head_dim) * int(n_heads)\n    if 1000 % int(patch_size) != 0:\n        raise ValueError(\"patch_size must divide the sequence length (1000)\")\n\n    # Build model\n    model = Tiny1DTransformer(\n        in_ch=2,\n        seq_len=1000,\n        patch_size=int(patch_size),\n        d_model=int(d_model),\n        n_heads=int(n_heads),\n        num_layers=int(num_layers),\n        mlp_ratio=int(mlp_ratio),\n        dropout=float(dropout),\n        attn_dropout=float(attn_dropout),\n        num_classes=5,\n    ).to(device)\n\n    # Optimizer\n    optimizer = torch.optim.AdamW(model.parameters(), lr=float(lr), weight_decay=float(weight_decay))\n\n    # Class weights\n    if class_weighted:\n        with torch.no_grad():\n            binc = torch.bincount(y_train.long().cpu(), minlength=5).float()\n            inv = 1.0 / torch.clamp(binc, min=1.0)\n            weights = inv / inv.sum() * 5.0\n        class_weights = weights.to(device)\n    else:\n        class_weights = None\n\n    # Loss\n    if use_focal_loss:\n        criterion = FocalLoss(gamma=float(focal_gamma), weight=class_weights, reduction='mean')\n    else:\n        criterion = nn.CrossEntropyLoss(weight=class_weights)\n\n    train_losses = []\n    val_losses = []\n    val_accs = []\n\n    for epoch in range(int(epochs)):\n        model.train()\n        running_loss = 0.0\n        total = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=False)\n            yb = yb.to(device, non_blocking=False)\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if grad_clip and grad_clip > 0:\n                nn.utils.clip_grad_norm_(model.parameters(), float(grad_clip))\n            optimizer.step()\n            running_loss += loss.detach().item() * xb.size(0)\n            total += xb.size(0)\n        train_loss = running_loss / max(1, total)\n        train_losses.append(train_loss)\n\n        # Validation\n        model.eval()\n        v_running = 0.0\n        correct = 0\n        v_total = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=False)\n                yb = yb.to(device, non_blocking=False)\n                logits = model(xb)\n                vloss = criterion(logits, yb)\n                v_running += vloss.detach().item() * xb.size(0)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                v_total += xb.size(0)\n        val_loss = v_running / max(1, v_total)\n        val_acc = correct / max(1, v_total)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n\n        print(f\"Epoch {epoch+1}/{int(epochs)} - train_loss: {train_loss:.4f}  val_loss: {val_loss:.4f}  val_acc: {val_acc:.4f}\")\n\n    # Move to CPU for quantization\n    model = model.to('cpu')\n    quantized_model = model\n\n    # Post-Training Quantization strategy\n    if quantize_weights:\n        if int(quantization_bits) == 8:\n            try:\n                from torch.ao.quantization import quantize_dynamic\n            except Exception:\n                from torch.quantization import quantize_dynamic  # backward compat\n            quantized_model = quantize_dynamic(\n                model,\n                {nn.Linear},\n                dtype=torch.qint8,\n            )\n        elif int(quantization_bits) == 16:\n            quantized_model = model.half()\n        else:\n            quantized_model = model  # 32-bit\n    else:\n        quantized_model = model\n\n    # Size check and fallback to 8-bit dynamic if needed to meet <= 256KB\n    def _approx_model_size_bytes(model_):\n        buf = io.BytesIO()\n        try:\n            torch.save(model_.state_dict(), buf)\n            return len(buf.getvalue())\n        except Exception:\n            total_ = 0\n            for p in model_.parameters():\n                try:\n                    total_ += p.numel() * p.element_size()\n                except Exception:\n                    pass\n            return total_\n\n    size_bytes = _approx_model_size_bytes(quantized_model)\n    limit = 256 * 1024\n    if size_bytes > limit:\n        try:\n            from torch.ao.quantization import quantize_dynamic\n        except Exception:\n            from torch.quantization import quantize_dynamic\n        quantized_model = quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)\n        size_bytes = _approx_model_size_bytes(quantized_model)\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'size_bytes': int(size_bytes)\n    }\n\n    return quantized_model, metrics\n"}
+=== PROMPT USED ===
+CRITICAL: You MUST respond with ONLY valid JSON. No text before or after the JSON.
+
+Analyze this PyTorch training error and provide either hyperparameter corrections, fixed training code, OR indicate if it's a system/environment issue.
+
+PyTorch Version: 2.8.0+cu128
+Training Error: name '_ECGDataset' is not defined
+BO Config: {'epochs': {'default': 20, 'type': 'Integer', 'low': 5, 'high': 100}, 'batch_size': {'default': 256, 'type': 'Categorical', 'categories': [64, 128, 256, 512]}, 'lr': {'default': 0.0003, 'type': 'Real', 'low': 1e-05, 'high': 0.01, 'prior': 'log-uniform'}, 'weight_decay': {'default': 0.001, 'type': 'Real', 'low': 1e-06, 'high': 0.01, 'prior': 'log-uniform'}, 'patch_size': {'default': 10, 'type': 'Categorical', 'categories': [5, 10, 20, 25, 40, 50, 100, 125, 200, 250, 500]}, 'n_heads': {'default': 3, 'type': 'Integer', 'low': 1, 'high': 4}, 'head_dim': {'default': 8, 'type': 'Integer', 'low': 4, 'high': 32}, 'num_layers': {'default': 2, 'type': 'Integer', 'low': 1, 'high': 4}, 'mlp_ratio': {'default': 2, 'type': 'Integer', 'low': 2, 'high': 4}, 'dropout': {'default': 0.1, 'type': 'Real', 'low': 0.0, 'high': 0.5}, 'attn_dropout': {'default': 0.0, 'type': 'Real', 'low': 0.0, 'high': 0.3}, 'augment_noise_std': {'default': 0.01, 'type': 'Real', 'low': 0.0, 'high': 0.05}, 'augment_scale_low': {'default': 0.9, 'type': 'Real', 'low': 0.8, 'high': 1.0}, 'augment_scale_high': {'default': 1.1, 'type': 'Real', 'low': 1.0, 'high': 1.2}, 'use_focal_loss': {'default': False, 'type': 'Categorical', 'categories': [True, False]}, 'focal_gamma': {'default': 2.0, 'type': 'Real', 'low': 1.0, 'high': 5.0}, 'class_weighted': {'default': True, 'type': 'Categorical', 'categories': [True, False]}, 'grad_clip': {'default': 1.0, 'type': 'Real', 'low': 0.0, 'high': 5.0}, 'quantization_bits': {'default': 8, 'type': 'Categorical', 'categories': [8, 16, 32]}, 'quantize_weights': {'default': True, 'type': 'Categorical', 'categories': [True, False]}, 'quantize_activations': {'default': True, 'type': 'Categorical', 'categories': [True, False]}}
+Training Code: def train_model(
+    X_train, y_train, X_val, y_val, device,
+    epochs=20,
+    batch_size=256,
+    lr=3e-4,
+    weight_decay=1e-3,
+    patch_size=10,
+    n_heads=3,
+    head_dim=8,
+    num_layers=2,
+    mlp_ratio=2,
+    dropout=0.1,
+    attn_dropout=0.0,
+    augment_noise_std=0.01,
+    augment_scale_range=(0.9, 1.1),
+    augment_scale_low=None,
+    augment_scale_high=None,
+    use_focal_loss=False,
+    focal_gamma=2.0,
+    class_weighted=True,
+    grad_clip=1.0,
+    quantization_bits=8,
+    quantize_weights=True,
+    quantize_activations=True
+):
+    """
+    Train a compact 1D Tiny-Transformer on ECG (MIT-BIH) and return a post-training quantized model.
+
+    Inputs:
+      - X_*: torch.Tensor of shape (N, 1000, 2) or (N, 2, 1000)
+      - y_*: torch.LongTensor labels in [0..4]
+      - device: string or torch.device (always training on GPU). Example: "cuda".
+
+    Notes:
+      - augment_scale_low / augment_scale_high are accepted for compatibility with external BO configs.
+        If provided, they override values from augment_scale_range (missing bound falls back to the tuple).
+
+    Returns:
+      quantized_model (on CPU), metrics_dict with lists: train_losses, val_losses, val_acc, and size_bytes.
+    """
+    import io
+    import math
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from torch.utils.data import DataLoader
+
+    # Robust device handling
+    device = torch.device(device)
+    if device.type != 'cuda' or not torch.cuda.is_available():
+        raise RuntimeError("CUDA device is required for training. Please pass device='cuda' and ensure a GPU is available.")
+
+    # Validate dimensions
+    if X_train.dim() != 3 or X_val.dim() != 3:
+        raise ValueError("X_train and X_val must be 3-D tensors")
+
+    # Resolve augmentation scale range with compatibility for separate low/high args
+    if augment_scale_low is not None or augment_scale_high is not None:
+        # Use provided bound(s), falling back to tuple for any missing side
+        base_low, base_high = augment_scale_range if augment_scale_range is not None else (0.9, 1.1)
+        scale_low = float(augment_scale_low) if augment_scale_low is not None else float(base_low)
+        scale_high = float(augment_scale_high) if augment_scale_high is not None else float(base_high)
+    else:
+        scale_low = float(augment_scale_range[0])
+        scale_high = float(augment_scale_range[1])
+    if scale_high < scale_low:
+        scale_low, scale_high = scale_high, scale_low
+
+    # Local imports for dataset and model dependencies from outer scope
+    # Expecting _ECGDataset, Tiny1DTransformer, FocalLoss, and _approx_model_size_bytes defined in module scope
+
+    # Dataset and loaders (pin_memory=False as requested)
+    train_ds = _ECGDataset(X_train, y_train, train=True, noise_std=augment_noise_std, scale_low=scale_low, scale_high=scale_high)
+    val_ds = _ECGDataset(X_val, y_val, train=False, noise_std=0.0, scale_low=1.0, scale_high=1.0)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False, drop_last=False)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False, drop_last=False)
+
+    # Hyper-parameters derived
+    d_model = int(head_dim) * int(n_heads)
+    if 1000 % int(patch_size) != 0:
+        raise ValueError("patch_size must divide the sequence length (1000)")
+
+    # Build model
+    model = Tiny1DTransformer(
+        in_ch=2,
+        seq_len=1000,
+        patch_size=int(patch_size),
+        d_model=int(d_model),
+        n_heads=int(n_heads),
+        num_layers=int(num_layers),
+        mlp_ratio=int(mlp_ratio),
+        dropout=float(dropout),
+        attn_dropout=float(attn_dropout),
+        num_classes=5,
+    ).to(device)
+
+    # Optimizer
+    optimizer = torch.optim.AdamW(model.parameters(), lr=float(lr), weight_decay=float(weight_decay))
+
+    # Class weights
+    if class_weighted:
+        with torch.no_grad():
+            binc = torch.bincount(y_train.long().cpu(), minlength=5).float()
+            inv = 1.0 / torch.clamp(binc, min=1.0)
+            weights = inv / inv.sum() * 5.0
+        class_weights = weights.to(device)
+    else:
+        class_weights = None
+
+    # Loss
+    if use_focal_loss:
+        criterion = FocalLoss(gamma=float(focal_gamma), weight=class_weights, reduction='mean')
+    else:
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+
+    train_losses = []
+    val_losses = []
+    val_accs = []
+
+    for epoch in range(int(epochs)):
+        model.train()
+        running_loss = 0.0
+        total = 0
+        for xb, yb in train_loader:
+            xb = xb.to(device, non_blocking=False)
+            yb = yb.to(device, non_blocking=False)
+            optimizer.zero_grad(set_to_none=True)
+            logits = model(xb)
+            loss = criterion(logits, yb)
+            loss.backward()
+            if grad_clip and grad_clip > 0:
+                nn.utils.clip_grad_norm_(model.parameters(), float(grad_clip))
+            optimizer.step()
+            running_loss += loss.detach().item() * xb.size(0)
+            total += xb.size(0)
+        train_loss = running_loss / max(1, total)
+        train_losses.append(train_loss)
+
+        # Validation
+        model.eval()
+        v_running = 0.0
+        correct = 0
+        v_total = 0
+        with torch.no_grad():
+            for xb, yb in val_loader:
+                xb = xb.to(device, non_blocking=False)
+                yb = yb.to(device, non_blocking=False)
+                logits = model(xb)
+                vloss = criterion(logits, yb)
+                v_running += vloss.detach().item() * xb.size(0)
+                preds = logits.argmax(dim=1)
+                correct += (preds == yb).sum().item()
+                v_total += xb.size(0)
+        val_loss = v_running / max(1, v_total)
+        val_acc = correct / max(1, v_total)
+        val_losses.append(val_loss)
+        val_accs.append(val_acc)
+
+        print(f"Epoch {epoch+1}/{int(epochs)} - train_loss: {train_loss:.4f}  val_loss: {val_loss:.4f}  val_acc: {val_acc:.4f}")
+
+    # Move to CPU for quantization
+    model = model.to('cpu')
+    quantized_model = model
+
+    # Post-Training Quantization strategy
+    if quantize_weights:
+        if int(quantization_bits) == 8:
+            try:
+                from torch.ao.quantization import quantize_dynamic
+            except Exception:
+                from torch.quantization import quantize_dynamic  # backward compat
+            quantized_model = quantize_dynamic(
+                model,
+                {nn.Linear},
+                dtype=torch.qint8,
+            )
+        elif int(quantization_bits) == 16:
+            quantized_model = model.half()
+        else:
+            quantized_model = model  # 32-bit
+    else:
+        quantized_model = model
+
+    # Size check and fallback to 8-bit dynamic if needed to meet <= 256KB
+    def _approx_model_size_bytes(model_):
+        buf = io.BytesIO()
+        try:
+            torch.save(model_.state_dict(), buf)
+            return len(buf.getvalue())
+        except Exception:
+            total_ = 0
+            for p in model_.parameters():
+                try:
+                    total_ += p.numel() * p.element_size()
+                except Exception:
+                    pass
+            return total_
+
+    size_bytes = _approx_model_size_bytes(quantized_model)
+    limit = 256 * 1024
+    if size_bytes > limit:
+        try:
+            from torch.ao.quantization import quantize_dynamic
+        except Exception:
+            from torch.quantization import quantize_dynamic
+        quantized_model = quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
+        size_bytes = _approx_model_size_bytes(quantized_model)
+
+    metrics = {
+        'train_losses': train_losses,
+        'val_losses': val_losses,
+        'val_acc': val_accs,
+        'size_bytes': int(size_bytes)
+    }
+
+    return quantized_model, metrics
+
+
+RESPONSE OPTIONS:
+1. HYPERPARAMETER FIX: If error can be fixed by changing hyperparameters
+   Output: {"bo_config": {"param_name": new_value, "param2": new_value}}
+
+2. CODE FIX: If error requires fixing bugs in the training code
+   Output: {"training_code": "complete_corrected_training_function_code"}
+
+3. SYSTEM/ENVIRONMENT ISSUE: If error is due to system/environment issues (GPU memory, CUDA, dependencies, data issues, etc.) that cannot be fixed by code or hyperparameter changes
+   Output: {"system_issue": "STOP_PIPELINE"}
+
+4. CANNOT FIX: If error cannot be resolved for any other reason
+   Output: {}
+
+RESPONSE FORMAT REQUIREMENTS:
+1. Output ONLY a JSON object with either "bo_config", "training_code", "system_issue", or empty object
+2. No explanations, no markdown, no ```json``` blocks
+3. Start with { and end with }
+4. For training_code fixes, include the COMPLETE corrected function
+5. For system_issue, use exactly "STOP_PIPELINE" as the value
+
+CORRECTION EXAMPLES:
+- "Model has X KB storage, exceeds 256KB limit" → {"bo_config": {"d_model": 64, "hidden_size": 128}}
+- "'str' object has no attribute 'type'" → {"training_code": "def train_model(...):\n    # fixed implementation"}
+- "Quantization bug in code" → {"training_code": "corrected_training_function"}
+- "AcceleratorError in DataLoader worker process" → {"bo_config": {"num_workers": 0}}
+- "CUDA error: initialization error" → {"bo_config": {"num_workers": 0}}
+- "DataLoader worker CUDA context" → {"bo_config": {"num_workers": 0}}
+- "mat1 and mat2 shapes cannot be multiplied" → {"bo_config": {"d_model": 128}}
+- "CUDA out of memory" → {"system_issue": "STOP_PIPELINE"}
+- "No such file or directory" → {"system_issue": "STOP_PIPELINE"}
+- "ImportError: No module named" → {"system_issue": "STOP_PIPELINE"}
+
+OUTPUT ONLY THE JSON OBJECT:

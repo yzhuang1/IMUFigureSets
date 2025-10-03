@@ -402,6 +402,17 @@ def process_real_data():
         model_filename = f"best_model_{result['pipeline_results']['model_name']}_{timestamp_suffix}.pth"
         model_save_path = f"trained_models/{model_filename}"
 
+        # Load training function JSON to get model code
+        training_json_path = result['pipeline_results'].get('training_function_path')
+        model_code = None
+        if training_json_path and os.path.exists(training_json_path):
+            try:
+                with open(training_json_path, 'r') as f:
+                    training_data = json.load(f)
+                    model_code = training_data.get('training_code')
+            except Exception as e:
+                logger.warning(f"Could not load training code from {training_json_path}: {e}")
+
         # Save model state dict and metadata
         model_data = {
             'model_state_dict': result['model'].state_dict(),
@@ -410,7 +421,9 @@ def process_real_data():
             'best_hyperparameters': result['pipeline_results'].get('optimized_hyperparameters', {}),
             'data_profile': result['data_profile'].to_dict() if hasattr(result['data_profile'], 'to_dict') else str(result['data_profile']),
             'timestamp': timestamp_suffix,
-            'bo_best_score': result['pipeline_results'].get('bo_results', {}).get('best_value', 0.0)
+            'bo_best_score': result['pipeline_results'].get('bo_results', {}).get('best_value', 0.0),
+            'model_code': model_code,  # Add model code for reconstruction
+            'training_json_path': training_json_path  # Add path to training JSON
         }
 
         torch.save(model_data, model_save_path)

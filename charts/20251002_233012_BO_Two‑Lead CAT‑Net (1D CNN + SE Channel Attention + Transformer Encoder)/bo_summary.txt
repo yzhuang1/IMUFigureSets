@@ -1,0 +1,15 @@
+BAYESIAN OPTIMIZATION SUMMARY
+============================================================
+Total Trials        : 50
+Best Accuracy       : 0.9687
+Final Accuracy      : 0.7056
+Mean Accuracy       : 0.7260
+Std Accuracy        : 0.3100
+Improvement         : 0.4829
+Best Trial          : 41
+
+BEST HYPERPARAMETERS:
+------------------------------
+Learning Rate  : 0.004111
+Epochs         : 37
+Hidden Size    : 64
