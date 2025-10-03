@@ -68,6 +68,7 @@ def main():
     print("This script will delete all content in the following folders:")
     print("- logs/")
     print("- literature_reviews/")
+    print("- gpt_debug_responses/")
     print("README.md files will be preserved in each folder.")
     print()
 
