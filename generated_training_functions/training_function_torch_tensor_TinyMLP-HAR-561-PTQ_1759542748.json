@@ -1,0 +1,119 @@
+{
+  "model_name": "TinyMLP-HAR-561-PTQ",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **kwargs):\n    import math\n    import time\n    import copy\n    import torch\n    from torch import nn, optim\n    from torch.utils.data import TensorDataset, DataLoader\n    from typing import Dict, Any\n    # Quantization APIs\n    import torch.ao.quantization as aoq\n    from torch.ao.quantization import quantize_dynamic\n    # Compatibility imports for FX PTQ across PyTorch versions\n    prepare_fx = None\n    convert_fx = None\n    QConfigMapping = None\n    try:\n        from torch.ao.quantization.quantize_fx import prepare_fx as _prepare_fx, convert_fx as _convert_fx, QConfigMapping as _QConfigMapping\n        prepare_fx = _prepare_fx\n        convert_fx = _convert_fx\n        QConfigMapping = _QConfigMapping\n    except Exception:\n        try:\n            from torch.ao.quantization.fx import prepare_fx as _prepare_fx2, convert_fx as _convert_fx2\n            from torch.ao.quantization import QConfigMapping as _QConfigMapping2\n            prepare_fx = _prepare_fx2\n            convert_fx = _convert_fx2\n            QConfigMapping = _QConfigMapping2\n        except Exception:\n            prepare_fx = None\n            convert_fx = None\n            QConfigMapping = None\n\n    # --------------------\n    # Device handling (ALWAYS GPU for training)\n    # --------------------\n    device = torch.device(device)\n    if device.type != 'cuda' or not torch.cuda.is_available():\n        raise RuntimeError(\"CUDA device is required for training; pass device='cuda' and ensure a GPU is available.\")\n\n    # --------------------\n    # Extract hyperparameters with safe defaults\n    # --------------------\n    lr = float(kwargs.get('lr', 1e-3))\n    batch_size = int(kwargs.get('batch_size', 128))\n    epochs = int(kwargs.get('epochs', 20))\n    # Cap hidden sizes so the model stays <= 256KB in fp32 (guarantees quantized model <= 256KB)\n    hidden1 = int(min(max(32, kwargs.get('hidden1', 64)), 96))\n    hidden2 = int(min(max(16, kwargs.get('hidden2', 32)), 48))\n    dropout = float(kwargs.get('dropout', 0.2))\n    weight_decay = float(kwargs.get('weight_decay', 1e-4))\n    label_smoothing = float(kwargs.get('label_smoothing', 0.05))\n    # DataLoader workers (fixed per requirements)\n    num_workers = 4  # enforced\n\n    # Quantization parameters\n    quantization_bits = int(kwargs.get('quantization_bits', 8))  # {8,16,32}\n    quantize_weights = bool(kwargs.get('quantize_weights', True))\n    quantize_activations = bool(kwargs.get('quantize_activations', False))\n\n    # --------------------\n    # Input sanitation\n    # --------------------\n    def _ensure_2d(x: torch.Tensor) -> torch.Tensor:\n        if x.dim() == 1:\n            return x.unsqueeze(0)\n        return x\n\n    X_train = _ensure_2d(X_train).contiguous()\n    X_val = _ensure_2d(X_val).contiguous()\n\n    if X_train.size(1) != 561:\n        raise ValueError(f\"Expected input feature dim 561, got {X_train.size(1)}\")\n\n    def _normalize_labels(y: torch.Tensor) -> torch.Tensor:\n        y = y.view(-1)\n        if y.dtype != torch.long:\n            y = y.long()\n        # If labels are 1..6, shift to 0..5\n        if int(y.min().item()) >= 1 and int(y.max().item()) == 6:\n            y = y - 1\n        return y\n\n    y_train = _normalize_labels(y_train)\n    y_val = _normalize_labels(y_val)\n\n    # Ensure dataset tensors are on CPU for DataLoader pin_memory\n    X_train = X_train.detach().to('cpu')\n    y_train = y_train.detach().to('cpu')\n    X_val = X_val.detach().to('cpu')\n    y_val = y_val.detach().to('cpu')\n\n    num_classes = 6\n\n    # --------------------\n    # Datasets & DataLoaders (spawn context, pin_memory=True, num_workers=4)\n    # --------------------\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n\n    train_loader = DataLoader(\n        train_ds,\n        batch_size=batch_size,\n        shuffle=True,\n        num_workers=num_workers,\n        pin_memory=True,\n        persistent_workers=True,\n        multiprocessing_context=mp_ctx,\n        drop_last=False,\n    )\n    val_loader = DataLoader(\n        val_ds,\n        batch_size=batch_size,\n        shuffle=False,\n        num_workers=num_workers,\n        pin_memory=True,\n        persistent_workers=True,\n        multiprocessing_context=mp_ctx,\n        drop_last=False,\n    )\n\n    # --------------------\n    # Model definition: compact MLP suited for 561-dim features\n    # --------------------\n    class MLPNet(nn.Module):\n        def __init__(self, in_features: int, h1: int, h2: int, out_features: int, p: float):\n            super().__init__()\n            self.net = nn.Sequential(\n                nn.Linear(in_features, h1, bias=True),\n                nn.ReLU(inplace=True),\n                nn.Dropout(p),\n                nn.Linear(h1, h2, bias=True),\n                nn.ReLU(inplace=True),\n                nn.Dropout(p),\n                nn.Linear(h2, out_features, bias=True),\n            )\n        def forward(self, x):\n            return self.net(x)\n\n    model = MLPNet(561, hidden1, hidden2, num_classes, dropout).to(device)\n\n    # Verify fp32 size budget (upper bound); guarantees final model <= 256KB\n    with torch.no_grad():\n        total_params = sum(p.numel() for p in model.parameters())\n        fp32_bytes = total_params * 4\n        if fp32_bytes > 262144:\n            raise RuntimeError(\n                f\"Model too large ({fp32_bytes} bytes fp32). Reduce hidden sizes.\"\n            )\n\n    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing).to(device)\n    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\n\n    train_losses, val_losses, val_accs = [], [], []\n\n    # --------------------\n    # Training loop (GPU), epoch-by-epoch logging\n    # --------------------\n    for epoch in range(1, epochs + 1):\n        model.train()\n        running_loss = 0.0\n        n_train = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True).float()\n            yb = yb.to(device, non_blocking=True).long()\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            optimizer.step()\n            batch_size_cur = yb.size(0)\n            running_loss += loss.detach().item() * batch_size_cur\n            n_train += batch_size_cur\n        avg_train_loss = running_loss / max(1, n_train)\n\n        # Validation\n        model.eval()\n        val_loss_sum = 0.0\n        correct = 0\n        n_val = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True).float()\n                yb = yb.to(device, non_blocking=True).long()\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                val_loss_sum += loss.detach().item() * yb.size(0)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                n_val += yb.size(0)\n        avg_val_loss = val_loss_sum / max(1, n_val)\n        val_acc = correct / max(1, n_val)\n\n        train_losses.append(avg_train_loss)\n        val_losses.append(avg_val_loss)\n        val_accs.append(val_acc)\n        print(f\"Epoch {epoch:03d} | train_loss={avg_train_loss:.5f} | val_loss={avg_val_loss:.5f} | val_acc={val_acc:.4f}\")\n\n    # --------------------\n    # Post-Training Quantization\n    # Strategy:\n    # - 8-bit: dynamic quantization for Linear layers (weights int8). If quantize_activations=True and FX PTQ available, perform FX static PTQ with calibration.\n    # - 16-bit: float16 dynamic quantization for Linear layers or keep fp32 if not requested.\n    # - 32-bit: keep fp32.\n    # Resulting model moved to CPU for quantized execution.\n    # --------------------\n    def _quantize_post_training(trained_model: nn.Module) -> nn.Module:\n        trained_model = trained_model.eval().cpu()\n        if quantization_bits == 32:\n            return copy.deepcopy(trained_model)  # fp32\n\n        if quantization_bits == 16:\n            # Weight-only float16 dynamic quantization for Linear layers\n            if quantize_weights or quantize_activations:\n                q_model = quantize_dynamic(\n                    copy.deepcopy(trained_model), {nn.Linear}, dtype=torch.float16\n                )\n                return q_model\n            else:\n                # No quantization requested, but bits=16 set: keep fp32 copy to be explicit\n                return copy.deepcopy(trained_model)\n\n        if quantization_bits == 8:\n            if quantize_activations and quantize_weights and (prepare_fx is not None) and (QConfigMapping is not None) and (convert_fx is not None):\n                # FX static PTQ with calibration\n                # Select available backend\n                supported = getattr(torch.backends.quantized, 'supported_engines', [])\n                eng = 'fbgemm'\n                if isinstance(supported, (list, tuple)) and 'fbgemm' not in supported and 'qnnpack' in supported:\n                    eng = 'qnnpack'\n                try:\n                    torch.backends.quantized.engine = eng\n                except Exception:\n                    pass\n                qconfig = aoq.get_default_qconfig(eng)\n                qconfig_mapping = QConfigMapping().set_global(qconfig)\n                example_inputs = (torch.randn(1, 561),)\n                prep = prepare_fx(copy.deepcopy(trained_model), qconfig_mapping, example_inputs)\n                # Calibrate on a handful of batches from training data (CPU)\n                with torch.no_grad():\n                    calib_batches = 0\n                    max_calib_batches = 16\n                    for xb, _ in train_loader:\n                        prep(xb.cpu().float())\n                        calib_batches += 1\n                        if calib_batches >= max_calib_batches:\n                            break\n                conv = convert_fx(prep)\n                return conv\n            elif quantize_weights:\n                # Dynamic quantization of Linear layers to int8 (recommended for small MLPs)\n                q_model = quantize_dynamic(\n                    copy.deepcopy(trained_model), {nn.Linear}, dtype=torch.qint8\n                )\n                return q_model\n            else:\n                return copy.deepcopy(trained_model)\n\n        # Fallback (should not happen)\n        return copy.deepcopy(trained_model)\n\n    quantized_model = _quantize_post_training(model)\n\n    # Sanity check: ensure model size budget is respected (upper-bound using fp32 params)\n    # The architecture was constrained so fp32 <= 256KB, therefore any quantized variant is also <= 256KB.\n\n    metrics: Dict[str, Any] = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'params': int(sum(p.numel() for p in model.parameters())),\n        'fp32_bytes_upper_bound': int(sum(p.numel() for p in model.parameters()) * 4),\n        'quantization_bits': quantization_bits,\n        'quantize_weights': quantize_weights,\n        'quantize_activations': quantize_activations,\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        64,
+        128,
+        256,
+        512
+      ]
+    },
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 100
+    },
+    "hidden1": {
+      "default": 64,
+      "type": "Integer",
+      "low": 32,
+      "high": 96
+    },
+    "hidden2": {
+      "default": 32,
+      "type": "Integer",
+      "low": 16,
+      "high": 48
+    },
+    "dropout": {
+      "default": 0.2,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.001,
+      "prior": "log-uniform"
+    },
+    "label_smoothing": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    }
+  },
+  "confidence": 0.86,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      10299,
+      561
+    ],
+    "dtype": "float32",
+    "feature_count": 561,
+    "sample_count": 10299,
+    "is_sequence": false,
+    "is_image": false,
+    "is_tabular": true,
+    "has_labels": true,
+    "label_count": 6,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1759542748,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

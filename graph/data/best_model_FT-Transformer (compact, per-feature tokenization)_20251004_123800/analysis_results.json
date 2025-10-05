@@ -1,0 +1,129 @@
+{
+  "model_name": "best_model_FT-Transformer (compact, per-feature tokenization)_20251004_123800",
+  "model_path": "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/trained_models/best_model_FT-Transformer (compact, per-feature tokenization)_20251004_123800.pth",
+  "is_quantized": false,
+  "model_size": {
+    "total_parameters": 24662,
+    "size_kb": 48.16796875
+  },
+  "accuracy": 0.9868932038834951,
+  "confusion_matrix": {
+    "confusion_matrix": [
+      [
+        344,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        309,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        281,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        346,
+        10,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        17,
+        364,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        389
+      ]
+    ],
+    "confusion_matrix_percent": [
+      [
+        100.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        100.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        100.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        97.19101123595506,
+        2.8089887640449436,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        4.4619422572178475,
+        95.53805774278216,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        100.0
+      ]
+    ],
+    "per_class_accuracy": [
+      1.0,
+      1.0,
+      1.0,
+      0.9719101123595506,
+      0.9553805774278216,
+      1.0
+    ]
+  },
+  "inference_latency": {
+    "mean_ms": 98.52005226945039,
+    "std_ms": 1.801999604337755,
+    "min_ms": 96.40296999714337,
+    "max_ms": 104.5397489797324,
+    "median_ms": 97.9936850053491,
+    "p95_ms": 102.44999275892042,
+    "p99_ms": 104.45359821256716
+  }
+}

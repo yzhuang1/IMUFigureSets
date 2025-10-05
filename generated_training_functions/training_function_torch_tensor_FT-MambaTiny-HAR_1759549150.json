@@ -1,0 +1,154 @@
+{
+  "model_name": "FT-MambaTiny-HAR",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **kwargs):\n    import torch\n    from torch.utils.data import TensorDataset, DataLoader\n    from torch import nn, optim\n    import torch.nn.functional as F\n    import torch.ao.quantization as tq\n    import math, random, warnings\n    import numpy as np\n\n    # Robust device handling\n    device = torch.device(device)\n\n    # Hyperparameters and quantization params with sensible defaults\n    params = dict(\n        lr=1e-3,\n        batch_size=128,\n        epochs=20,\n        d_model=16,\n        num_layers=2,\n        ssm_expansion=2,      # factor for selective SSM inner width\n        ffn_expansion=4,      # factor for residual MLP hidden width\n        dropout=0.10,\n        weight_decay=1e-4,\n        beta1=0.9,\n        beta2=0.999,\n        grad_clip=1.0,\n        seed=42,\n        num_workers=4,\n        # quantization\n        quantization_bits=8,           # {8,16,32}\n        quantize_weights=True,\n        quantize_activations=False,\n        calibration_batches=10\n    )\n    params.update(kwargs)\n\n    # Reproducibility\n    torch.manual_seed(params[\"seed\"])\n    np.random.seed(params[\"seed\"])\n    random.seed(params[\"seed\"])\n    if device.type == \"cuda\":\n        torch.cuda.manual_seed_all(params[\"seed\"])\n\n    # Ensure tensors are CPU and correct dtype before DataLoader (fixes pin_memory error)\n    X_train = X_train.detach().to(device='cpu', dtype=torch.float32)\n    X_val = X_val.detach().to(device='cpu', dtype=torch.float32)\n    y_train = y_train.detach().to(device='cpu', dtype=torch.long)\n    y_val = y_val.detach().to(device='cpu', dtype=torch.long)\n\n    # Datasets and DataLoaders (pin_memory only if using CUDA)\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    use_pinned = device.type == 'cuda'\n    train_loader = DataLoader(\n        train_ds,\n        batch_size=params[\"batch_size\"],\n        shuffle=True,\n        num_workers=params[\"num_workers\"],\n        pin_memory=use_pinned,\n        drop_last=False,\n        multiprocessing_context=mp_ctx,\n    )\n    val_loader = DataLoader(\n        val_ds,\n        batch_size=params[\"batch_size\"],\n        shuffle=False,\n        num_workers=params[\"num_workers\"],\n        pin_memory=use_pinned,\n        drop_last=False,\n        multiprocessing_context=mp_ctx,\n    )\n\n    # FT-Mamba components\n    class FeatureTokenizer(nn.Module):\n        \"\"\"Tokenizes 561 scalar features into a short sequence of d_model embeddings.\n        Uses a shared scalar->d_model projection plus learnable positional embeddings.\n        \"\"\"\n        def __init__(self, num_features, d_model, dropout=0.0):\n            super().__init__()\n            self.num_features = num_features\n            self.d_model = d_model\n            self.scalar_proj = nn.Linear(1, d_model, bias=True)\n            self.pos_emb = nn.Parameter(torch.randn(num_features, d_model) * 0.01)\n            self.dropout = nn.Dropout(dropout)\n        def forward(self, x):\n            # x: [B, F]\n            B, F = x.shape\n            x = x.view(B, F, 1)\n            x = self.scalar_proj(x)  # [B, F, d]\n            x = x + self.pos_emb.unsqueeze(0)\n            x = self.dropout(x)\n            return x\n\n    class MambaBlock(nn.Module):\n        \"\"\"Lightweight Mamba-like selective SSM block with depthwise conv and gated mixing,\n        followed by a residual MLP, each with LayerNorm and dropout.\n        \"\"\"\n        def __init__(self, d_model, ssm_expansion=2, ffn_expansion=4, dropout=0.1):\n            super().__init__()\n            d_inner = d_model * ssm_expansion\n            self.norm1 = nn.LayerNorm(d_model)\n            self.in_proj = nn.Linear(d_model, 2 * d_inner, bias=True)\n            self.conv = nn.Conv1d(2 * d_inner, 2 * d_inner, kernel_size=3, padding=1, groups=2 * d_inner, bias=True)\n            self.out_proj = nn.Linear(d_inner, d_model, bias=True)\n            self.dropout = nn.Dropout(dropout)\n\n            # Residual MLP\n            ffn_hidden = d_model * ffn_expansion\n            self.norm2 = nn.LayerNorm(d_model)\n            self.ffn = nn.Sequential(\n                nn.Linear(d_model, ffn_hidden),\n                nn.GELU(),\n                nn.Dropout(dropout),\n                nn.Linear(ffn_hidden, d_model),\n            )\n            self.ffn_dropout = nn.Dropout(dropout)\n\n        def forward(self, x):\n            # x: [B, L, d]\n            residual = x\n            x = self.norm1(x)\n            u = self.in_proj(x)  # [B, L, 2*d_inner]\n            # depthwise conv across the sequence length\n            u = u.transpose(1, 2)  # [B, C, L]\n            u = self.conv(u)\n            u = u.transpose(1, 2)  # [B, L, C]\n            x_part, gate = torch.chunk(u, 2, dim=-1)\n            x_act = F.silu(x_part)\n            gated = x_act * torch.sigmoid(gate)\n            y = self.out_proj(gated)\n            y = self.dropout(y)\n            x = residual + y\n\n            # Residual MLP\n            residual2 = x\n            z = self.norm2(x)\n            z = self.ffn(z)\n            z = self.ffn_dropout(z)\n            x = residual2 + z\n            return x\n\n    class FTMambaClassifier(nn.Module):\n        def __init__(self, num_features, num_classes, d_model, num_layers, ssm_expansion, ffn_expansion, dropout):\n            super().__init__()\n            self.tokenizer = FeatureTokenizer(num_features, d_model, dropout=dropout)\n            self.blocks = nn.ModuleList([\n                MambaBlock(d_model, ssm_expansion=ssm_expansion, ffn_expansion=ffn_expansion, dropout=dropout)\n                for _ in range(num_layers)\n            ])\n            self.norm = nn.LayerNorm(d_model)\n            self.dropout = nn.Dropout(dropout)\n            self.head = nn.Linear(d_model, num_classes)\n        def forward(self, x):\n            # x: [B, F]\n            h = self.tokenizer(x)           # [B, L(=F), d]\n            for blk in self.blocks:\n                h = blk(h)\n            h = self.norm(h)\n            h = h.mean(dim=1)               # Global average pooling over features -> [B, d]\n            h = self.dropout(h)\n            logits = self.head(h)           # [B, C]\n            return logits\n\n    # Instantiate model\n    num_features = int(X_train.shape[-1])\n    # Safeguard if labels aren't 0-indexed/contiguous\n    if y_train.numel() > 0:\n        num_classes = int(torch.max(y_train).item()) + 1\n    else:\n        num_classes = 6\n    model = FTMambaClassifier(\n        num_features=num_features,\n        num_classes=num_classes,\n        d_model=params[\"d_model\"],\n        num_layers=params[\"num_layers\"],\n        ssm_expansion=params[\"ssm_expansion\"],\n        ffn_expansion=params[\"ffn_expansion\"],\n        dropout=params[\"dropout\"],\n    ).to(device)\n\n    # Optimizer and loss\n    optimizer = optim.AdamW(\n        model.parameters(),\n        lr=params[\"lr\"],\n        betas=(params[\"beta1\"], params[\"beta2\"]),\n        weight_decay=params[\"weight_decay\"],\n    )\n    criterion = nn.CrossEntropyLoss().to(device)\n\n    train_losses, val_losses, val_accs = [], [], []\n\n    # Core training loop\n    for epoch in range(1, params[\"epochs\"] + 1):\n        model.train()\n        running_loss = 0.0\n        total = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if params[\"grad_clip\"] and params[\"grad_clip\"] > 0:\n                nn.utils.clip_grad_norm_(model.parameters(), params[\"grad_clip\"])\n            optimizer.step()\n\n            running_loss += loss.detach().item() * xb.size(0)\n            total += xb.size(0)\n\n        train_loss = running_loss / max(total, 1)\n        train_losses.append(train_loss)\n\n        # Validation\n        model.eval()\n        val_total = 0\n        val_loss_sum = 0.0\n        correct = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                val_loss_sum += loss.detach().item() * xb.size(0)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                val_total += xb.size(0)\n        v_loss = val_loss_sum / max(val_total, 1)\n        v_acc = correct / max(val_total, 1)\n        val_losses.append(v_loss)\n        val_accs.append(v_acc)\n\n        print(f\"Epoch {epoch:03d}: train_loss={train_loss:.4f}, val_loss={v_loss:.4f}, val_acc={v_acc:.4f}\")\n\n    # Post-training quantization\n    def quantize_model(model_float, params, train_loader_for_calib=None):\n        # Move to CPU for quantized backends\n        model_cpu = model_float.to('cpu')\n        model_cpu.eval()\n\n        bits = int(params.get(\"quantization_bits\", 8))\n        q_weights = bool(params.get(\"quantize_weights\", True))\n        q_acts = bool(params.get(\"quantize_activations\", False))\n\n        if not q_weights and not q_acts:\n            return model_cpu\n\n        # dtype selection for dynamic quantization\n        if bits == 8:\n            dyn_dtype = torch.qint8\n        elif bits == 16:\n            dyn_dtype = torch.float16\n        elif bits == 32:\n            return model_cpu\n        else:\n            dyn_dtype = torch.qint8\n\n        # Attempt static (weights + activations) PTQ if requested\n        if q_acts:\n            try:\n                model_q = model_cpu\n                model_q.qconfig = tq.get_default_qconfig('fbgemm')\n                tq.prepare(model_q, inplace=True)\n                # Calibration loop (a few batches suffice)\n                if train_loader_for_calib is not None:\n                    num_batches = int(params.get(\"calibration_batches\", 10))\n                    seen = 0\n                    with torch.no_grad():\n                        for xb, _ in train_loader_for_calib:\n                            xb = xb.to('cpu')\n                            model_q(xb)\n                            seen += 1\n                            if seen >= num_batches:\n                                break\n                tq.convert(model_q, inplace=True)\n                return model_q\n            except Exception as e:\n                warnings.warn(f\"Static quantization failed ({e}); falling back to dynamic weight-only quantization.\")\n\n        # Dynamic weight-only quantization on Linear layers\n        if q_weights:\n            model_q = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=dyn_dtype)\n            return model_q\n\n        return model_cpu\n\n    # Build a small CPU calibration loader if activation quantization is requested\n    calib_loader = None\n    if params[\"quantize_activations\"]:\n        calib_loader = DataLoader(\n            train_ds,\n            batch_size=min(512, params[\"batch_size\"]),\n            shuffle=False,\n            num_workers=0,\n            pin_memory=False,\n        )\n\n    quantized_model = quantize_model(model, params, train_loader_for_calib=calib_loader)\n\n    metrics = {\n        \"train_losses\": train_losses,\n        \"val_losses\": val_losses,\n        \"val_acc\": val_accs,\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 100
+    },
+    "d_model": {
+      "default": 16,
+      "type": "Integer",
+      "low": 8,
+      "high": 64
+    },
+    "num_layers": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 2
+    },
+    "ssm_expansion": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 3
+    },
+    "ffn_expansion": {
+      "default": 4,
+      "type": "Integer",
+      "low": 2,
+      "high": 4
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "beta1": {
+      "default": 0.9,
+      "type": "Real",
+      "low": 0.8,
+      "high": 0.99
+    },
+    "beta2": {
+      "default": 0.999,
+      "type": "Real",
+      "low": 0.9,
+      "high": 0.999
+    },
+    "grad_clip": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "seed": {
+      "default": 42,
+      "type": "Integer",
+      "low": 1,
+      "high": 10000
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "calibration_batches": {
+      "default": 10,
+      "type": "Integer",
+      "low": 1,
+      "high": 50
+    }
+  },
+  "confidence": 0.86,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      10299,
+      561
+    ],
+    "dtype": "float32",
+    "feature_count": 561,
+    "sample_count": 10299,
+    "is_sequence": false,
+    "is_image": false,
+    "is_tabular": true,
+    "has_labels": true,
+    "label_count": 6,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1759549150,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

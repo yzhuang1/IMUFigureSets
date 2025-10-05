@@ -1,0 +1,41 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9859223300970874,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "TinyMLP-HAR-561-PTQ",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_TinyMLP-HAR-561-PTQ_1759542748.json",
+      "bo_best_params": {
+        "lr": 0.0021796038957238215,
+        "batch_size": "256",
+        "epochs": "52",
+        "hidden1": "60",
+        "hidden2": "22",
+        "dropout": 0.055345055201379126,
+        "weight_decay": 0.0007884125920383148,
+        "label_smoothing": 0.06718862010571149,
+        "num_workers": "4",
+        "quantization_bits": "16",
+        "quantize_weights": "False",
+        "quantize_activations": "True"
+      },
+      "bo_best_score": 0.9787717968157695,
+      "final_metrics": {
+        "acc": 0.9859223300970874,
+        "macro_f1": null
+      },
+      "performance_score": 0.9859223300970874,
+      "confidence": 0.86
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "TinyMLP-HAR-561-PTQ",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_TinyMLP-HAR-561-PTQ_20251003_210145.pth"
+}

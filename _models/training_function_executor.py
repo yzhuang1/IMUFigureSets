@@ -197,8 +197,19 @@ class TrainingFunctionExecutor:
             # Handle JSON escape sequences in training code
             training_code = self._process_training_code(training_code)
 
-            # Create namespace for code execution
-            namespace = {}
+            # Create namespace for code execution with common imports
+            namespace = {
+                'torch': torch,
+                'nn': torch.nn,
+                'optim': torch.optim,
+                'F': torch.nn.functional,
+                'np': np,
+                'Dict': Dict,
+                'Any': Any,
+                'Tuple': Tuple,
+                'List': List,
+                'Optional': Optional,
+            }
 
             # Execute the function definition
             exec(training_code, namespace)

@@ -22,7 +22,7 @@ class PipelineLogger:
         return cls._instance
 
     def __init__(self):
-        if self._logger is None:
+        if PipelineLogger._logger is None:
             self._setup_logging()
 
     def _setup_logging(self):

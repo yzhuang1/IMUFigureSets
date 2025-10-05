@@ -1,0 +1,120 @@
+{
+  "model_name": "TinyHAR-MLP-Quantized",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    \"\"\"\n    Train a tiny MLP for 6-class HAR classification on 561-D features with GPU training\n    and post-training quantization. Returns quantized model and training metrics.\n\n    Args:\n        X_train (torch.Tensor): [N_train, 561] float tensor.\n        y_train (torch.Tensor): [N_train] int tensor (0..5).\n        X_val (torch.Tensor): [N_val, 561] float tensor.\n        y_val (torch.Tensor): [N_val] int tensor (0..5).\n        device (str or torch.device): e.g., \"cuda\".\n        **hyperparams: training and quantization hyperparameters.\n\n    Returns:\n        quantized_model (torch.nn.Module): Quantized model (on CPU).\n        metrics (dict): { 'train_losses': [...], 'val_losses': [...], 'val_acc': [...] }.\n    \"\"\"\n    # Required imports (must be inside the function as requested)\n    import io\n    import math\n    import torch\n    from torch import nn, optim\n    from torch.utils.data import TensorDataset, DataLoader\n    import torch.ao.quantization as tq\n\n    # Handle device input robustly\n    device = torch.device(device)\n    use_pin_memory = device.type == 'cuda' and torch.cuda.is_available()\n\n    # -----------------\n    # Hyperparameters\n    # -----------------\n    lr = float(hyperparams.get('lr', 3e-4))\n    batch_size = int(hyperparams.get('batch_size', 256))\n    epochs = int(hyperparams.get('epochs', 40))\n    hidden_size = int(hyperparams.get('hidden_size', 64))\n    dropout = float(hyperparams.get('dropout', 0.1))\n    weight_decay = float(hyperparams.get('weight_decay', 1e-4))\n    max_grad_norm = float(hyperparams.get('max_grad_norm', 1.0))\n\n    # Dataloader workers: per requirement, force 4 workers\n    num_workers = 4\n\n    # Quantization params\n    quantization_bits = int(hyperparams.get('quantization_bits', 8))  # {8,16,32}\n    quantize_weights = bool(hyperparams.get('quantize_weights', True))\n    quantize_activations = bool(hyperparams.get('quantize_activations', True))\n    calibration_steps = int(hyperparams.get('calibration_steps', 128))\n\n    # Enforce model size constraint at FP32 too (<= 256KB) for safety\n    # Params ~= 568*H + 6 ; plus 561*2 buffers for normalization\n    # For FP32 worst-case, ensure H <= 112 (derived analytically)\n    hidden_size = min(hidden_size, 112)\n\n    # -----------------\n    # Datasets & Loaders\n    # -----------------\n    # Ensure tensors are CPU-based before DataLoader with pin_memory\n    X_train = X_train.detach().to('cpu').float()\n    X_val = X_val.detach().to('cpu').float()\n    y_train = y_train.detach().to('cpu').long()\n    y_val = y_val.detach().to('cpu').long()\n\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n\n    # Use spawn context with CUDA as required\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n\n    train_loader = DataLoader(\n        train_ds,\n        batch_size=batch_size,\n        shuffle=True,\n        num_workers=num_workers,\n        pin_memory=use_pin_memory,\n        drop_last=False,\n        multiprocessing_context=mp_ctx,\n        persistent_workers=True\n    )\n\n    val_loader = DataLoader(\n        val_ds,\n        batch_size=batch_size,\n        shuffle=False,\n        num_workers=num_workers,\n        pin_memory=use_pin_memory,\n        drop_last=False,\n        multiprocessing_context=mp_ctx,\n        persistent_workers=True\n    )\n\n    # ---------------\n    # Model definition\n    # ---------------\n    input_dim = 561\n    num_classes = 6\n\n    # Compute standardization stats on training data (CPU), then buffers moved to device\n    with torch.no_grad():\n        mean = X_train.mean(dim=0)\n        std = X_train.std(dim=0, unbiased=False).clamp_min(1e-6)\n\n    class Standardize(nn.Module):\n        def __init__(self, mean_tensor, std_tensor, dev):\n            super().__init__()\n            self.register_buffer('mean', mean_tensor.to(dev))\n            self.register_buffer('std', std_tensor.to(dev))\n        def forward(self, x):\n            return (x - self.mean) / self.std\n\n    class TinyMLP(nn.Module):\n        def __init__(self, in_dim, h, out_dim, p_drop, dev):\n            super().__init__()\n            self.norm = Standardize(mean, std, dev)\n            self.fc1 = nn.Linear(in_dim, h)\n            self.act = nn.ReLU(inplace=True)\n            self.drop = nn.Dropout(p_drop)\n            self.fc2 = nn.Linear(h, out_dim)\n        def forward(self, x):\n            x = self.norm(x)\n            x = self.fc1(x)\n            x = self.act(x)\n            x = self.drop(x)\n            x = self.fc2(x)\n            return x\n\n    model = TinyMLP(input_dim, hidden_size, num_classes, dropout, device).to(device)\n\n    # Optimizer and loss\n    criterion = nn.CrossEntropyLoss().to(device)\n    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)\n\n    # -----------------\n    # Training loop\n    # -----------------\n    train_losses, val_losses, val_accs = [], [], []\n\n    for epoch in range(1, epochs + 1):\n        model.train()\n        total_loss = 0.0\n        total_count = 0\n\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=use_pin_memory)\n            yb = yb.to(device, non_blocking=use_pin_memory)\n\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if max_grad_norm and max_grad_norm > 0:\n                nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)\n            optimizer.step()\n\n            total_loss += loss.detach().item() * xb.size(0)\n            total_count += xb.size(0)\n\n        train_loss = total_loss / max(total_count, 1)\n\n        # Validation\n        model.eval()\n        val_total_loss = 0.0\n        val_total_count = 0\n        val_correct = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=use_pin_memory)\n                yb = yb.to(device, non_blocking=use_pin_memory)\n                logits = model(xb)\n                vloss = criterion(logits, yb)\n                val_total_loss += vloss.item() * xb.size(0)\n                preds = torch.argmax(logits, dim=1)\n                val_correct += (preds == yb).sum().item()\n                val_total_count += xb.size(0)\n\n        val_loss = val_total_loss / max(val_total_count, 1)\n        val_acc = float(val_correct) / max(val_total_count, 1)\n\n        train_losses.append(train_loss)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n\n        print(f\"Epoch {epoch}/{epochs} - train_loss: {train_loss:.4f} - val_loss: {val_loss:.4f} - val_acc: {val_acc:.4f}\")\n\n    # -----------------\n    # Post-training quantization\n    # -----------------\n    def get_state_dict_size_bytes(mdl: nn.Module) -> int:\n        buf = io.BytesIO()\n        torch.save(mdl.state_dict(), buf)\n        return buf.tell()\n\n    # Build a CPU calibration loader (features only) for static quantization\n    calib_loader = DataLoader(\n        TensorDataset(X_train),\n        batch_size=min(1024, batch_size),\n        shuffle=True,\n        num_workers=num_workers,\n        pin_memory=False,\n        drop_last=False,\n        multiprocessing_context=mp_ctx,\n        persistent_workers=True\n    )\n\n    def quantize_ptq(trained_model: nn.Module) -> nn.Module:\n        # Choose strategy based on requested bits and flags\n        if quantization_bits == 8:\n            if quantize_activations:\n                # Static int8 quantization (weights + activations)\n                torch.backends.quantized.engine = 'fbgemm'\n                model_cpu = trained_model.to('cpu').eval()\n                model_cpu.qconfig = tq.get_default_qconfig('fbgemm')\n                prepared = tq.prepare(model_cpu, inplace=False)\n                # Calibration on a few batches\n                steps = 0\n                with torch.inference_mode():\n                    for (xb,) in calib_loader:\n                        prepared(xb)  # CPU float inputs\n                        steps += 1\n                        if steps >= max(1, calibration_steps):\n                            break\n                quantized = tq.convert(prepared, inplace=False)\n                return quantized\n            elif quantize_weights:\n                # Dynamic int8 (weights only for Linear)\n                model_cpu = trained_model.to('cpu').eval()\n                quantized = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.qint8)\n                return quantized\n            else:\n                # No quantization requested; return as-is on CPU\n                return trained_model.to('cpu').eval()\n        elif quantization_bits == 16:\n            # Dynamic float16 (weights only) for Linear\n            model_cpu = trained_model.to('cpu').eval()\n            quantized = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.float16)\n            return quantized\n        else:  # 32-bit: keep FP32\n            return trained_model.to('cpu').eval()\n\n    quantized_model = quantize_ptq(model)\n\n    # Ensure final model size <= 256KB; fallback to dynamic int8 if exceeded\n    size_bytes = get_state_dict_size_bytes(quantized_model)\n    limit_bytes = 256 * 1024\n    if size_bytes > limit_bytes:\n        # Fallback to dynamic int8 quantization for compliance\n        qm_fallback = tq.quantize_dynamic(model.to('cpu').eval(), {nn.Linear}, dtype=torch.qint8)\n        if get_state_dict_size_bytes(qm_fallback) <= limit_bytes:\n            print(f\"Model size {size_bytes} bytes exceeded 256KB; applied dynamic int8 fallback.\")\n            quantized_model = qm_fallback\n        else:\n            # As a very unlikely final guard, drop hidden size by half and re-quantize (no retraining)\n            print(\"Warning: Size still exceeds 256KB. Compacting head and quantizing again.\")\n            compact = TinyMLP(input_dim, max(16, hidden_size // 2), num_classes, dropout=0.0, dev=torch.device('cpu'))\n            compact.load_state_dict(model.to('cpu').state_dict(), strict=False)\n            quantized_model = tq.quantize_dynamic(compact.eval(), {nn.Linear}, dtype=torch.qint8)\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.0003,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.1,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 256,
+      "type": "Categorical",
+      "categories": [
+        64,
+        128,
+        256,
+        512,
+        1024
+      ]
+    },
+    "epochs": {
+      "default": 40,
+      "type": "Integer",
+      "low": 5,
+      "high": 200
+    },
+    "hidden_size": {
+      "default": 64,
+      "type": "Integer",
+      "low": 32,
+      "high": 112
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "max_grad_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "calibration_steps": {
+      "default": 128,
+      "type": "Integer",
+      "low": 16,
+      "high": 512
+    }
+  },
+  "confidence": 0.78,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      10299,
+      561
+    ],
+    "dtype": "float32",
+    "feature_count": 561,
+    "sample_count": 10299,
+    "is_sequence": false,
+    "is_image": false,
+    "is_tabular": true,
+    "has_labels": true,
+    "label_count": 6,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1759599833,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

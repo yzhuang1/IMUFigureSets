@@ -24,29 +24,7 @@ def load_quantized_model(model_path, training_json_path):
     # Load checkpoint
     checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
     state_dict = checkpoint['model_state_dict']
-    hyperparams = checkpoint['best_hyperparameters'].copy()
-
-    # Infer critical hyperparameters from weight shapes (handles checkpoint mismatch issues)
-    # This is necessary because sometimes checkpoints are saved with incorrect hyperparameters
-    for key, value in state_dict.items():
-        # Infer hidden_size from first linear layer
-        if 'backbone.0._packed_params._packed_params' in key or 'trunk.0._packed_params._packed_params' in key:
-            if isinstance(value, tuple) and len(value) > 0:
-                weight = value[0]
-                if hasattr(weight, 'shape') and len(weight.shape) == 2:
-                    inferred_hidden = weight.shape[0]
-                    if 'hidden_size' in hyperparams and hyperparams['hidden_size'] != inferred_hidden:
-                        print(f"Warning: Overriding hidden_size from {hyperparams['hidden_size']} to {inferred_hidden} (inferred from weights)")
-                        hyperparams['hidden_size'] = inferred_hidden
-                    elif 'hidden_size' not in hyperparams:
-                        hyperparams['hidden_size'] = inferred_hidden
-        # Infer d_model from transformer embeddings or first transformer layer
-        elif 'embedding' in key.lower() and 'weight' in key:
-            if hasattr(value, 'shape') and len(value.shape) == 2:
-                inferred_d_model = value.shape[1]
-                if 'd_model' in hyperparams and hyperparams['d_model'] != inferred_d_model:
-                    print(f"Warning: Overriding d_model from {hyperparams['d_model']} to {inferred_d_model} (inferred from weights)")
-                    hyperparams['d_model'] = inferred_d_model
+    hyperparams = checkpoint['best_hyperparameters']
 
     # Calculate actual checkpoint size (what was saved)
     checkpoint_size_bytes = sum(
@@ -179,22 +157,8 @@ def load_quantized_model(model_path, training_json_path):
                     all_code_blocks.append('\n'.join(dedented))
                 break  # Found this function, move to next
 
-    # Extract normalization parameters from checkpoint if available (for models with Standardize layer)
-    # These need to be available during model class definition (exec)
-    mean_tensor = state_dict.get('norm.mean', None)
-    std_tensor = state_dict.get('norm.std', None)
-
     # Execute all code blocks together
-    import numpy as np
-    exec_globals = {
-        'torch': torch,
-        'nn': nn,
-        'F': F,
-        'math': __import__('math'),
-        'np': np,
-        'mean': mean_tensor,  # For models with Standardize layer
-        'std': std_tensor,  # For models with Standardize layer
-    }
+    exec_globals = {'torch': torch, 'nn': nn, 'F': F, 'math': __import__('math')}
     combined_code = '\n\n'.join(all_code_blocks)
     exec(combined_code, exec_globals)
     ModelClass = exec_globals[model_class_name]
@@ -211,18 +175,11 @@ def load_quantized_model(model_path, training_json_path):
         'num_classes': num_classes,
         'in_ch': in_ch,
         'num_features': num_features,
-        'input_dim': num_features,  # Alias for tabular models
-        'n_features': num_features,  # Alias used in some training functions
-        'n_classes': num_classes,  # Alias used in some training functions
-        'device': 'cpu',  # Default device for model instantiation
-        'mean': mean_tensor,  # For models with Standardize layer
-        'std': std_tensor,  # For models with Standardize layer
         'int': int,
         'float': float,
         'bool': bool,
         'max': max,
         'hyperparams': hyperparams,
-        'hp': hyperparams,  # Alias used in some training functions
     }
 
     # Pre-populate context with all hyperparameters directly
@@ -435,58 +392,26 @@ def load_quantized_model(model_path, training_json_path):
         print(f"Final model instantiation parameters: {model_params}")
         model = ModelClass(**model_params)
 
-    # Check if quantized by looking for quantization-specific keys
-    has_packed_params = any('_packed_params' in key for key in state_dict.keys())
-    has_scale_zero_point = any('scale' in key or 'zero_point' in key for key in state_dict.keys())
-    is_quantized = has_packed_params or has_scale_zero_point
+    # Check if quantized
+    is_quantized = any('_packed_params' in key for key in state_dict.keys())
 
-    if is_quantized and has_packed_params:
-        print("Detected statically quantized model - extracting weights from packed params...")
+    if is_quantized:
+        print("Detected quantized model - applying quantization to model first, then loading state dict...")
+        try:
+            from torch.ao.quantization import quantize_dynamic
+        except ImportError:
+            from torch.quantization import quantize_dynamic
 
-        # Extract and dequantize all parameters including packed params
-        float_state_dict = {}
-        for key, value in state_dict.items():
-            # Handle packed params - extract weight and bias
-            if '_packed_params._packed_params' in key:
-                # This is a tuple containing (weight, bias)
-                if isinstance(value, tuple) and len(value) >= 1:
-                    # Get the base key (remove ._packed_params._packed_params)
-                    base_key = key.replace('._packed_params._packed_params', '')
-                    weight_tensor = value[0]
-                    # Dequantize the weight
-                    if hasattr(weight_tensor, 'dequantize'):
-                        float_state_dict[base_key + '.weight'] = weight_tensor.dequantize()
-                    else:
-                        float_state_dict[base_key + '.weight'] = weight_tensor
+        # First, apply quantization to create the quantized model structure
+        print("Creating quantized model structure...")
+        model = quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
 
-                    # Handle bias if present
-                    if len(value) >= 2 and value[1] is not None:
-                        bias_tensor = value[1]
-                        float_state_dict[base_key + '.bias'] = bias_tensor
-                continue
-
-            # Skip other quantization metadata
-            if '.scale' in key or '.zero_point' in key or '.dtype' in key:
-                continue
-
-            if isinstance(value, torch.Tensor):
-                if hasattr(value, 'is_quantized') and value.is_quantized:
-                    float_state_dict[key] = value.dequantize()
-                else:
-                    float_state_dict[key] = value
-
-        print(f"Loading dequantized weights ({len(float_state_dict)} parameters)...")
-        missing_keys = model.load_state_dict(float_state_dict, strict=False)
-
-        if missing_keys.missing_keys:
-            print(f"Warning: {len(missing_keys.missing_keys)} keys missing in checkpoint")
-
-        is_quantized = False  # We're running in float mode with dequantized weights
-        print("✓ Loaded dequantized weights into float model")
-
+        # Now load the quantized state dict directly
+        print(f"Loading quantized state dict ({len(state_dict)} keys)...")
+        model.load_state_dict(state_dict, strict=False)
     else:
-        # Not quantized or only dynamic quantization - load normally
-        print(f"Loading {'dynamically quantized' if is_quantized else 'float'} model...")
+        # Not quantized - load normally
+        # Try strict first, if it fails due to missing buffers (like pos.pe), use strict=False
         try:
             model.load_state_dict(state_dict, strict=True)
         except RuntimeError as e:
@@ -498,13 +423,12 @@ def load_quantized_model(model_path, training_json_path):
                 model.load_state_dict(state_dict, strict=False)
             else:
                 raise
-
     model.eval()
 
     return model, is_quantized, checkpoint_size_bytes
 
 
-def calculate_accuracy(model, X_test, y_test, batch_size=128, is_quantized=False):
+def calculate_accuracy(model, X_test, y_test, batch_size=128):
     """Calculate accuracy manually and return predictions."""
     print(f"Calculating accuracy on {len(X_test)} samples...")
 
@@ -516,12 +440,6 @@ def calculate_accuracy(model, X_test, y_test, batch_size=128, is_quantized=False
 
     num_batches = (len(X_test) + batch_size - 1) // batch_size
 
-    # Check if model uses quantized operations (static quantization)
-    uses_quantized_ops = is_quantized and any(
-        'quantized' in str(type(m)).lower()
-        for m in model.modules()
-    )
-
     with torch.no_grad():
         for i in range(num_batches):
             start_idx = i * batch_size
@@ -530,29 +448,11 @@ def calculate_accuracy(model, X_test, y_test, batch_size=128, is_quantized=False
             batch_X = X_test[start_idx:end_idx]
             batch_y = y_test[start_idx:end_idx]
 
-            # Handle different input shapes:
-            # - Tabular: [B, F] - keep as is
-            # - Sequence: [B, L, C] where L=1000, C=2 → transpose to [B, C, L]
-            if batch_X.dim() == 3 and batch_X.shape[1] == 1000 and batch_X.shape[2] == 2:
+            # Ensure shape is (batch, 2, 1000)
+            if batch_X.shape[1] == 1000 and batch_X.shape[2] == 2:
                 batch_X = batch_X.transpose(1, 2)
 
-            # For statically quantized models, quantize the input
-            if uses_quantized_ops:
-                # Quantize input tensor to quint8 (unsigned 8-bit)
-                # Map float range to [0, 255] for quint8
-                min_val = batch_X.min().item() if batch_X.numel() > 0 else 0.0
-                max_val = batch_X.max().item() if batch_X.numel() > 0 else 1.0
-                scale = (max_val - min_val) / 255.0 if (max_val - min_val) > 0 else 1.0
-                zero_point = int(-min_val / scale) if scale > 0 else 0
-                zero_point = max(0, min(255, zero_point))  # Clamp to [0, 255]
-                batch_X = torch.quantize_per_tensor(batch_X, scale, zero_point, torch.quint8)
-
             outputs = model(batch_X)
-
-            # Dequantize output if needed
-            if hasattr(outputs, 'dequantize'):
-                outputs = outputs.dequantize()
-
             predictions = outputs.argmax(dim=1)
 
             correct += (predictions == batch_y).sum().item()
@@ -565,7 +465,7 @@ def calculate_accuracy(model, X_test, y_test, batch_size=128, is_quantized=False
     return accuracy, np.array(all_predictions), np.array(all_labels)
 
 
-def measure_latency(model, X_test, batch_size=128, num_runs=100, is_quantized=False):
+def measure_latency(model, X_test, batch_size=128, num_runs=100):
     """Measure inference latency."""
     print(f"Measuring latency with {num_runs} runs...")
 
@@ -573,27 +473,8 @@ def measure_latency(model, X_test, batch_size=128, num_runs=100, is_quantized=Fa
 
     # Get test batch
     test_batch = X_test[:batch_size]
-    # Handle different input shapes:
-    # - Tabular: [B, F] - keep as is
-    # - Sequence: [B, L, C] where L=1000, C=2 → transpose to [B, C, L]
-    if test_batch.dim() == 3 and test_batch.shape[1] == 1000 and test_batch.shape[2] == 2:
+    if test_batch.shape[1] == 1000 and test_batch.shape[2] == 2:
         test_batch = test_batch.transpose(1, 2)
-
-    # Check if model uses quantized operations (static quantization)
-    uses_quantized_ops = is_quantized and any(
-        'quantized' in str(type(m)).lower()
-        for m in model.modules()
-    )
-
-    # Quantize input if needed
-    if uses_quantized_ops:
-        # Quantize input tensor to quint8 (unsigned 8-bit)
-        min_val = test_batch.min().item() if test_batch.numel() > 0 else 0.0
-        max_val = test_batch.max().item() if test_batch.numel() > 0 else 1.0
-        scale = (max_val - min_val) / 255.0 if (max_val - min_val) > 0 else 1.0
-        zero_point = int(-min_val / scale) if scale > 0 else 0
-        zero_point = max(0, min(255, zero_point))  # Clamp to [0, 255]
-        test_batch = torch.quantize_per_tensor(test_batch, scale, zero_point, torch.quint8)
 
     # Warmup
     with torch.no_grad():
@@ -731,7 +612,7 @@ def main():
     print(f"\n{'='*60}")
     print("ACCURACY")
     print("="*60)
-    accuracy, predictions, labels = calculate_accuracy(model, X_test, y_test, args.batch_size, is_quantized=is_quantized)
+    accuracy, predictions, labels = calculate_accuracy(model, X_test, y_test, args.batch_size)
     print(f"Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
 
     # Generate confusion matrix
@@ -753,7 +634,7 @@ def main():
     print(f"\n{'='*60}")
     print("INFERENCE LATENCY")
     print("="*60)
-    latency = measure_latency(model, X_test, args.batch_size, num_runs=100, is_quantized=is_quantized)
+    latency = measure_latency(model, X_test, args.batch_size, num_runs=100)
     print(f"Mean: {latency['mean_ms']:.3f} ± {latency['std_ms']:.3f} ms")
     print(f"Median: {latency['median_ms']:.3f} ms")
     print(f"P95: {latency['p95_ms']:.3f} ms")

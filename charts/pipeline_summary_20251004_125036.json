@@ -1,0 +1,41 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9849514563106796,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "TinyHAR-MLP-Quantized",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_TinyHAR-MLP-Quantized_1759599833.json",
+      "bo_best_params": {
+        "lr": 0.0011753557399420678,
+        "batch_size": "1024",
+        "epochs": "134",
+        "hidden_size": "83",
+        "dropout": 0.014084070533250673,
+        "weight_decay": 0.0005565181016387409,
+        "max_grad_norm": 0.3588209535788284,
+        "num_workers": "4",
+        "quantization_bits": "16",
+        "quantize_weights": "True",
+        "quantize_activations": "False",
+        "calibration_steps": "456"
+      },
+      "bo_best_score": 0.9772554965883244,
+      "final_metrics": {
+        "acc": 0.9849514563106796,
+        "macro_f1": null
+      },
+      "performance_score": 0.9849514563106796,
+      "confidence": 0.78
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "TinyHAR-MLP-Quantized",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_TinyHAR-MLP-Quantized_20251004_125036.pth"
+}

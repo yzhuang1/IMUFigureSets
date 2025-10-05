@@ -1,0 +1,143 @@
+{
+  "model_name": "TabM-Small-MLP-Ensemble",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **kwargs):\n    # Required imports\n    import io\n    import copy\n    import math\n    import torch\n    from torch import nn, optim\n    from torch.utils.data import TensorDataset, DataLoader\n    from torch.cuda import amp\n    \n    # Device handling (ALWAYS convert to torch.device)\n    device = torch.device(device)\n    if device.type != 'cuda' or not torch.cuda.is_available():\n        raise RuntimeError('CUDA device required: set device to a valid CUDA GPU (e.g., \"cuda\").')\n    \n    # Hyperparameters with defaults\n    hp = {\n        'lr': kwargs.get('lr', 1e-3),\n        'weight_decay': kwargs.get('weight_decay', 1e-4),\n        'batch_size': kwargs.get('batch_size', 256),\n        'epochs': kwargs.get('epochs', 50),\n        'hidden_size': kwargs.get('hidden_size', 256),\n        'depth': kwargs.get('depth', 2),\n        'ensemble_members': kwargs.get('ensemble_members', 4),\n        'dropout': kwargs.get('dropout', 0.2),\n        'early_stopping_patience': kwargs.get('early_stopping_patience', 10),\n        'gradient_clip_norm': kwargs.get('gradient_clip_norm', 1.0),\n        'label_smoothing': kwargs.get('label_smoothing', 0.05),\n        'scheduler_gamma': kwargs.get('scheduler_gamma', 0.95),\n        # DataLoader settings (must be 4 workers and pinned memory per requirement)\n        'num_workers': 4,\n        # Quantization parameters\n        'quantization_bits': kwargs.get('quantization_bits', 8),  # {8,16,32}\n        'quantize_weights': kwargs.get('quantize_weights', True),\n        'quantize_activations': kwargs.get('quantize_activations', False),\n    }\n    \n    # Optional: feature pruning by index (provide tensor/list of indices in kwargs)\n    feature_keep_indices = kwargs.get('feature_keep_indices', None)\n    input_dim = X_train.shape[1] if feature_keep_indices is None else int(len(feature_keep_indices))\n    num_classes = int(torch.max(y_train).item() + 1)\n    assert input_dim > 0, 'Input dimension must be > 0.'\n    \n    # Prepare datasets and loaders\n    # Ensure tensors are CPU tensors for DataLoader with pin_memory=True\n    X_train = X_train.contiguous().to(dtype=torch.float32, device='cpu')\n    X_val = X_val.contiguous().to(dtype=torch.float32, device='cpu')\n    y_train = y_train.contiguous().to(dtype=torch.long, device='cpu')\n    y_val = y_val.contiguous().to(dtype=torch.long, device='cpu')\n    if feature_keep_indices is not None:\n        idx = torch.as_tensor(feature_keep_indices, dtype=torch.long, device='cpu')\n        X_train = X_train.index_select(1, idx)\n        X_val = X_val.index_select(1, idx)\n    \n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n    \n    # Use spawn context for CUDA with num_workers > 0\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    train_loader = DataLoader(\n        train_ds,\n        batch_size=hp['batch_size'],\n        shuffle=True,\n        num_workers=hp['num_workers'],\n        pin_memory=True,\n        drop_last=False,\n        multiprocessing_context=mp_ctx,\n    )\n    val_loader = DataLoader(\n        val_ds,\n        batch_size=hp['batch_size'],\n        shuffle=False,\n        num_workers=hp['num_workers'],\n        pin_memory=True,\n        drop_last=False,\n        multiprocessing_context=mp_ctx,\n    )\n    \n    # Define TabM-like parameter-efficient MLP ensemble\n    class TabMSmall(nn.Module):\n        def __init__(self, in_dim, num_classes=6, hidden=256, depth=2, ensemble_members=4, dropout=0.2):\n            super().__init__()\n            self.in_dim = in_dim\n            self.num_classes = num_classes\n            self.hidden = int(hidden)\n            self.depth = int(depth)\n            self.M = int(ensemble_members)\n            self.norm = nn.LayerNorm(in_dim)\n            layers = []\n            last = in_dim\n            for d in range(depth):\n                layers.append(nn.Linear(last, self.hidden, bias=True))\n                layers.append(nn.SiLU())\n                layers.append(nn.Dropout(dropout))\n                last = self.hidden\n            self.trunk = nn.Sequential(*layers)\n            # Shared classifier head\n            self.classifier = nn.Linear(self.hidden, num_classes, bias=True)\n            # Per-member gating vectors (parameter-efficient ensemble)\n            # Start near 1.0 via positive bias in sigmoid input\n            init_gate = math.log(0.95 / (1 - 0.95))  # ~2.94\n            self.gates = nn.Parameter(torch.full((self.M, self.hidden), init_gate))\n        def forward(self, x):\n            x = self.norm(x)\n            h = self.trunk(x)  # [B, H]\n            s = torch.sigmoid(self.gates)  # [M, H]\n            # Apply per-member gating and average logits\n            # Efficiently: expand h to [M,B,H]\n            h_mb = h.unsqueeze(0) * s.unsqueeze(1)  # [M,B,H]\n            # Compute logits for all members by reshaping\n            M, B, H = h_mb.shape\n            logits_mb = self.classifier(h_mb.reshape(M * B, H)).reshape(M, B, self.num_classes)\n            logits = logits_mb.mean(dim=0)  # [B, C]\n            return logits\n    \n    model = TabMSmall(\n        in_dim=input_dim,\n        num_classes=num_classes,\n        hidden=hp['hidden_size'],\n        depth=hp['depth'],\n        ensemble_members=hp['ensemble_members'],\n        dropout=hp['dropout'],\n    ).to(device)\n    \n    # Optimizer, loss, scheduler\n    # Class-balanced weights\n    with torch.no_grad():\n        cls_counts = torch.bincount(y_train.cpu(), minlength=num_classes).float()\n        # Avoid divide-by-zero\n        cls_counts = torch.clamp(cls_counts, min=1.0)\n        class_weights = (cls_counts.sum() / (cls_counts * num_classes)).to(device)\n    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=hp['label_smoothing']).to(device)\n    optimizer = optim.AdamW(model.parameters(), lr=hp['lr'], weight_decay=hp['weight_decay'])\n    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=hp['scheduler_gamma'])\n    scaler = amp.GradScaler(enabled=True)\n    \n    # Training loop with early stopping\n    best_val_loss = float('inf')\n    best_state = None\n    patience = 0\n    train_losses, val_losses, val_accs = [], [], []\n    \n    def evaluate(model, loader):\n        model.eval()\n        total_loss = 0.0\n        correct = 0\n        total = 0\n        with torch.no_grad():\n            for xb, yb in loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                total_loss += loss.detach().item() * yb.size(0)\n                pred = logits.argmax(dim=1)\n                correct += (pred == yb).sum().item()\n                total += yb.size(0)\n        avg_loss = total_loss / max(1, total)\n        acc = correct / max(1, total)\n        return avg_loss, acc\n    \n    for epoch in range(hp['epochs']):\n        model.train()\n        total_train_loss = 0.0\n        total_seen = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n            optimizer.zero_grad(set_to_none=True)\n            with amp.autocast(enabled=True):\n                logits = model(xb)\n                loss = criterion(logits, yb)\n            scaler.scale(loss).backward()\n            if hp['gradient_clip_norm'] and hp['gradient_clip_norm'] > 0:\n                scaler.unscale_(optimizer)\n                nn.utils.clip_grad_norm_(model.parameters(), max_norm=hp['gradient_clip_norm'])\n            scaler.step(optimizer)\n            scaler.update()\n            total_train_loss += loss.detach().float().item() * yb.size(0)\n            total_seen += yb.size(0)\n        scheduler.step()\n        avg_train_loss = total_train_loss / max(1, total_seen)\n        val_loss, val_acc = evaluate(model, val_loader)\n        train_losses.append(avg_train_loss)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n        print(f\"Epoch {epoch+1}/{hp['epochs']} - train_loss: {avg_train_loss:.6f} - val_loss: {val_loss:.6f} - val_acc: {val_acc:.4f}\")\n        # Early stopping on val_loss\n        if val_loss + 1e-9 < best_val_loss:\n            best_val_loss = val_loss\n            best_state = copy.deepcopy(model.state_dict())\n            patience = 0\n        else:\n            patience += 1\n            if patience >= hp['early_stopping_patience']:\n                print('Early stopping triggered.')\n                break\n    \n    if best_state is not None:\n        model.load_state_dict(best_state)\n    model.eval()\n    \n    # Quantization utilities\n    def quantify_model(base_model, quant_bits=8, quant_w=True, quant_a=False):\n        # Returns a CPU model for portability and accurate size reporting\n        base_model_cpu = copy.deepcopy(base_model).to('cpu')\n        if not quant_w:\n            # Return in requested precision without weight quantization\n            if quant_bits == 16:\n                return base_model_cpu.half()\n            else:\n                return base_model_cpu  # float32 for 32 or any unsupported setting\n        # Weight quantization\n        if quant_bits == 8:\n            # Dynamic quantization on Linear layers; activations remain float dynamically quantized at runtime\n            import torch.ao.quantization as aoq\n            qmodel = aoq.quantize_dynamic(base_model_cpu, {nn.Linear}, dtype=torch.qint8)\n            if quant_a:\n                # Note: For MLPs, dynamic quantization covers weights; activation quantization (static) requires calibration.\n                # Keeping dynamic quantization as it is widely supported and efficient for Linear layers.\n                pass\n            return qmodel\n        elif quant_bits == 16:\n            return base_model_cpu.half()\n        elif quant_bits == 32:\n            return base_model_cpu\n        else:\n            return base_model_cpu\n    \n    quant_model = quantify_model(model, hp['quantization_bits'], hp['quantize_weights'], hp['quantize_activations'])\n    \n    # Measure serialized model size (state_dict) precisely\n    def serialized_size_bytes(module):\n        buf = io.BytesIO()\n        torch.save(module.state_dict(), buf)\n        return len(buf.getvalue())\n    model_size_bytes = serialized_size_bytes(quant_model)\n    if model_size_bytes > 262144:\n        print(f'Warning: Quantized model size {model_size_bytes} bytes exceeds 256KB limit. Consider reducing hidden_size, depth, or ensemble_members.')\n    \n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'best_val_acc': max(val_accs) if len(val_accs) > 0 else None,\n        'epochs_ran': len(train_losses),\n        'quantization_bits': hp['quantization_bits'],\n        'quantize_weights': hp['quantize_weights'],\n        'quantize_activations': hp['quantize_activations'],\n        'model_size_bytes': model_size_bytes,\n    }\n    return quant_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.003,
+      "prior": "log-uniform"
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 256,
+      "type": "Categorical",
+      "categories": [
+        64,
+        128,
+        256,
+        512
+      ]
+    },
+    "epochs": {
+      "default": 50,
+      "type": "Integer",
+      "low": 10,
+      "high": 200
+    },
+    "hidden_size": {
+      "default": 256,
+      "type": "Integer",
+      "low": 64,
+      "high": 384
+    },
+    "depth": {
+      "default": 2,
+      "type": "Integer",
+      "low": 1,
+      "high": 3
+    },
+    "ensemble_members": {
+      "default": 4,
+      "type": "Integer",
+      "low": 1,
+      "high": 8
+    },
+    "dropout": {
+      "default": 0.2,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "early_stopping_patience": {
+      "default": 10,
+      "type": "Integer",
+      "low": 5,
+      "high": 20
+    },
+    "gradient_clip_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "label_smoothing": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "scheduler_gamma": {
+      "default": 0.95,
+      "type": "Real",
+      "low": 0.5,
+      "high": 0.99
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    }
+  },
+  "confidence": 0.86,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      10299,
+      561
+    ],
+    "dtype": "float32",
+    "feature_count": 561,
+    "sample_count": 10299,
+    "is_sequence": false,
+    "is_image": false,
+    "is_tabular": true,
+    "has_labels": true,
+    "label_count": 6,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1759567429,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

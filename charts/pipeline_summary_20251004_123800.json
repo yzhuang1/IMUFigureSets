@@ -1,0 +1,46 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9863033294677734,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "FT-Transformer (compact, per-feature tokenization)",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_FT-Transformer__compact,_per-feature_tokenization_1759589613.json",
+      "bo_best_params": {
+        "lr": 0.0021706738158084734,
+        "weight_decay": 1.3214743943704035e-05,
+        "batch_size": "64",
+        "epochs": "123",
+        "d_head": "8",
+        "n_heads": "2",
+        "n_layers": "2",
+        "d_ff_multiplier": "4",
+        "dropout": 0.22770804119322588,
+        "token_dropout": 0.060230392757348164,
+        "mixup_alpha": 0.21602642274316816,
+        "label_smoothing": 0.11943479145526711,
+        "patience": "18",
+        "num_workers": "4",
+        "quantization_bits": "16",
+        "quantize_weights": "False",
+        "quantize_activations": "False"
+      },
+      "bo_best_score": 0.9778009653091431,
+      "final_metrics": {
+        "acc": 0.9863033294677734,
+        "macro_f1": null
+      },
+      "performance_score": 0.9863033294677734,
+      "confidence": 0.86
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "FT-Transformer (compact, per-feature tokenization)",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_FT-Transformer (compact, per-feature tokenization)_20251004_123800.pth"
+}

@@ -1,0 +1,48 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9805825242718447,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "RealMLP (Tabular, 3xHidden, Robust+Clip, DiagScale)",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_RealMLP__Tabular,_3xHidden,_Robust+Clip,_DiagScale_1759579108.json",
+      "bo_best_params": {
+        "lr": 0.004905797601716278,
+        "batch_size": "128",
+        "epochs": "115",
+        "hidden_size": "84",
+        "dropout": 0.17683158654312003,
+        "weight_decay": 0.0006095828813873645,
+        "label_smoothing": 0.04030366762756132,
+        "clip_value": 2.119960946627328,
+        "use_num_embeddings": "False",
+        "emb_dim": "3",
+        "scheduler_type": "cosine",
+        "early_stopping_patience": "15",
+        "min_hidden": "128",
+        "width_shrink_to_fit": "True",
+        "use_amp": "True",
+        "quantization_bits": "8",
+        "quantize_weights": "True",
+        "quantize_activations": "True",
+        "num_workers": "4"
+      },
+      "bo_best_score": 0.9840788476118272,
+      "final_metrics": {
+        "acc": 0.9805825242718447,
+        "macro_f1": null
+      },
+      "performance_score": 0.9805825242718447,
+      "confidence": 0.81
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "RealMLP (Tabular, 3xHidden, Robust+Clip, DiagScale)",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_RealMLP (Tabular, 3xHidden, Robust+Clip, DiagScale)_20251004_094630.pth"
+}

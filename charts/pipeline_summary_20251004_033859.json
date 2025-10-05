@@ -1,0 +1,47 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 0.9650485436893204,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "FT-MambaTiny-HAR",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_FT-MambaTiny-HAR_1759549150.json",
+      "bo_best_params": {
+        "lr": 0.008158955941264555,
+        "batch_size": "128",
+        "epochs": "99",
+        "d_model": "58",
+        "num_layers": "1",
+        "ssm_expansion": "2",
+        "ffn_expansion": "2",
+        "dropout": 0.09746164126462362,
+        "weight_decay": 8.175660663588026e-06,
+        "beta1": 0.903566833859218,
+        "beta2": 0.9116221698547131,
+        "grad_clip": 3.349042054463192,
+        "seed": "6072",
+        "num_workers": "4",
+        "quantization_bits": "16",
+        "quantize_weights": "False",
+        "quantize_activations": "True",
+        "calibration_batches": "2"
+      },
+      "bo_best_score": 0.974981046247157,
+      "final_metrics": {
+        "acc": 0.9650485436893204,
+        "macro_f1": null
+      },
+      "performance_score": 0.9650485436893204,
+      "confidence": 0.86
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "FT-MambaTiny-HAR",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_FT-MambaTiny-HAR_20251004_033859.pth"
+}

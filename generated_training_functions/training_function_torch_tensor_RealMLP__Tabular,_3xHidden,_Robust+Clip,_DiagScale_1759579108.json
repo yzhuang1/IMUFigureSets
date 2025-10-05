@@ -1,0 +1,168 @@
+{
+  "model_name": "RealMLP (Tabular, 3xHidden, Robust+Clip, DiagScale)",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    import math\n    import time\n    import copy\n    import warnings\n    import torch\n    from torch.utils.data import TensorDataset, DataLoader\n    from torch import nn, optim\n    from torch.optim.lr_scheduler import CosineAnnealingLR, OneCycleLR\n    try:\n        import torch.ao.quantization as tq\n    except Exception:\n        import torch.quantization as tq\n\n    # -----------------------------\n    # Device handling\n    # -----------------------------\n    device = torch.device(device)\n    torch.backends.cudnn.benchmark = True\n\n    # -----------------------------\n    # Hyperparameters (with defaults)\n    # -----------------------------\n    epochs = int(hyperparams.get('epochs', 80))\n    batch_size = int(hyperparams.get('batch_size', 128))\n    lr = float(hyperparams.get('lr', 3e-4))\n    weight_decay = float(hyperparams.get('weight_decay', 1e-4))\n    dropout = float(hyperparams.get('dropout', 0.15))\n    dropout = max(0.1, min(0.2, dropout))  # constrain to [0.1, 0.2]\n    requested_hidden = int(hyperparams.get('hidden_size', 256))\n    label_smoothing = float(hyperparams.get('label_smoothing', 0.05))\n    label_smoothing = max(0.0, min(0.05, label_smoothing))\n    clip_value = float(hyperparams.get('clip_value', 3.0))\n    use_num_embeddings = bool(hyperparams.get('use_num_embeddings', False))\n    emb_dim = int(hyperparams.get('emb_dim', 4))\n    scheduler_type = str(hyperparams.get('scheduler_type', 'cosine'))\n    early_stopping_patience = int(hyperparams.get('early_stopping_patience', 20))\n    min_hidden = int(hyperparams.get('min_hidden', 64))\n    width_shrink_to_fit = bool(hyperparams.get('width_shrink_to_fit', True))\n    use_amp = bool(hyperparams.get('use_amp', True))\n    quantization_bits = int(hyperparams.get('quantization_bits', 8))  # 8,16,32\n    quantize_weights = bool(hyperparams.get('quantize_weights', True))\n    quantize_activations = bool(hyperparams.get('quantize_activations', False))\n    num_workers = 4  # fixed per requirement\n\n    # Ensure valid scheduler_type\n    if scheduler_type not in ('cosine', 'onecycle'):\n        scheduler_type = 'cosine'\n\n    # -----------------------------\n    # Data prep: ensure tensors and dtypes\n    # -----------------------------\n    if not torch.is_tensor(X_train):\n        X_train = torch.tensor(X_train)\n    if not torch.is_tensor(y_train):\n        y_train = torch.tensor(y_train)\n    if not torch.is_tensor(X_val):\n        X_val = torch.tensor(X_val)\n    if not torch.is_tensor(y_val):\n        y_val = torch.tensor(y_val)\n\n    # Ensure CPU tensors for DataLoader pin_memory compatibility\n    X_train = X_train.contiguous().float().cpu()\n    X_val = X_val.contiguous().float().cpu()\n    y_train = y_train.contiguous().long().cpu()\n    y_val = y_val.contiguous().long().cpu()\n\n    n_features = int(X_train.shape[1])\n    n_classes = int(torch.max(torch.cat([y_train, y_val], dim=0)).item() + 1)\n\n    # -----------------------------\n    # RealMLP components\n    # -----------------------------\n    class RobustScalerSmoothClip(nn.Module):\n        def __init__(self, med, iqr, clip):\n            super().__init__()\n            self.register_buffer('median', med)\n            self.register_buffer('iqr', iqr)\n            self.clip = float(clip)\n            self.eps = 1e-6\n        def forward(self, x):\n            x = (x - self.median) / (self.iqr + self.eps)\n            c = self.clip\n            return c * torch.tanh(x / c)\n\n    class DiagonalFeatureScale(nn.Module):\n        def __init__(self, d):\n            super().__init__()\n            self.scale = nn.Parameter(torch.ones(d))\n        def forward(self, x):\n            return x * self.scale\n\n    class PerFeatureLinearEmbedding(nn.Module):\n        def __init__(self, d_in, emb_dim):\n            super().__init__()\n            self.W = nn.Parameter(torch.zeros(d_in, emb_dim))\n            self.b = nn.Parameter(torch.zeros(d_in, emb_dim))\n            nn.init.xavier_uniform_(self.W)\n            nn.init.zeros_(self.b)\n        def forward(self, x):\n            B, D = x.shape\n            out = x.unsqueeze(-1) * self.W + self.b  # (B, D, E)\n            return out.view(B, -1)\n\n    class RealMLP(nn.Module):\n        def __init__(self, d_in, d_hidden, d_out, dropout=0.15, clip=3.0, use_emb=False, emb_dim=4):\n            super().__init__()\n            self.use_emb = bool(use_emb)\n            self.emb_dim = int(emb_dim)\n            self.register_buffer('median_buf', torch.zeros(d_in))\n            self.register_buffer('iqr_buf', torch.ones(d_in))\n            self.pre = RobustScalerSmoothClip(self.median_buf, self.iqr_buf, clip)\n            self.diag = DiagonalFeatureScale(d_in)\n            in_dim_eff = d_in * (self.emb_dim if self.use_emb else 1)\n            self.embed = PerFeatureLinearEmbedding(d_in, self.emb_dim) if self.use_emb else None\n            act = nn.ReLU\n            self.backbone = nn.Sequential(\n                nn.Linear(in_dim_eff, d_hidden), act(), nn.Dropout(p=dropout),\n                nn.Linear(d_hidden, d_hidden), act(), nn.Dropout(p=dropout),\n                nn.Linear(d_hidden, d_hidden), act(), nn.Dropout(p=dropout),\n            )\n            self.head = nn.Linear(d_hidden, d_out)\n        def set_stats(self, median, iqr):\n            self.median_buf.data.copy_(median.detach())\n            self.iqr_buf.data.copy_(iqr.detach())\n            self.pre.median.data.copy_(median.detach())\n            self.pre.iqr.data.copy_(iqr.detach())\n        def forward(self, x):\n            x = self.pre(x)\n            x = self.diag(x)\n            if self.use_emb:\n                x = self.embed(x)\n            x = self.backbone(x)\n            return self.head(x)\n\n    # -----------------------------\n    # Robust stats from training data (GPU computation)\n    # -----------------------------\n    with torch.no_grad():\n        X_train_dev = X_train.to(device, non_blocking=False)\n        q1 = torch.quantile(X_train_dev, 0.25, dim=0)\n        q3 = torch.quantile(X_train_dev, 0.75, dim=0)\n        iqr = q3 - q1\n        median = torch.median(X_train_dev, dim=0).values\n        del X_train_dev\n        if device.type == 'cuda':\n            torch.cuda.synchronize(device)\n\n    # -----------------------------\n    # Size-fitting logic (ensure <= 256KB after quantization)\n    # -----------------------------\n    SIZE_LIMIT = 256 * 1024  # bytes\n\n    def estimate_size_bytes(d_in, d_hidden, d_out, use_emb, emb_dim, quant_bits, q_weights):\n        diag_params = d_in\n        emb_params = (d_in * emb_dim * 2) if use_emb else 0\n        in_eff = d_in * (emb_dim if use_emb else 1)\n        w1 = in_eff * d_hidden\n        w2 = d_hidden * d_hidden\n        w3 = d_hidden * d_hidden\n        w4 = d_hidden * d_out\n        b1 = d_hidden\n        b2 = d_hidden\n        b3 = d_hidden\n        b4 = d_out\n        linear_bias_count = b1 + b2 + b3 + b4\n        linear_weight_count = w1 + w2 + w3 + w4\n        if q_weights:\n            if quant_bits == 8:\n                bytes_linear_w = 1\n                bytes_bias = 4\n                bytes_other = 4\n                total_bytes = linear_weight_count * bytes_linear_w + linear_bias_count * bytes_bias + (diag_params + emb_params) * bytes_other\n                return int(total_bytes)\n            elif quant_bits == 16:\n                bytes_all = 2\n                total_params = (diag_params + emb_params) + (linear_weight_count + linear_bias_count)\n                return int(total_params * bytes_all)\n            else:\n                bytes_all = 4\n                total_params = (diag_params + emb_params) + (linear_weight_count + linear_bias_count)\n                return int(total_params * bytes_all)\n        else:\n            bytes_all = 4\n            total_params = (diag_params + emb_params) + (linear_weight_count + linear_bias_count)\n            return int(total_params * bytes_all)\n\n    chosen_use_emb = bool(use_num_embeddings)\n    chosen_emb_dim = int(emb_dim)\n\n    def find_hidden_that_fits(requested_h):\n        nonlocal chosen_use_emb, chosen_emb_dim\n        for h in range(max(requested_h, min_hidden), min_hidden - 1, -1):\n            sz = estimate_size_bytes(n_features, h, n_classes, chosen_use_emb, chosen_emb_dim, quantization_bits, quantize_weights)\n            if sz <= SIZE_LIMIT:\n                return h, sz\n        if chosen_use_emb:\n            chosen_use_emb = False\n            chosen_emb_dim = 1\n            for h in range(max(requested_h, min_hidden), min_hidden - 1, -1):\n                sz = estimate_size_bytes(n_features, h, n_classes, chosen_use_emb, chosen_emb_dim, quantization_bits, quantize_weights)\n                if sz <= SIZE_LIMIT:\n                    return h, sz\n        h = min_hidden\n        sz = estimate_size_bytes(n_features, h, n_classes, chosen_use_emb, chosen_emb_dim, quantization_bits, quantize_weights)\n        return h, sz\n\n    if width_shrink_to_fit:\n        hidden_size, approx_size_bytes = find_hidden_that_fits(requested_hidden)\n    else:\n        hidden_size = requested_hidden\n        approx_size_bytes = estimate_size_bytes(n_features, hidden_size, n_classes, chosen_use_emb, chosen_emb_dim, quantization_bits, quantize_weights)\n        if approx_size_bytes > SIZE_LIMIT:\n            warnings.warn('Requested width exceeds 256KB limit; enabling auto-shrink to fit.')\n            hidden_size, approx_size_bytes = find_hidden_that_fits(requested_hidden)\n\n    # -----------------------------\n    # Build model\n    # -----------------------------\n    model = RealMLP(n_features, hidden_size, n_classes, dropout=dropout, clip=clip_value, use_emb=chosen_use_emb, emb_dim=(chosen_emb_dim if chosen_use_emb else 4))\n    model = model.to(device)\n    model.set_stats(median.to(device), (iqr + 1e-6).to(device))\n\n    # -----------------------------\n    # DataLoaders (spawn context, pinned memory)\n    # -----------------------------\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n    pin_memory_flag = (device.type == 'cuda')  # pin only helpful for CPU->GPU copies\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory_flag, multiprocessing_context=mp_ctx, drop_last=False)\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory_flag, multiprocessing_context=mp_ctx, drop_last=False)\n\n    # -----------------------------\n    # Optimizer, Loss, Scheduler\n    # -----------------------------\n    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\n    if scheduler_type == 'cosine':\n        scheduler = CosineAnnealingLR(optimizer, T_max=max(1, epochs), eta_min=max(lr * 0.1, 1e-6))\n        step_per_batch = False\n    else:\n        scheduler = OneCycleLR(optimizer, max_lr=lr, epochs=epochs, steps_per_epoch=max(1, len(train_loader)), pct_start=0.3, div_factor=10.0, final_div_factor=100.0)\n        step_per_batch = True\n\n    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing).to(device)\n\n    amp_enabled = bool(use_amp) and (device.type == 'cuda')\n    scaler = torch.cuda.amp.GradScaler(enabled=amp_enabled)\n\n    # -----------------------------\n    # Training Loop\n    # -----------------------------\n    train_losses, val_losses, val_accs = [], [], []\n    best_state = None\n    best_val_loss = float('inf')\n    best_epoch = -1\n    patience_counter = 0\n\n    for epoch in range(epochs):\n        model.train()\n        running_loss = 0.0\n        n_train = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n            optimizer.zero_grad(set_to_none=True)\n            with torch.cuda.amp.autocast(enabled=amp_enabled):\n                logits = model(xb)\n                loss = criterion(logits, yb)\n            scaler.scale(loss).backward()\n            scaler.step(optimizer)\n            scaler.update()\n            if step_per_batch:\n                scheduler.step()\n            running_loss += loss.detach().float().item() * xb.size(0)\n            n_train += xb.size(0)\n        train_loss = running_loss / max(1, n_train)\n\n        # Validation\n        model.eval()\n        val_running_loss = 0.0\n        correct = 0\n        total = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                val_running_loss += loss.detach().float().item() * xb.size(0)\n                preds = torch.argmax(logits, dim=1)\n                correct += (preds == yb).sum().item()\n                total += yb.size(0)\n        val_loss = val_running_loss / max(1, total)\n        val_acc = correct / max(1, total)\n\n        if not step_per_batch:\n            scheduler.step()\n\n        train_losses.append(train_loss)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n        print(f\"Epoch {epoch+1}/{epochs} - train_loss: {train_loss:.4f} val_loss: {val_loss:.4f} val_acc: {val_acc:.4f}\")\n\n        improved = val_loss < best_val_loss - 1e-6\n        if improved:\n            best_val_loss = val_loss\n            best_state = copy.deepcopy(model.state_dict())\n            best_epoch = epoch\n            patience_counter = 0\n        else:\n            patience_counter += 1\n            if patience_counter >= early_stopping_patience:\n                print(f\"Early stopping at epoch {epoch+1}\")\n                break\n\n    if best_state is not None:\n        model.load_state_dict(best_state)\n\n    # -----------------------------\n    # Post-training quantization\n    # -----------------------------\n    model_cpu = copy.deepcopy(model).to('cpu')\n    model_cpu.eval()\n\n    quant_summary = {\n        'quantization_bits': quantization_bits,\n        'quantize_weights': quantize_weights,\n        'quantize_activations': quantize_activations,\n        'approx_size_bytes_precheck': int(approx_size_bytes),\n        'hidden_size': int(hidden_size),\n        'use_num_embeddings': bool(chosen_use_emb)\n    }\n\n    quantized_model = model_cpu\n\n    if quantize_weights:\n        if quantization_bits == 8:\n            if quantize_activations:\n                warnings.warn('Static activation quantization not applied; using dynamic int8 weight quantization instead.')\n            quantized_model = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.qint8)\n        elif quantization_bits == 16:\n            quantized_model = model_cpu.half()\n        elif quantization_bits == 32:\n            quantized_model = model_cpu.float()\n    else:\n        quantized_model = model_cpu.float()\n\n    def final_model_size_bytes(mod):\n        total_bytes = 0\n        for name, p in mod.named_parameters():\n            total_bytes += p.numel() * (2 if (p.dtype == torch.float16) else 4)\n        if isinstance(mod, nn.Module):\n            in_eff = n_features * (chosen_emb_dim if chosen_use_emb else 1)\n            w1 = in_eff * hidden_size\n            w2 = hidden_size * hidden_size\n            w3 = hidden_size * hidden_size\n            w4 = hidden_size * n_classes\n            int8_linear_weights = w1 + w2 + w3 + w4\n            if quantize_weights and quantization_bits == 8:\n                total_bytes += int8_linear_weights\n        return int(total_bytes)\n\n    final_size = final_model_size_bytes(quantized_model)\n    quant_summary['approx_size_bytes_postquant'] = int(final_size)\n\n    if final_size > SIZE_LIMIT:\n        warnings.warn(f'Final quantized model size {final_size} bytes exceeds 256KB limit. Consider smaller hidden_size or ensure 8-bit quantization.')\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'best_epoch': int(best_epoch if best_epoch >= 0 else len(train_losses) - 1),\n        'hidden_size': int(hidden_size),\n        'approx_size_bytes_prequant': int(approx_size_bytes),\n        'approx_size_bytes_postquant': int(final_size),\n        'quantization': quant_summary,\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.0003,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.005,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 80,
+      "type": "Integer",
+      "low": 20,
+      "high": 200
+    },
+    "hidden_size": {
+      "default": 256,
+      "type": "Integer",
+      "low": 64,
+      "high": 256
+    },
+    "dropout": {
+      "default": 0.15,
+      "type": "Real",
+      "low": 0.1,
+      "high": 0.2
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "label_smoothing": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.05
+    },
+    "clip_value": {
+      "default": 3.0,
+      "type": "Real",
+      "low": 2.0,
+      "high": 5.0
+    },
+    "use_num_embeddings": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "emb_dim": {
+      "default": 4,
+      "type": "Integer",
+      "low": 2,
+      "high": 4
+    },
+    "scheduler_type": {
+      "default": "cosine",
+      "type": "Categorical",
+      "categories": [
+        "cosine",
+        "onecycle"
+      ]
+    },
+    "early_stopping_patience": {
+      "default": 20,
+      "type": "Integer",
+      "low": 10,
+      "high": 30
+    },
+    "min_hidden": {
+      "default": 64,
+      "type": "Integer",
+      "low": 32,
+      "high": 128
+    },
+    "width_shrink_to_fit": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "use_amp": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    }
+  },
+  "confidence": 0.81,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      10299,
+      561
+    ],
+    "dtype": "float32",
+    "feature_count": 561,
+    "sample_count": 10299,
+    "is_sequence": false,
+    "is_image": false,
+    "is_tabular": true,
+    "has_labels": true,
+    "label_count": 6,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1759579108,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

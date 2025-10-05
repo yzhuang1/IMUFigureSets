@@ -103,8 +103,10 @@ Requirements:
   * core train loop with epoch-by-epoch logging (log epoch, train_loss, val_loss, val_acc each epoch)
   * return quantized model + metrics (include lists: train_losses, val_losses, val_acc for all epochs)
   * fill in the real input you need for hyperparams and quantization parameters
-  * IMPORTANT: For DataLoader, use pin_memory=False to avoid CUDA tensor pinning errors
-  * CRITICAL: ALWAYS train on GPU - ensure ALL tensors (model, inputs, targets, losses) are on the same device (GPU). Use .to(device) consistently throughout training loop.
+  * IMPORTS: ALWAYS include ALL necessary imports at the start of train_model function. Required imports: from torch.utils.data import TensorDataset, DataLoader; from torch import nn, optim
+  * IMPORTANT: For DataLoader, use num_workers=4 and pin_memory=True for efficient GPU data loading. Use non_blocking=True when moving tensors to GPU.
+  * MULTIPROCESSING: When using num_workers > 0 with CUDA, ALWAYS use spawn context to avoid CUDA initialization errors: mp_ctx = torch.multiprocessing.get_context('spawn'), then pass multiprocessing_context=mp_ctx to DataLoader.
+  * CRITICAL: ALWAYS train on GPU - ensure ALL tensors (model, inputs, targets, losses) are on the same device (GPU). Use .to(device, non_blocking=True) consistently throughout training loop.
   * DEVICE HANDLING: The 'device' parameter may be passed as either a string (e.g., "cuda") or torch.device object. ALWAYS convert it properly: device = torch.device(device) at the start of your function to avoid "'str' object has no attribute 'type'" errors.
 - Final model (after quantization) MUST have ≤ 256KB storage size.
 - Implement post-training quantization using torch.quantization / torch.ao.quantization.
@@ -131,6 +133,7 @@ Response JSON example:
     "epochs": {"default": 10, "type": "Integer", "low": 5, "high": 50},
     "hidden_size": {"default": 128, "type": "Integer", "low": 32, "high": 512},
     "dropout": {"default": 0.1, "type": "Real", "low": 0.0, "high": 0.7},
+    "num_workers": {"default": 4, "type": "Categorical", "categories": [4]},
     "quantization_bits": {"default": 32, "type": "Categorical", "categories": [8,16,32]},
     "quantize_weights": {"default": false, "type": "Categorical", "categories": [true,false]},
     "quantize_activations": {"default": false, "type": "Categorical", "categories": [true,false]}
@@ -238,9 +241,6 @@ CORRECTION EXAMPLES:
 - "Model has X KB storage, exceeds 256KB limit" → {{"bo_config": {{"d_model": 64, "hidden_size": 128}}}}
 - "'str' object has no attribute 'type'" → {{"training_code": "def train_model(...):\\n    # fixed implementation"}}
 - "Quantization bug in code" → {{"training_code": "corrected_training_function"}}
-- "AcceleratorError in DataLoader worker process" → {{"bo_config": {{"num_workers": 0}}}}
-- "CUDA error: initialization error" → {{"bo_config": {{"num_workers": 0}}}}
-- "DataLoader worker CUDA context" → {{"bo_config": {{"num_workers": 0}}}}
 - "mat1 and mat2 shapes cannot be multiplied" → {{"bo_config": {{"d_model": 128}}}}
 - "CUDA out of memory" → {{"system_issue": "STOP_PIPELINE"}}
 - "No such file or directory" → {{"system_issue": "STOP_PIPELINE"}}

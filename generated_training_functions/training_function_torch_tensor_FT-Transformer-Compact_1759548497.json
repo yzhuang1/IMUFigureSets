@@ -1,0 +1,166 @@
+{
+  "model_name": "FT-Transformer-Compact",
+  "training_code": "def train_model(\n    X_train,\n    y_train,\n    X_val,\n    y_val,\n    device,\n    epochs=50,\n    batch_size=256,\n    lr=1e-3,\n    weight_decay=1e-4,\n    head_dim=16,\n    n_heads=4,\n    num_layers=4,\n    ffn_multiplier=2,\n    dropout=0.15,\n    label_smoothing=0.05,\n    topk_features=128,\n    early_stopping_patience=10,\n    warmup_epochs=5,\n    mixed_precision=True,\n    quantization_bits=8,\n    quantize_weights=True,\n    quantize_activations=False,\n    seed=42,\n    num_workers=4,\n):\n    import math\n    import copy\n    import torch\n    from torch import nn, optim\n    from torch.utils.data import TensorDataset, DataLoader\n    import torch.ao.quantization as aoq\n\n    # --- Reproducibility ---\n    torch.manual_seed(seed)\n    if torch.cuda.is_available():\n        torch.cuda.manual_seed_all(seed)\n\n    # --- Device handling ---\n    device = torch.device(device)\n    if device.type != 'cuda':\n        if torch.cuda.is_available():\n            device = torch.device('cuda')\n        else:\n            raise RuntimeError('CUDA device is required for training')\n\n    # --- Sanity checks & shapes ---\n    if X_train.dim() != 2:\n        raise ValueError('X_train must be a 2D tensor of shape (N, F)')\n    if X_val.dim() != 2:\n        raise ValueError('X_val must be a 2D tensor of shape (N, F)')\n    if X_train.shape[1] != X_val.shape[1]:\n        raise ValueError('Train/val must have same number of features')\n\n    n_features = X_train.shape[1]\n    n_classes = int(torch.max(y_train).item() + 1)\n\n    # --- Ensure dataset tensors are on CPU (fixes pin_memory error) ---\n    X_train = X_train.detach().to('cpu').contiguous()\n    y_train = y_train.detach().to('cpu').contiguous()\n    X_val = X_val.detach().to('cpu').contiguous()\n    y_val = y_val.detach().to('cpu').contiguous()\n\n    # --- Optional supervised feature selection (ANOVA F-score) ---\n    def anova_fscore(X, y, n_cls):\n        N, F = X.shape\n        y = y.view(-1)\n        overall_mean = X.mean(dim=0)\n        bc_var = torch.zeros(F, device=X.device, dtype=X.dtype)\n        wc_var = torch.zeros(F, device=X.device, dtype=X.dtype)\n        for c in range(n_cls):\n            mask = (y == c)\n            if torch.any(mask):\n                Xc = X[mask]\n                n_c = Xc.shape[0]\n                mean_c = Xc.mean(dim=0)\n                bc_var += n_c * (mean_c - overall_mean) ** 2\n                xc_centered = Xc - mean_c\n                wc_var += (xc_centered ** 2).sum(dim=0)\n        wc_var = torch.clamp(wc_var, min=1e-12)\n        f = bc_var / wc_var\n        return f\n\n    if topk_features is not None:\n        k = int(topk_features)\n        k = max(1, min(k, n_features))\n        with torch.no_grad():\n            fscore = anova_fscore(X_train.float(), y_train.long(), n_classes)\n            _, topk_idx = torch.topk(fscore, k=k, largest=True, sorted=True)\n        selected_idx = topk_idx.cpu()\n    else:\n        selected_idx = torch.arange(n_features)\n\n    # --- Standardize features using train stats (on selected features) ---\n    X_train_sel = X_train[:, selected_idx]\n    X_val_sel = X_val[:, selected_idx]\n    feat_mean = X_train_sel.mean(dim=0)\n    feat_std = X_train_sel.std(dim=0).clamp(min=1e-6)\n    X_train_sel = (X_train_sel - feat_mean) / feat_std\n    X_val_sel = (X_val_sel - feat_mean) / feat_std\n\n    # --- Dataloaders (CPU tensors + pin_memory=True) ---\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    train_ds = TensorDataset(X_train_sel.float(), y_train.long())\n    val_ds = TensorDataset(X_val_sel.float(), y_val.long())\n    train_loader = DataLoader(\n        train_ds,\n        batch_size=batch_size,\n        shuffle=True,\n        num_workers=num_workers,\n        pin_memory=True,\n        multiprocessing_context=mp_ctx,\n        drop_last=False,\n    )\n    val_loader = DataLoader(\n        val_ds,\n        batch_size=batch_size,\n        shuffle=False,\n        num_workers=num_workers,\n        pin_memory=True,\n        multiprocessing_context=mp_ctx,\n        drop_last=False,\n    )\n\n    # --- Model definition (FT-Transformer style) ---\n    class NumericFeatureTokenizer(nn.Module):\n        def __init__(self, n_num_features, d_model):\n            super().__init__()\n            self.n_num = n_num_features\n            self.d_model = d_model\n            self.weight = nn.Parameter(torch.randn(n_num_features, d_model) * (1.0 / math.sqrt(d_model)))\n            self.bias = nn.Parameter(torch.zeros(n_num_features, d_model))\n            self.dropout = nn.Dropout(p=dropout)\n        def forward(self, x):\n            B, F = x.shape\n            assert F == self.n_num\n            tokens = x.unsqueeze(-1) * self.weight + self.bias\n            tokens = self.dropout(tokens)\n            return tokens\n\n    class MultiHeadSelfAttention(nn.Module):\n        def __init__(self, d_model, n_heads, attn_dropout=0.0, proj_dropout=0.0):\n            super().__init__()\n            assert d_model % n_heads == 0\n            self.d_model = d_model\n            self.n_heads = n_heads\n            self.head_dim = d_model // n_heads\n            self.scale = self.head_dim ** -0.5\n            self.q_proj = nn.Linear(d_model, d_model)\n            self.k_proj = nn.Linear(d_model, d_model)\n            self.v_proj = nn.Linear(d_model, d_model)\n            self.out_proj = nn.Linear(d_model, d_model)\n            self.attn_drop = nn.Dropout(attn_dropout)\n            self.proj_drop = nn.Dropout(proj_dropout)\n        def forward(self, x):\n            B, L, D = x.shape\n            q = self.q_proj(x).view(B, L, self.n_heads, self.head_dim).transpose(1, 2)\n            k = self.k_proj(x).view(B, L, self.n_heads, self.head_dim).transpose(1, 2)\n            v = self.v_proj(x).view(B, L, self.n_heads, self.head_dim).transpose(1, 2)\n            attn = (q @ k.transpose(-2, -1)) * self.scale\n            attn = torch.softmax(attn, dim=-1)\n            attn = self.attn_drop(attn)\n            out = attn @ v\n            out = out.transpose(1, 2).contiguous().view(B, L, D)\n            out = self.out_proj(out)\n            out = self.proj_drop(out)\n            return out\n\n    class TransformerBlock(nn.Module):\n        def __init__(self, d_model, n_heads, mlp_ratio=2.0, dropout=0.0):\n            super().__init__()\n            self.norm1 = nn.LayerNorm(d_model)\n            self.attn = MultiHeadSelfAttention(d_model, n_heads, attn_dropout=dropout, proj_dropout=dropout)\n            self.norm2 = nn.LayerNorm(d_model)\n            hidden = int(d_model * mlp_ratio)\n            self.mlp = nn.Sequential(\n                nn.Linear(d_model, hidden),\n                nn.GELU(),\n                nn.Dropout(dropout),\n                nn.Linear(hidden, d_model),\n                nn.Dropout(dropout),\n            )\n        def forward(self, x):\n            x = x + self.attn(self.norm1(x))\n            x = x + self.mlp(self.norm2(x))\n            return x\n\n    class FTTransformer(nn.Module):\n        def __init__(self, n_num_features, n_classes, head_dim, n_heads, num_layers, mlp_ratio, dropout):\n            super().__init__()\n            d_model = head_dim * n_heads\n            self.d_model = d_model\n            self.tokenizer = NumericFeatureTokenizer(n_num_features, d_model)\n            self.cls_token = nn.Parameter(torch.zeros(1, 1, d_model))\n            self.blocks = nn.ModuleList([\n                TransformerBlock(d_model, n_heads, mlp_ratio=mlp_ratio, dropout=dropout) for _ in range(num_layers)\n            ])\n            self.norm = nn.LayerNorm(d_model)\n            self.head = nn.Linear(d_model, n_classes)\n        def forward(self, x):\n            tok = self.tokenizer(x)\n            B = tok.size(0)\n            cls = self.cls_token.expand(B, -1, -1)\n            x = torch.cat([cls, tok], dim=1)\n            for blk in self.blocks:\n                x = blk(x)\n            x = self.norm(x)\n            cls_out = x[:, 0, :]\n            logits = self.head(cls_out)\n            return logits\n\n    # --- Build model ---\n    d_model = head_dim * n_heads\n    if d_model % n_heads != 0:\n        raise ValueError('d_model must be divisible by n_heads (d_model = head_dim * n_heads)')\n    model = FTTransformer(\n        n_num_features=len(selected_idx),\n        n_classes=n_classes,\n        head_dim=head_dim,\n        n_heads=n_heads,\n        num_layers=num_layers,\n        mlp_ratio=float(ffn_multiplier),\n        dropout=dropout,\n    ).to(device)\n\n    # --- Optimizer, loss, scheduler ---\n    criterion = nn.CrossEntropyLoss(label_smoothing=float(label_smoothing)).to(device)\n    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\n\n    def lr_lambda(current_epoch):\n        if warmup_epochs > 0 and current_epoch < warmup_epochs:\n            return float(current_epoch + 1) / float(max(1, warmup_epochs))\n        progress = (current_epoch - warmup_epochs) / float(max(1, epochs - warmup_epochs))\n        progress = min(max(progress, 0.0), 1.0)\n        return 0.5 * (1.0 + math.cos(math.pi * progress))\n    scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)\n\n    scaler = torch.cuda.amp.GradScaler(enabled=bool(mixed_precision))\n\n    # --- Training loop ---\n    best_val_acc = -1.0\n    best_state = None\n    epochs_no_improve = 0\n    train_losses, val_losses, val_accs = [], [], []\n\n    for epoch in range(epochs):\n        model.train()\n        running_loss = 0.0\n        n_train = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n            optimizer.zero_grad(set_to_none=True)\n            with torch.cuda.amp.autocast(enabled=bool(mixed_precision)):\n                logits = model(xb)\n                loss = criterion(logits, yb)\n            scaler.scale(loss).backward()\n            scaler.step(optimizer)\n            scaler.update()\n            running_loss += loss.detach().item() * xb.size(0)\n            n_train += xb.size(0)\n        scheduler.step()\n        train_loss = running_loss / max(1, n_train)\n\n        model.eval()\n        val_running_loss = 0.0\n        correct = 0\n        n_val = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                with torch.cuda.amp.autocast(enabled=False):\n                    logits = model(xb)\n                    vloss = criterion(logits, yb)\n                val_running_loss += vloss.detach().item() * xb.size(0)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                n_val += xb.size(0)\n        val_loss = val_running_loss / max(1, n_val)\n        val_acc = correct / max(1, n_val)\n\n        train_losses.append(train_loss)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n\n        print(f'Epoch {epoch+1}/{epochs} - train_loss: {train_loss:.4f} - val_loss: {val_loss:.4f} - val_acc: {val_acc:.4f}')\n\n        if val_acc > best_val_acc:\n            best_val_acc = val_acc\n            best_state = copy.deepcopy(model.state_dict())\n            epochs_no_improve = 0\n        else:\n            epochs_no_improve += 1\n            if epochs_no_improve >= early_stopping_patience:\n                print('Early stopping triggered.')\n                break\n\n    if best_state is not None:\n        model.load_state_dict(best_state)\n\n    def estimate_size_bytes(m):\n        size = 0\n        for _, v in m.state_dict().items():\n            try:\n                size += v.numel() * v.element_size()\n            except Exception:\n                pass\n        return int(size)\n\n    model.eval()\n    model_cpu = copy.deepcopy(model).to('cpu')\n\n    if quantize_weights and quantization_bits == 8:\n        qmodel = aoq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.qint8)\n    elif quantize_weights and quantization_bits == 16:\n        qmodel = model_cpu.half()\n    elif quantize_weights and quantization_bits == 32:\n        qmodel = model_cpu.float()\n    else:\n        qmodel = model_cpu.float()\n\n    final_size = estimate_size_bytes(qmodel)\n    print(f'Quantized model size ~ {final_size/1024:.2f} KB')\n\n    if final_size > 262144:\n        raise RuntimeError(\n            f'Final model exceeds 256KB after quantization ({final_size} bytes). '\n            'Reduce head_dim, n_heads, num_layers, or topk_features, and prefer 8-bit quantization.'\n        )\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'best_val_acc': best_val_acc,\n    }\n\n    return qmodel, metrics\n",
+  "bo_config": {
+    "epochs": {
+      "default": 50,
+      "type": "Integer",
+      "low": 10,
+      "high": 200
+    },
+    "batch_size": {
+      "default": 256,
+      "type": "Categorical",
+      "categories": [
+        64,
+        128,
+        256,
+        512
+      ]
+    },
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "head_dim": {
+      "default": 16,
+      "type": "Integer",
+      "low": 8,
+      "high": 32
+    },
+    "n_heads": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        2,
+        4,
+        8
+      ]
+    },
+    "num_layers": {
+      "default": 4,
+      "type": "Integer",
+      "low": 2,
+      "high": 6
+    },
+    "ffn_multiplier": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.5,
+      "high": 4.0
+    },
+    "dropout": {
+      "default": 0.15,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.4
+    },
+    "label_smoothing": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "topk_features": {
+      "default": 128,
+      "type": "Integer",
+      "low": 60,
+      "high": 561
+    },
+    "early_stopping_patience": {
+      "default": 10,
+      "type": "Integer",
+      "low": 3,
+      "high": 30
+    },
+    "warmup_epochs": {
+      "default": 5,
+      "type": "Integer",
+      "low": 0,
+      "high": 20
+    },
+    "mixed_precision": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "seed": {
+      "default": 42,
+      "type": "Integer",
+      "low": 0,
+      "high": 1000000
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    }
+  },
+  "confidence": 0.85,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      10299,
+      561
+    ],
+    "dtype": "float32",
+    "feature_count": 561,
+    "sample_count": 10299,
+    "is_sequence": false,
+    "is_image": false,
+    "is_tabular": true,
+    "has_labels": true,
+    "label_count": 6,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1759548497,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}
