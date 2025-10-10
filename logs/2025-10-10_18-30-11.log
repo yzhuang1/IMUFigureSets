@@ -1,0 +1,39 @@
+2025-10-10 18:30:12,050 - INFO - _models.training_function_executor - GPU available: NVIDIA GeForce RTX 3070 Ti
+2025-10-10 18:30:12,184 - INFO - __main__ - Logging system initialized successfully
+2025-10-10 18:30:12,185 - INFO - __main__ - Starting AI-Enhanced Machine Learning Pipeline
+2025-10-10 18:30:12,185 - INFO - __main__ - Starting real data processing from data/dataset3/ directory
+2025-10-10 18:30:12,185 - INFO - __main__ - Found 4 data files: ['sleep_sample.csv', 'X.npy', 'y.npy', 'sleep_metadata.json']
+2025-10-10 18:30:12,185 - INFO - __main__ - Found NPY files, prioritizing them over CSV
+2025-10-10 18:30:12,185 - INFO - __main__ - Attempting to load: X.npy
+2025-10-10 18:30:19,191 - INFO - __main__ - Successfully loaded NPY data: X(89283, 6, 6000), y(89283,)
+2025-10-10 18:30:27,508 - INFO - __main__ - Data loaded successfully: X.npy + y.npy, shape: (89283, 6, 6000), device: cuda
+2025-10-10 18:30:27,515 - INFO - __main__ - Starting AI-enhanced data processing with new pipeline flow...
+2025-10-10 18:30:27,517 - INFO - __main__ - Starting AI-enhanced training (single attempt, fail fast)
+2025-10-10 18:30:27,517 - INFO - __main__ - Flow: Code Generation → BO → Evaluation
+2025-10-10 18:30:27,548 - INFO - adapters.universal_converter - Data conversion: numpy_array -> torch_tensor
+2025-10-10 18:30:27,548 - INFO - __main__ - Data profile: {'data_type': 'torch_tensor', 'shape': (89283, 6, 6000), 'dtype': 'float32', 'feature_count': 6000, 'sample_count': 89283, 'is_sequence': True, 'is_image': False, 'is_tabular': False, 'has_labels': True, 'label_count': 5, 'sequence_lengths': None, 'channels': None, 'height': None, 'width': None, 'metadata': {}}
+2025-10-10 18:30:27,558 - INFO - evaluation.code_generation_pipeline_orchestrator - Code generation pipeline orchestrator initialized (no retry logic)
+2025-10-10 18:30:27,558 - INFO - evaluation.code_generation_pipeline_orchestrator - Starting code generation pipeline execution (single attempt, fail fast)
+2025-10-10 18:30:27,558 - INFO - evaluation.code_generation_pipeline_orchestrator - Flow: AI Code Generation → JSON Storage → BO → Training Execution → Evaluation
+2025-10-10 18:30:27,558 - INFO - evaluation.code_generation_pipeline_orchestrator - Creating centralized data splits to prevent data leakage
+2025-10-10 18:30:27,559 - INFO - data_splitting - Creating centralized data splits with test_size=0.2, val_size=0.2
+2025-10-10 18:30:27,559 - INFO - data_splitting - Input data shape: X=(89283, 6, 6000), y=(89283,)
+2025-10-10 18:30:27,564 - INFO - data_splitting - Class distribution: [20758 11387 28006 17266 11866]
+2025-10-10 18:30:42,320 - INFO - data_splitting - Computed class weights: {np.int64(0): np.float64(0.8602182913059842), np.int64(1): np.float64(1.5682722656786057), np.int64(2): np.float64(0.6375808971211783), np.int64(3): np.float64(1.03420814479638), np.int64(4): np.float64(1.5048722675796682)}
+2025-10-10 18:30:42,326 - INFO - class_balancing - Class imbalance analysis:
+2025-10-10 18:30:42,326 - INFO - class_balancing -   Strategy: mild_imbalance
+2025-10-10 18:30:42,326 - INFO - class_balancing -   Imbalance ratio: 2.46
+2025-10-10 18:30:42,326 - INFO - class_balancing -   Recommendations: Standard training should work, Consider class_weight='balanced'
+2025-10-10 18:30:42,326 - INFO - data_splitting - Final splits - Train: 57140, Val: 14286, Test: 17857
+2025-10-10 18:30:42,328 - INFO - data_splitting - Train class distribution: [13285  7287 17924 11050  7594]
+2025-10-10 18:30:42,328 - INFO - data_splitting - Val class distribution: [3321 1822 4481 2763 1899]
+2025-10-10 18:30:42,329 - INFO - data_splitting - Test class distribution: [4152 2278 5601 3453 2373]
+2025-10-10 18:30:42,329 - INFO - data_splitting - Recommended balancing strategy: mild_imbalance
+2025-10-10 18:30:48,276 - INFO - data_splitting - Computed standardization stats - mean shape: torch.Size([1, 6000]), std shape: torch.Size([1, 6000])
+2025-10-10 18:30:48,286 - INFO - evaluation.code_generation_pipeline_orchestrator - Computed standardization statistics from training data only
+2025-10-10 18:30:48,286 - INFO - evaluation.code_generation_pipeline_orchestrator - 
+============================================================
+2025-10-10 18:30:48,286 - INFO - evaluation.code_generation_pipeline_orchestrator - PIPELINE EXECUTION (SINGLE ATTEMPT)
+2025-10-10 18:30:48,286 - INFO - evaluation.code_generation_pipeline_orchestrator - ============================================================
+2025-10-10 18:30:48,286 - INFO - evaluation.code_generation_pipeline_orchestrator - 🤖 STEP 1: AI Training Code Generation
+2025-10-10 18:30:48,288 - INFO - _models.ai_code_generator - Conducting literature review before code generation...

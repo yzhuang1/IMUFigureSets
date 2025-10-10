@@ -175,19 +175,32 @@ def process_sleep_dataset():
     X = np.concatenate(all_epochs, axis=0)
     y = np.concatenate(all_labels, axis=0)
 
-    print(f"\nFinal dataset shape:")
+    print(f"\nOriginal dataset shape:")
     print(f"  X: {X.shape}")
     print(f"  y: {y.shape}")
     print(f"  X dtype: {X.dtype}")
     print(f"  y dtype: {y.dtype}")
 
-    # Print class distribution
+    # Print original class distribution
+    unique_orig, counts_orig = np.unique(y, return_counts=True)
+    print(f"\nOriginal class distribution (before remapping):")
+    stage_names_orig = {0: 'Wake', 1: 'N1', 2: 'N2', 3: 'N3', 5: 'REM'}
+    for stage, count in zip(unique_orig, counts_orig):
+        stage_name = stage_names_orig.get(stage, f'Unknown({stage})')
+        print(f"  {stage_name:10s} (label {stage}): {count:6d} epochs ({count/len(y)*100:5.2f}%)")
+
+    # Remap label 5 (REM) to label 4 to make labels consecutive for ML models
+    print(f"\nRemapping labels: 5 (REM) -> 4 (REM)")
+    y[y == 5] = 4
+
+    # Print remapped class distribution
     unique, counts = np.unique(y, return_counts=True)
-    print(f"\nClass distribution:")
-    stage_names = {0: 'Wake', 1: 'N1', 2: 'N2', 3: 'N3', 5: 'REM'}
+    print(f"\nRemapped class distribution:")
+    stage_names = {0: 'Wake', 1: 'N1', 2: 'N2', 3: 'N3', 4: 'REM'}
     for stage, count in zip(unique, counts):
         stage_name = stage_names.get(stage, f'Unknown({stage})')
         print(f"  {stage_name:10s} (label {stage}): {count:6d} epochs ({count/len(y)*100:5.2f}%)")
+    print(f"✅ Labels are now consecutive [0, 1, 2, 3, 4] for ML compatibility")
 
     # Save as numpy arrays (consistent with dataset1 and dataset2)
     np.save("X.npy", X)

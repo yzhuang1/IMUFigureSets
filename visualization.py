@@ -6,6 +6,7 @@ Generates charts during pipeline execution and saves to charts folder
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import json
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 import logging
@@ -88,7 +89,10 @@ def generate_bo_charts(bo_results: Dict[str, Any], save_folder: str):
     
     # Generate summary stats
     _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list, hidden_sizes, charts_dir)
-    
+
+    # Save raw data
+    _save_raw_data(bo_results, trials, accuracies, best_so_far, learning_rates, epochs_list, hidden_sizes, charts_dir)
+
     logger.info(f"BO charts saved to: {charts_dir}")
 
 def _plot_accuracy_progression(trials, accuracies, best_so_far, charts_dir):
@@ -264,5 +268,49 @@ def _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list,
             f.write(f"Model: {ai_rec.get('model_name', 'Unknown')}\n")
             f.write(f"Reasoning: {ai_rec.get('reasoning', 'Not available')}\n")
             f.write(f"Confidence: {ai_rec.get('confidence', 0):.2f}\n")
-    
+
     logger.info(f"BO summary saved to: {summary_file}")
+
+def _save_raw_data(bo_results, trials, accuracies, best_so_far, learning_rates, epochs_list, hidden_sizes, charts_dir):
+    """Save all raw data used to generate charts in JSON and numpy formats"""
+
+    # Prepare data dictionary with all plot data
+    raw_data = {
+        'trials': trials,
+        'accuracies': accuracies,
+        'best_so_far': best_so_far,
+        'hyperparameters': {
+            'learning_rates': learning_rates,
+            'epochs': epochs_list,
+            'hidden_sizes': hidden_sizes
+        },
+        'statistics': {
+            'total_trials': len(accuracies),
+            'best_accuracy': float(max(accuracies)) if accuracies else 0.0,
+            'final_accuracy': float(accuracies[-1]) if accuracies else 0.0,
+            'mean_accuracy': float(np.mean(accuracies)) if accuracies else 0.0,
+            'std_accuracy': float(np.std(accuracies)) if accuracies else 0.0,
+            'improvement': float(max(accuracies) - accuracies[0]) if len(accuracies) >= 2 else 0.0,
+            'best_trial': int(np.argmax(accuracies) + 1) if accuracies else 0
+        },
+        'full_bo_results': bo_results  # Include complete BO results with all hparams
+    }
+
+    # Save as JSON
+    json_file = charts_dir / "bo_raw_data.json"
+    with open(json_file, 'w') as f:
+        json.dump(raw_data, f, indent=2)
+    logger.info(f"Raw data saved to: {json_file}")
+
+    # Also save as numpy arrays for easy loading in Python
+    npz_file = charts_dir / "bo_raw_data.npz"
+    np.savez(
+        npz_file,
+        trials=np.array(trials),
+        accuracies=np.array(accuracies),
+        best_so_far=np.array(best_so_far),
+        learning_rates=np.array(learning_rates),
+        epochs=np.array(epochs_list),
+        hidden_sizes=np.array(hidden_sizes)
+    )
+    logger.info(f"Numpy arrays saved to: {npz_file}")
