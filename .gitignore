@@ -65,3 +65,11 @@ Thumbs.db
 # Test files
 test_*.py
 *_test.py
+
+# Data
+data/dataset3/ISRUC_Subgroup1_raw
+data/dataset3/ISRUC_Subgroup1_extracted
+data/dataset3/X.npy
+data/dataset3/y.npy
+data/dataset3/sleep_sample.csv
+data/dataset3/sleep_metadata.json

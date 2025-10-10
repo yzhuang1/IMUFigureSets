@@ -31,6 +31,10 @@ requests>=2.31.0
 pillow>=10.0.0
 opencv-python>=4.8.0
 
+# Sleep EEG Data Processing (for dataset3 - ISRUC-Sleep)
+mne>=1.5.0  # For EEG/MEG signal processing
+rarfile>=4.0  # For extracting RAR archives
+
 # Development and Testing
 # Note: Standard library modules used in this project:
 # - json, logging, sys, os, time, threading, pathlib
