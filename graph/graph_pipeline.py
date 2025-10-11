@@ -286,19 +286,16 @@ class GraphPipeline:
         return trained_model, results
 
     def _save_results(self, model, training_results, bo_results):
-        """Save all results to graph/new/ folders"""
+        """Save all results to graph/new/ folders (matching main.py structure)"""
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_name = self.training_data['model_name']
 
-        # Create output directories mirroring original structure
+        # ========== SAVE 1: graph/new/trained_models - Model .pt files ==========
         trained_models_dir = self.output_base_dir / "trained_models" / f"{timestamp}_{model_name}"
-        charts_dir = self.output_base_dir / "charts" / f"{timestamp}_BO_{model_name}"
-
         trained_models_dir.mkdir(parents=True, exist_ok=True)
-        charts_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save model
+        # Save model state dict
         model_path = trained_models_dir / "model.pt"
         torch.save(model.state_dict(), model_path)
         logger.info(f"Model saved to: {model_path}")
@@ -310,6 +307,10 @@ class GraphPipeline:
         torch.save(training_results['y_test'], y_test_path)
         logger.info(f"Test tensors saved to: {trained_models_dir}")
 
+        # ========== SAVE 2: graph/new/charts - BO visualizations ==========
+        charts_dir = self.output_base_dir / "charts" / f"{timestamp}_BO_{model_name}"
+        charts_dir.mkdir(parents=True, exist_ok=True)
+
         # Generate BO charts
         chart_results = {
             'all_results': bo_results.get('all_results', []),
@@ -320,32 +321,47 @@ class GraphPipeline:
         generate_bo_charts(chart_results, save_folder=str(charts_dir))
         logger.info(f"BO charts saved to: {charts_dir}")
 
-        # Save pipeline summary
-        def convert_numpy_types(obj):
-            if hasattr(obj, 'item'):
-                return obj.item()
-            elif isinstance(obj, np.integer):
-                return int(obj)
-            elif isinstance(obj, np.floating):
-                return float(obj)
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            elif isinstance(obj, dict):
-                return {k: convert_numpy_types(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_numpy_types(v) for v in obj]
-            else:
-                return obj
+        # ========== SAVE 3: graph/new/data/best_model_* - Training function and metadata ==========
+        # This mirrors the structure in graph/data where training functions are stored
+        best_model_dir = self.output_base_dir / "data" / f"best_model_{model_name}_{timestamp}"
+        best_model_dir.mkdir(parents=True, exist_ok=True)
 
+        # Copy training function JSON to best_model folder
+        import shutil
+        training_json_dest = best_model_dir / Path(self.training_function_path).name
+        shutil.copy2(self.training_function_path, training_json_dest)
+        logger.info(f"Training function copied to: {training_json_dest}")
+
+        # Save a reference file pointing to the trained model
+        model_reference = {
+            'model_name': model_name,
+            'timestamp': timestamp,
+            'training_function_path': str(training_json_dest),
+            'trained_model_path': str(model_path),
+            'test_tensors_path': str(trained_models_dir),
+            'bo_charts_path': str(charts_dir),
+            'final_metrics': self._convert_numpy_types(training_results['final_metrics']),
+            'bo_best_score': bo_results['best_value'],
+            'bo_best_params': self._convert_numpy_types(bo_results['best_params']),
+            'bo_total_trials': bo_results['total_trials']
+        }
+
+        reference_path = best_model_dir / "model_reference.json"
+        with open(reference_path, 'w') as f:
+            json.dump(model_reference, f, indent=2, default=str)
+        logger.info(f"Model reference saved to: {reference_path}")
+
+        # ========== SAVE 4: Pipeline summary in charts folder ==========
         pipeline_summary = {
             'pipeline_type': 'Graph Pipeline (BO → Training → Evaluation)',
             'training_function_path': self.training_function_path,
             'model_name': model_name,
-            'final_metrics': convert_numpy_types(training_results['final_metrics']),
+            'final_metrics': self._convert_numpy_types(training_results['final_metrics']),
             'bo_best_score': bo_results['best_value'],
-            'bo_best_params': convert_numpy_types(bo_results['best_params']),
+            'bo_best_params': self._convert_numpy_types(bo_results['best_params']),
             'bo_total_trials': bo_results['total_trials'],
             'saved_model_path': str(model_path),
+            'best_model_folder': str(best_model_dir),
             'timestamp': timestamp
         }
 
@@ -356,6 +372,23 @@ class GraphPipeline:
             json.dump(pipeline_summary, f, indent=2, default=str)
 
         logger.info(f"Pipeline summary saved to: {summary_path}")
+
+    def _convert_numpy_types(self, obj):
+        """Convert numpy types to native Python types for JSON serialization"""
+        if hasattr(obj, 'item'):
+            return obj.item()
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {k: self._convert_numpy_types(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_numpy_types(v) for v in obj]
+        else:
+            return obj
 
 
 def run_graph_pipeline(training_function_path: str, X, y, device: str = None, **kwargs):
