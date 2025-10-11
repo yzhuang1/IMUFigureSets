@@ -66,6 +66,20 @@ class AICodeGenerator:
         # Sample count
         num_samples = data_profile.get("sample_count", data_profile.get("num_samples", "unknown"))
 
+        # Calculate dataset storage size (approximate)
+        dataset_size_mb = "unknown"
+        try:
+            import numpy as np
+            # Estimate: num_samples * input_shape elements * 4 bytes (float32)
+            elements_per_sample = np.prod(input_shape) if input_shape else 0
+            total_bytes = num_samples * elements_per_sample * 4  # float32
+            dataset_size_mb = f"{total_bytes / (1024 * 1024):.2f} MB"
+        except Exception:
+            pass
+
+        # GPU memory info
+        gpu_memory_mb = 8192  # Fixed GPU memory: 8192 MiB
+
         # Extract sequence length for patch_size constraints
         sequence_length = None
         if len(input_shape) >= 2:
@@ -82,9 +96,12 @@ Generate a PyTorch training function for a {num_classes}-class classifier.
 
 PyTorch Version: {pytorch_version}
 Data: {data_profile['data_type']}, input shape {input_shape}, {num_samples} samples{dataset_context}
+Dataset size: {dataset_size_mb}
+GPU memory: {gpu_memory_mb} MiB
 Sequence length: {sequence_length if sequence_length else 'N/A'}
 
 - Use the first recommended approach if available, otherwise proceed with a reasonable architecture.
+- Consider the dataset size and GPU memory when selecting batch_size to avoid out-of-memory errors.
 """
 
         if literature_review:

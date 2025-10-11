@@ -24,15 +24,16 @@ from datetime import datetime
 # Initialize pipeline logger
 logger = get_pipeline_logger(__name__)
 
-# Print setup confirmation to terminal
-log_path = get_log_file_path()
-if log_path:
-    print(f"✅ Logging configured: {os.path.abspath(log_path)}")
-else:
-    print(f"⚠️  Logging not configured properly")
-
-# Test logging (goes to file only)
-logger.info("Logging system initialized successfully")
+# Print setup confirmation to terminal (only in main process, not in DataLoader workers)
+import multiprocessing as mp
+if mp.current_process().name == 'MainProcess':
+    log_path = get_log_file_path()
+    if log_path:
+        print(f"✅ Logging configured: {os.path.abspath(log_path)}")
+    else:
+        print(f"⚠️  Logging not configured properly")
+    # Test logging (goes to file only)
+    logger.info("Logging system initialized successfully")
 
 def train_with_iterative_selection(data, labels=None, device="cpu", epochs=5, **kwargs):
     """

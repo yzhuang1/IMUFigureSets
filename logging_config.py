@@ -27,13 +27,22 @@ class PipelineLogger:
 
     def _setup_logging(self):
         """Setup logging configuration with file output only"""
+        import multiprocessing as mp
+
+        # Skip logging setup in worker processes to avoid creating multiple log files
+        if mp.current_process().name != 'MainProcess':
+            self._logger = logging.getLogger()
+            self._logger.addHandler(logging.NullHandler())
+            self._log_file_path = None
+            return
+
         log_dir = "logs"
 
         try:
             # Create logs directory
             os.makedirs(log_dir, exist_ok=True)
 
-            # Generate log filename
+            # Generate log filename (only in main process)
             log_filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log")
             self._log_file_path = os.path.join(log_dir, log_filename)
 
