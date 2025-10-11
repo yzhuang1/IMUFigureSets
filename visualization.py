@@ -271,6 +271,23 @@ def _generate_summary_stats(bo_results, accuracies, learning_rates, epochs_list,
 
     logger.info(f"BO summary saved to: {summary_file}")
 
+def _convert_numpy_types(obj):
+    """Recursively convert numpy types to native Python types for JSON serialization"""
+    if isinstance(obj, dict):
+        return {key: _convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
+        return float(obj)
+    elif isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
+
 def _save_raw_data(bo_results, trials, accuracies, best_so_far, learning_rates, epochs_list, hidden_sizes, charts_dir):
     """Save all raw data used to generate charts in JSON and numpy formats"""
 
@@ -293,7 +310,7 @@ def _save_raw_data(bo_results, trials, accuracies, best_so_far, learning_rates, 
             'improvement': float(max(accuracies) - accuracies[0]) if len(accuracies) >= 2 else 0.0,
             'best_trial': int(np.argmax(accuracies) + 1) if accuracies else 0
         },
-        'full_bo_results': bo_results  # Include complete BO results with all hparams
+        'full_bo_results': _convert_numpy_types(bo_results)  # Convert numpy types to Python types
     }
 
     # Save as JSON
