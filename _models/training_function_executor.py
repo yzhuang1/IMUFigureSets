@@ -181,10 +181,12 @@ class TrainingFunctionExecutor:
             
             logger.info(f"Using device: {device}")
 
-            # Move training data to device, keep validation data on CPU to save GPU memory
+            # Keep all data on CPU to save GPU memory
             # AI-generated training functions manage GPU transfer internally via DataLoader
-            X_train = X_train.to(device)
-            y_train = y_train.to(device)
+            if X_train.device != torch.device('cpu'):
+                X_train = X_train.to('cpu')
+            if y_train.device != torch.device('cpu'):
+                y_train = y_train.to('cpu')
             # Validation data stays on CPU - will be moved batch-by-batch during evaluation
             if X_val.device != torch.device('cpu'):
                 X_val = X_val.to('cpu')
@@ -410,9 +412,9 @@ class BO_TrainingObjective:
                 X_train, y_train = splits.X_train, splits.y_train
                 X_val, y_val = splits.X_val, splits.y_val
         
-        # Keep validation data on CPU to save GPU memory, move to GPU batch by batch during training
-        self.X_train = torch.tensor(X_train, dtype=torch.float32, device=self.device)
-        self.y_train = torch.tensor(y_train, dtype=torch.long, device=self.device)
+        # Keep all data on CPU to save GPU memory, move to GPU batch by batch during training
+        self.X_train = torch.tensor(X_train, dtype=torch.float32, device='cpu')
+        self.y_train = torch.tensor(y_train, dtype=torch.long, device='cpu')
         self.X_val = torch.tensor(X_val, dtype=torch.float32, device='cpu')
         self.y_val = torch.tensor(y_val, dtype=torch.long, device='cpu')
 
