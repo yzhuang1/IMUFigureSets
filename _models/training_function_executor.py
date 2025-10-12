@@ -434,17 +434,18 @@ class BO_TrainingObjective:
     def __call__(self, hparams: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
         """Execute training function with given hyperparameters"""
         t0 = time.time()
-        
+        model = None
+
         try:
             # Convert numpy types to Python types using centralized method
             processed_hparams = self.executor._convert_numpy_types(hparams)
-            
+
             # Validate and fix hyperparameter incompatibilities
             processed_hparams = self.executor._validate_hyperparameters(
-                processed_hparams, 
+                processed_hparams,
                 model_name=self.training_data.get('model_name', 'Unknown')
             )
-            
+
             # Execute training
             model, metrics = self.executor.execute_training_function(
                 self.training_data,
@@ -453,7 +454,7 @@ class BO_TrainingObjective:
                 device=self.device,
                 **processed_hparams
             )
-            
+
             # Return objective value with model size penalty
             # Try val_f1 (list), then macro_f1, then val_acc (list), then val_accuracy, default 0.0
             val_f1 = metrics.get('val_f1', [])
@@ -482,17 +483,25 @@ class BO_TrainingObjective:
             model_param_count = metrics.get('model_parameter_count', 0)
             logger.info(f"BO Objective: base={base_objective:.4f}, size_penalty={size_penalty:.4f}, final={objective_value:.4f}")
             logger.info(f"Model: {model_param_count:,} parameters, {storage_size_kb:.1f}KB ({'PASS' if storage_size_kb <= 256 else 'FAIL'} 256KB limit)")
-            
+
             objective_time = time.time() - t0
             logger.info(f"[PROFILE] objective(train+eval) took {objective_time:.3f}s")
-            
+
             return float(objective_value), metrics
-            
+
         except Exception as e:
             logger.error(f"BO training objective failed: {e}")
             objective_time = time.time() - t0
             logger.info(f"[PROFILE] objective(train+eval) FAILED took {objective_time:.3f}s")
             return 0.0, {"error": str(e)}
+
+        finally:
+            # Explicit cleanup to prevent memory leaks and state corruption across BO trials
+            if model is not None:
+                del model
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.debug("Cleaned up model and GPU cache after BO trial")
 
 # Global instance
 training_executor = TrainingFunctionExecutor()

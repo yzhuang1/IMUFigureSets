@@ -22,7 +22,10 @@ class Config:
         # Dataset information for GPT-5 context
         self.dataset_name = os.getenv("DATASET_NAME", "Unknown Dataset")
         self.dataset_source = os.getenv("DATASET_SOURCE", "Unknown Source")
-        
+
+        # System information for GPT to generate optimized code
+        self.os_type = os.getenv("OS_TYPE", "Unknown")
+
         # Literature review configuration
         self.skip_literature_review = os.getenv("SKIP_LITERATURE_REVIEW", "false").lower() == "true"
         

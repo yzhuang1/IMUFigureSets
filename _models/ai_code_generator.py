@@ -86,14 +86,10 @@ class AICodeGenerator:
             # For shape like (1000, 2) or (2, 1000), find the larger dimension as sequence length
             sequence_length = max(input_shape[-2:]) if max(input_shape[-2:]) > 10 else None
 
-        # Generate valid divisors for patch_size if sequence length detected
-        valid_patch_sizes = []
-        if sequence_length and sequence_length > 1:
-            valid_patch_sizes = self._get_valid_divisors(sequence_length)
-
         prompt = f"""
 Generate a PyTorch training function for a {num_classes}-class classifier.
 
+System: {config.os_type}
 PyTorch Version: {pytorch_version}
 Data: {data_profile['data_type']}, input shape {input_shape}, {num_samples} samples{dataset_context}
 Dataset size: {dataset_size_mb}
