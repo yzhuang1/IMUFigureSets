@@ -1,0 +1,170 @@
+{
+  "model_name": "ST-USleepNet-Tiny-1D-Graph",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **kwargs):\n    \"\"\"\n    Train a tiny ST-USleepNet-inspired model (temporal 1D U-Net + micro graph block) for 5-class sleep staging.\n\n    Inputs:\n      - X_train, y_train, X_val, y_val: torch.Tensors\n          X_* shape: [N, 6, 6000] (float); y_* shape: [N] (long, class ids 0..4)\n      - device: str or torch.device (e.g., 'cuda')\n      - kwargs: hyperparameters and quantization parameters (see bo_config)\n\n    Returns:\n      - quantized_model (moved to CPU)\n      - metrics dict: {'train_losses': [...], 'val_losses': [...], 'val_acc': [...], 'best_epoch': int}\n    \"\"\"\n    # Required imports inside the function (per instructions)\n    import math\n    import time\n    import copy\n    import torch\n    from torch import nn, optim\n    from torch.utils.data import TensorDataset, DataLoader\n    import torch.nn.functional as F\n    from typing import Dict\n    # Quantization (torch.ao.quantization)\n    import torch.ao.quantization as tq\n    from torch.ao.quantization import quantize_fx\n\n    # Ensure device is a torch.device\n    device = torch.device(device)\n    if device.type != 'cuda':\n        raise RuntimeError(\"This training function requires a CUDA device (GPU). Pass device='cuda' and ensure a GPU is available.\")\n\n    # -----------------\n    # Hyperparameters\n    # -----------------\n    hp: Dict = {\n        'lr': 1e-3,\n        'batch_size': 32,\n        'epochs': 10,\n        'weight_decay': 1e-5,\n        'base_channels': 8,           # feature width in temporal U-Net path\n        'kernel_size': 9,             # odd kernel size for same padding\n        'dropout': 0.05,\n        'amp': True,                  # mixed-precision training\n        'grad_clip_norm': 0.5,        # 0 disables clipping if <= 0\n        'scheduler': 'onecycle',      # {'none','onecycle'}\n        'imbalance_mode': 'class_weights',  # {'none','class_weights','focal'}\n        'focal_gamma': 2.0,\n        'label_smoothing': 0.0,\n        'num_workers': 4,\n        # Quantization params\n        'quantization_bits': 8,       # {8,16,32}\n        'quantize_weights': True,\n        'quantize_activations': True,\n        'quant_backend': 'fbgemm',    # {'fbgemm','qnnpack'}\n        'calibration_batches': 4,\n    }\n    # Override with kwargs\n    for k, v in kwargs.items():\n        if k in hp:\n            hp[k] = v\n\n    # Sanity clamps\n    hp['kernel_size'] = int(hp['kernel_size']) if int(hp['kernel_size']) % 2 == 1 else int(hp['kernel_size']) + 1  # ensure odd\n    hp['base_channels'] = int(max(4, min(32, hp['base_channels'])))\n    hp['batch_size'] = int(hp['batch_size'])\n    hp['epochs'] = int(hp['epochs'])\n    hp['num_workers'] = 4  # per requirement\n    bs = hp['batch_size']\n\n    # -----------------\n    # Dataset & Loaders\n    # -----------------\n    # Validate input shapes\n    assert X_train.ndim == 3 and X_train.shape[1:] == (6, 6000), \"X_train must be [N, 6, 6000]\"\n    assert X_val.ndim == 3 and X_val.shape[1:] == (6, 6000), \"X_val must be [N, 6, 6000]\"\n    assert y_train.ndim == 1 and y_val.ndim == 1, \"y_* must be 1D class indices\"\n\n    # Ensure dtypes\n    X_train = X_train.float()\n    X_val = X_val.float()\n    y_train = y_train.long()\n    y_val = y_val.long()\n\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    pin_mem = True\n\n    train_loader = DataLoader(\n        train_ds,\n        batch_size=bs,\n        shuffle=True,\n        num_workers=hp['num_workers'],\n        pin_memory=pin_mem,\n        drop_last=False,\n        multiprocessing_context=mp_ctx,\n        persistent_workers=True,\n    )\n    val_loader = DataLoader(\n        val_ds,\n        batch_size=bs,\n        shuffle=False,\n        num_workers=hp['num_workers'],\n        pin_memory=pin_mem,\n        drop_last=False,\n        multiprocessing_context=mp_ctx,\n        persistent_workers=True,\n    )\n\n    # -----------------\n    # Model definition (Tiny ST-USleepNet: Temporal 1D U-Net + Graph block for 6 channels)\n    # -----------------\n    class DSConv1d(nn.Module):\n        def __init__(self, in_ch, out_ch, k=9, p=None, dropout=0.0):\n            super().__init__()\n            if p is None:\n                p = k // 2\n            self.dw = nn.Conv1d(in_ch, in_ch, kernel_size=k, padding=p, groups=in_ch, bias=False)\n            self.pw = nn.Conv1d(in_ch, out_ch, kernel_size=1, bias=False)\n            self.act = nn.ReLU(inplace=True)\n            self.do = nn.Dropout(dropout) if dropout > 0 else nn.Identity()\n        def forward(self, x):\n            x = self.dw(x)\n            x = self.pw(x)\n            x = self.act(x)\n            x = self.do(x)\n            return x\n\n    class TemporalUNetTiny(nn.Module):\n        def __init__(self, in_ch=6, base=8, k=9, dropout=0.05):\n            super().__init__()\n            self.enc1 = DSConv1d(in_ch, base, k=k, dropout=dropout)\n            self.pool1 = nn.MaxPool1d(kernel_size=2)\n            self.enc2 = DSConv1d(base, base + 4, k=k, dropout=dropout)  # 12 if base=8\n            self.pool2 = nn.MaxPool1d(kernel_size=2)\n            self.bottleneck = DSConv1d(base + 4, base + 8, k=k, dropout=dropout)\n            self.up1 = nn.Upsample(scale_factor=2, mode='nearest')\n            self.dec1 = DSConv1d(base + 8, base + 4, k=k, dropout=dropout)\n            self.up2 = nn.Upsample(scale_factor=2, mode='nearest')\n            self.dec2 = DSConv1d(base + 4, base, k=k, dropout=dropout)\n            self.out1x1 = nn.Conv1d(base, base, kernel_size=1, bias=False)\n        def forward(self, x):\n            x1 = self.enc1(x)\n            x = self.pool1(x1)\n            x2 = self.enc2(x)\n            x = self.pool2(x2)\n            x = self.bottleneck(x)\n            x = self.up1(x)\n            x = self.dec1(x)\n            x = self.up2(x)\n            x = self.dec2(x)\n            x = self.out1x1(x)\n            return x  # [B, base, T]\n\n    class GraphBlockTiny(nn.Module):\n        \"\"\"Graph block over 6 EEG channels using simple GCN layer on low-dimensional per-channel statistics.\n        Node features from per-channel [mean, std] -> Linear -> GCN -> pooled graph embedding.\n        \"\"\"\n        def __init__(self, in_nodes=6, feat_dim=8):\n            super().__init__()\n            self.in_nodes = in_nodes\n            self.feat_dim = feat_dim\n            # Project 2 stats -> feat_dim per node\n            self.proj = nn.Linear(2, feat_dim, bias=False)\n            # Single GCN layer: X -> A_hat X W\n            self.gcn_w = nn.Linear(feat_dim, feat_dim, bias=False)\n            # Precompute normalized adjacency (complete graph + self-loops)\n            A = torch.ones(in_nodes, in_nodes)\n            A = A.fill_diagonal_(1.0)  # ensure self-loops\n            D_inv_sqrt = torch.diag(1.0 / torch.sqrt(A.sum(dim=1)))\n            A_hat = D_inv_sqrt @ A @ D_inv_sqrt\n            self.register_buffer('A_hat', A_hat)\n            self.act = nn.ReLU(inplace=True)\n        def forward(self, x_raw):\n            # x_raw: [B, 6, T]\n            m = x_raw.mean(dim=2)              # [B, 6]\n            s = x_raw.std(dim=2).clamp_min(1e-6)  # [B, 6]\n            feats = torch.stack([m, s], dim=-1)  # [B, 6, 2]\n            B = feats.size(0)\n            X = self.proj(feats)                 # [B, 6, feat_dim]\n            # GCN: A_hat X W\n            Xw = self.gcn_w(X)                   # [B, 6, feat_dim]\n            A_hat = self.A_hat.to(Xw.dtype)\n            Xg = torch.matmul(A_hat, Xw)         # [6,6] @ [B,6,feat_dim] (broadcast over B)\n            Xg = self.act(Xg)\n            g = Xg.mean(dim=1)                   # graph pooling -> [B, feat_dim]\n            return g\n\n    class STUSleepTiny(nn.Module):\n        def __init__(self, in_ch=6, temporal_base=8, k=9, dropout=0.05, num_classes=5):\n            super().__init__()\n            self.temporal = TemporalUNetTiny(in_ch=in_ch, base=temporal_base, k=k, dropout=dropout)\n            self.graph = GraphBlockTiny(in_nodes=in_ch, feat_dim=temporal_base)\n            # Head: fuse temporal pooled feature (temporal_base) + graph embedding (temporal_base)\n            self.pool = nn.AdaptiveAvgPool1d(1)\n            self.classifier = nn.Linear(temporal_base * 2, num_classes, bias=True)\n        def forward(self, x):\n            # x: [B, 6, 6000]\n            tfeat = self.temporal(x)            # [B, Cb, T]\n            tp = self.pool(tfeat).squeeze(-1)   # [B, Cb]\n            gs = self.graph(x)                  # [B, Cb]\n            h = torch.cat([tp, gs], dim=1)      # [B, 2*Cb]\n            logits = self.classifier(h)\n            return logits\n\n    model = STUSleepTiny(in_ch=6, temporal_base=hp['base_channels'], k=hp['kernel_size'], dropout=hp['dropout'], num_classes=5)\n\n    # Keep model tiny to satisfy <=256KB at 32-bit as well.\n    def count_params(m):\n        return sum(p.numel() for p in m.parameters())\n    total_params = count_params(model)\n\n    # Move to GPU\n    model = model.to(device)\n\n    # -----------------\n    # Loss & Optimizer\n    # -----------------\n    # Class weights if requested\n    class_weights = None\n    if hp['imbalance_mode'] == 'class_weights':\n        with torch.no_grad():\n            num_classes = 5\n            counts = torch.bincount(y_train, minlength=num_classes).float()\n            weights = counts.sum() / (counts + 1e-6)\n            weights = weights / weights.mean()\n            class_weights = weights.to(device)\n    \n    label_smoothing = float(hp.get('label_smoothing', 0.0))\n\n    def ce_loss_fn(logits, targets):\n        return F.cross_entropy(logits, targets, weight=class_weights, label_smoothing=label_smoothing)\n\n    def focal_loss_fn(logits, targets, gamma=2.0):\n        ce = F.cross_entropy(logits, targets, weight=class_weights, reduction='none')\n        pt = torch.exp(-ce)\n        loss = ((1 - pt) ** gamma) * ce\n        return loss.mean()\n\n    use_focal = (hp['imbalance_mode'] == 'focal')\n    focal_gamma = float(hp['focal_gamma'])\n\n    optimizer = optim.AdamW(model.parameters(), lr=hp['lr'], weight_decay=hp['weight_decay'])\n\n    # Scheduler\n    if hp['scheduler'] == 'onecycle':\n        steps_per_epoch = max(1, math.ceil(len(train_loader)))\n        scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=hp['lr'], epochs=hp['epochs'], steps_per_epoch=steps_per_epoch)\n    else:\n        scheduler = None\n\n    # AMP scaler\n    scaler = torch.cuda.amp.GradScaler(enabled=bool(hp['amp']))\n\n    # -----------------\n    # Training loop\n    # -----------------\n    train_losses, val_losses, val_accs = [], [], []\n    best_val_acc = -1.0\n    best_state = None\n    \n    for epoch in range(1, hp['epochs'] + 1):\n        model.train()\n        epoch_loss = 0.0\n        n_batches = 0\n        start_time = time.time()\n\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n            optimizer.zero_grad(set_to_none=True)\n            with torch.cuda.amp.autocast(enabled=bool(hp['amp'])):\n                logits = model(xb)\n                if use_focal:\n                    loss = focal_loss_fn(logits, yb, gamma=focal_gamma)\n                else:\n                    loss = ce_loss_fn(logits, yb)\n            scaler.scale(loss).backward()\n            if hp['grad_clip_norm'] and hp['grad_clip_norm'] > 0:\n                scaler.unscale_(optimizer)\n                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=hp['grad_clip_norm'])\n            scaler.step(optimizer)\n            scaler.update()\n            if scheduler is not None:\n                scheduler.step()\n            epoch_loss += loss.detach().item()\n            n_batches += 1\n        train_loss = epoch_loss / max(1, n_batches)\n\n        # Validation\n        model.eval()\n        v_loss = 0.0\n        v_batches = 0\n        correct = 0\n        total = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                with torch.cuda.amp.autocast(enabled=False):\n                    logits = model(xb)\n                    if use_focal:\n                        loss = focal_loss_fn(logits, yb, gamma=focal_gamma)\n                    else:\n                        loss = ce_loss_fn(logits, yb)\n                v_loss += loss.item()\n                v_batches += 1\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                total += yb.numel()\n        val_loss = v_loss / max(1, v_batches)\n        val_acc = correct / max(1, total)\n\n        train_losses.append(train_loss)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n\n        elapsed = time.time() - start_time\n        print(f\"Epoch {epoch:03d} | train_loss={train_loss:.4f} | val_loss={val_loss:.4f} | val_acc={val_acc:.4f} | time={elapsed:.1f}s\")\n\n        if val_acc > best_val_acc:\n            best_val_acc = val_acc\n            best_state = copy.deepcopy(model.state_dict())\n\n    # Load best state\n    if best_state is not None:\n        model.load_state_dict(best_state)\n\n    # -----------------\n    # Post-training Quantization\n    # -----------------\n    def estimate_size_bytes(param_count, bits):\n        return int(param_count * max(1, int(bits)) / 8)\n\n    # Move to CPU for quantization\n    model_cpu = copy.deepcopy(model).to('cpu')\n    model_cpu.eval()\n\n    quant_bits = int(hp['quantization_bits'])\n    qw = bool(hp['quantize_weights'])\n    qa = bool(hp['quantize_activations'])\n\n    quantized_model = model_cpu  # default\n\n    try:\n        if qw and quant_bits == 8 and qa:\n            # Static FX quantization with default backend\n            torch.backends.quantized.engine = hp.get('quant_backend', 'fbgemm')\n            qconfig = tq.get_default_qconfig(torch.backends.quantized.engine)\n            qconfig_dict = {\"\": qconfig}\n            example_inputs = (torch.randn(1, 6, 6000),)\n            prepared = quantize_fx.prepare_fx(copy.deepcopy(model_cpu), qconfig_dict, example_inputs=example_inputs)\n            # Calibrate with a few batches from validation set\n            calib_batches = int(max(1, hp.get('calibration_batches', 4)))\n            with torch.inference_mode():\n                seen = 0\n                for xb, _ in val_loader:\n                    xb = xb.to('cpu', non_blocking=False)\n                    prepared(xb)\n                    seen += 1\n                    if seen >= calib_batches:\n                        break\n            quantized_model = quantize_fx.convert_fx(prepared)\n        elif qw and quant_bits == 16:\n            # Weight-only dynamic quantization to float16 for Linear layers\n            quantized_model = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.float16)\n        elif not qw or quant_bits == 32:\n            # Keep FP32 model on CPU (already small enough)\n            quantized_model = model_cpu\n        else:\n            # Fallback, keep FP32\n            quantized_model = model_cpu\n    except Exception as e:\n        print(f\"Quantization failed ({e}); returning FP32 CPU model.\")\n        quantized_model = model_cpu\n\n    # Size check (estimation based on original param count and selected bits; model is intentionally tiny)\n    est_bytes = estimate_size_bytes(total_params, quant_bits if qw else 32)\n    if est_bytes > 256 * 1024:\n        print(f\"Warning: estimated model size {est_bytes/1024:.1f}KB exceeds 256KB; reducing to FP16 Linear-only compression.\")\n        try:\n            quantized_model = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.float16)\n        except Exception:\n            quantized_model = model_cpu\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'best_epoch': int(1 + int(max(range(len(val_accs)), key=lambda i: val_accs[i])) if val_accs else 0),\n        'total_params': int(total_params),\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.005,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 32,
+      "type": "Categorical",
+      "categories": [
+        16,
+        32,
+        64
+      ]
+    },
+    "epochs": {
+      "default": 10,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "weight_decay": {
+      "default": 1e-05,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.001,
+      "prior": "log-uniform"
+    },
+    "base_channels": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "kernel_size": {
+      "default": 9,
+      "type": "Integer",
+      "low": 3,
+      "high": 15
+    },
+    "dropout": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.3
+    },
+    "amp": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "grad_clip_norm": {
+      "default": 0.5,
+      "type": "Real",
+      "low": 0.0,
+      "high": 1.0
+    },
+    "scheduler": {
+      "default": "onecycle",
+      "type": "Categorical",
+      "categories": [
+        "none",
+        "onecycle"
+      ]
+    },
+    "imbalance_mode": {
+      "default": "class_weights",
+      "type": "Categorical",
+      "categories": [
+        "none",
+        "class_weights",
+        "focal"
+      ]
+    },
+    "focal_gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 3.0
+    },
+    "label_smoothing": {
+      "default": 0.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quant_backend": {
+      "default": "fbgemm",
+      "type": "Categorical",
+      "categories": [
+        "fbgemm",
+        "qnnpack"
+      ]
+    },
+    "calibration_batches": {
+      "default": 4,
+      "type": "Integer",
+      "low": 1,
+      "high": 8
+    }
+  },
+  "confidence": 0.8,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      89283,
+      6,
+      6000
+    ],
+    "dtype": "float32",
+    "feature_count": 6000,
+    "sample_count": 89283,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1760242864,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}
