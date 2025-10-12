@@ -89,12 +89,20 @@ class BayesianOptimizer:
                 low = param_config.get("low", 0.0)
                 high = param_config.get("high", 1.0)
                 prior = param_config.get("prior", "uniform")
-                search_space.append(Real(low, high, prior=prior, name=param_name))
+                if low >= high:
+                    logger.warning(f"Invalid Real range for {param_name}: [{low}, {high}]. Using fixed value {low}.")
+                    search_space.append(Categorical([low], name=param_name))
+                else:
+                    search_space.append(Real(low, high, prior=prior, name=param_name))
                 
             elif param_type == "Integer":
                 low = param_config.get("low", 1)
                 high = param_config.get("high", 100)
-                search_space.append(Integer(low, high, name=param_name))
+                if low >= high:
+                    logger.warning(f"Invalid Integer range for {param_name}: [{low}, {high}]. Using fixed value {low}.")
+                    search_space.append(Categorical([low], name=param_name))
+                else:
+                    search_space.append(Integer(low, high, name=param_name))
                 
             elif param_type == "Categorical":
                 categories = param_config.get("categories", [])

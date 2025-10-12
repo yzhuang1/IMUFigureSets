@@ -3,6 +3,8 @@ Integrated Visualization Module for BO Results
 Generates charts during pipeline execution and saves to charts folder
 """
 
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend to avoid Qt/xcb errors
 import matplotlib.pyplot as plt
 import numpy as np
 import os

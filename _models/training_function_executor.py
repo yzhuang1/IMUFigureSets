@@ -13,10 +13,26 @@ import importlib.util
 import tempfile
 import os
 import time
+import sys
+import io
 from data_splitting import get_bo_subset, get_current_splits
 from config import config
 
 logger = logging.getLogger(__name__)
+
+class LoggerWriter:
+    """Redirects stdout/stderr to logger"""
+    def __init__(self, logger, level):
+        self.logger = logger
+        self.level = level
+        self.buffer = []
+
+    def write(self, message):
+        if message and message.strip():  # Skip empty lines
+            self.logger.log(self.level, message.rstrip())
+
+    def flush(self):
+        pass
 
 def calculate_model_storage_size_kb(model: torch.nn.Module,
                                    quantization_bits: int = 32,
@@ -87,18 +103,17 @@ class TrainingFunctionExecutor:
 
     def _process_training_code(self, training_code: str) -> str:
         """Process training code to handle JSON escape sequences"""
+        # JSON loading already handles escape sequences correctly
+        # Only process if there are obvious double-escaped sequences
         if isinstance(training_code, str):
             try:
-                # Replace common JSON escape sequences that might cause issues
-                # Handle double-escaped sequences first, then single-escaped
-                training_code = training_code.replace('\\\\n', '\n')   # Handle double-escaped newlines
-                training_code = training_code.replace('\\n', '\n')     # Handle single-escaped newlines
-                training_code = training_code.replace('\\\\t', '\t')   # Handle double-escaped tabs
-                training_code = training_code.replace('\\t', '\t')     # Handle single-escaped tabs
-                training_code = training_code.replace('\\\\r', '\r')   # Handle double-escaped carriage returns
-                training_code = training_code.replace('\\r', '\r')     # Handle single-escaped carriage returns
-                training_code = training_code.replace('\\"', '"')
-                training_code = training_code.replace('\\\\', '\\')
+                # Only fix double-escaped sequences if they exist
+                if '\\\\n' in training_code:
+                    training_code = training_code.replace('\\\\n', '\n')
+                if '\\\\t' in training_code:
+                    training_code = training_code.replace('\\\\t', '\t')
+                if '\\\\r' in training_code:
+                    training_code = training_code.replace('\\\\r', '\r')
             except Exception as e:
                 logger.warning(f"Failed to process escape sequences: {e}")
         return training_code
@@ -236,12 +251,20 @@ class TrainingFunctionExecutor:
             
             # Execute training
             logger.info(f"Starting training with hyperparameters: {dict(final_hyperparams) if final_hyperparams else 'None'}")
-            
-            model, metrics = train_model(
-                X_train, y_train, X_val, y_val,
-                device=device,
-                **final_hyperparams
-            )
+
+            # Redirect stdout to logger to capture epoch messages
+            old_stdout = sys.stdout
+            sys.stdout = LoggerWriter(logger, logging.INFO)
+
+            try:
+                model, metrics = train_model(
+                    X_train, y_train, X_val, y_val,
+                    device=device,
+                    **final_hyperparams
+                )
+            finally:
+                # Restore original stdout
+                sys.stdout = old_stdout
             
             # Add metadata to metrics
             metrics.update({

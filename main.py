@@ -3,13 +3,15 @@ AI-Enhanced Main Process with New Pipeline Flow
 Model Generation → BO → Evaluation → Feedback Loop
 """
 
+import os
+# Set headless backend for OpenCV before any imports
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from typing import Dict, Any, Tuple
 import pandas as pd
-import os
 from pathlib import Path
 
 from adapters.universal_converter import convert_to_torch_dataset
