@@ -316,8 +316,11 @@ def _save_raw_data(bo_results, trials, accuracies, best_so_far, learning_rates, 
             'improvement': float(max(accuracies) - accuracies[0]) if len(accuracies) >= 2 else 0.0,
             'best_trial': int(np.argmax(accuracies) + 1) if accuracies else 0
         },
-        'full_bo_results': _convert_numpy_types(bo_results)  # Convert numpy types to Python types
+        'full_bo_results': bo_results
     }
+
+    # Convert all numpy types to native Python types for JSON serialization
+    raw_data = _convert_numpy_types(raw_data)
 
     # Save as JSON
     json_file = charts_dir / "bo_raw_data.json"

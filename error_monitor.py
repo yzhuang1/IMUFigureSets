@@ -49,7 +49,7 @@ class LogFileMonitor:
         print("[DEBUG] Stopped log file monitoring")
 
     def _monitor_log_file(self):
-        """Monitor log file for ERROR entries - reads entire file and tracks processed lines"""
+        """Monitor log file for ERROR entries and NaN in training - reads entire file and tracks processed lines"""
         if not self.log_file_path:
             return
 
@@ -71,6 +71,11 @@ class LogFileMonitor:
                             # Check for ERROR messages
                             if ' - ERROR - ' in line:
                                 self.error_terminator._check_for_error(line.strip(), "LOG_FILE")
+
+                            # Check for NaN in training (when in BO process)
+                            global _in_bo_process
+                            if _in_bo_process:
+                                self.error_terminator._check_for_nan(line.strip())
 
                     # Update our position
                     self.last_processed_line = len(lines)
@@ -219,6 +224,24 @@ class ErrorTerminator:
                     self._terminate_program(error_msg)
                 return
                 
+    def _check_for_nan(self, text: str):
+        """Check for NaN values in training logs during BO process"""
+        import re
+
+        # Pattern to match: "Epoch XXX: train_loss=nan" or "val_loss=nan"
+        epoch_pattern = r'Epoch\s+(\d+):\s+.*(?:train_loss=nan|val_loss=nan)'
+        match = re.search(epoch_pattern, text)
+
+        if match:
+            global _nan_detected, _nan_detection_epoch
+            epoch_num = int(match.group(1))
+
+            # Only trigger on first NaN detection
+            if not _nan_detected:
+                _nan_detected = True
+                _nan_detection_epoch = epoch_num
+                print(f"[DEBUG] 🚨 NaN detected in training at Epoch {epoch_num} - marking trial for cancellation")
+
     def _handle_bo_error(self, text: str, source: str):
         """Handle error during BO process - log but don't terminate (debug handled by training executor)"""
         print(f"[DEBUG] BO Error logged: {text.strip()[:100]}...")
@@ -268,6 +291,10 @@ _global_terminator = None
 
 # Global flag to track if we're in BO process
 _in_bo_process = False
+
+# Global flag to track NaN detection
+_nan_detected = False
+_nan_detection_epoch = None
 
 def enable_error_termination(error_keywords: List[str] = None, log_file_path: Optional[str] = None):
     """
@@ -335,6 +362,22 @@ def is_in_bo_process() -> bool:
     """Check if we're currently in BO process"""
     global _in_bo_process
     return _in_bo_process
+
+def reset_nan_detection():
+    """Reset NaN detection flags (call at start of each BO trial)"""
+    global _nan_detected, _nan_detection_epoch
+    _nan_detected = False
+    _nan_detection_epoch = None
+
+def is_nan_detected() -> bool:
+    """Check if NaN has been detected in current trial"""
+    global _nan_detected
+    return _nan_detected
+
+def get_nan_detection_epoch() -> Optional[int]:
+    """Get the epoch where NaN was first detected"""
+    global _nan_detection_epoch
+    return _nan_detection_epoch
 
 if __name__ == "__main__":
     # Test the error monitoring system
