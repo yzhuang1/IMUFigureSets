@@ -66,7 +66,6 @@ def main():
     print("ML Pipeline Cleanup Script")
     print("=" * 40)
     print("This script will delete all content in the following folders:")
-    print("- logs/")
     print("- literature_reviews/")
     print("- gpt_debug_responses/")
     print("README.md files will be preserved in each folder.")
@@ -83,7 +82,6 @@ def main():
 
     # Folders to clear
     folders_to_clear = [
-        "logs",
         "literature_reviews",
         "gpt_debug_responses"
     ]

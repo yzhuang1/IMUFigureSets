@@ -1,0 +1,166 @@
+{
+  "model_name": "MixSleepTinyGCN (MixSleepNet-inspired)",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    import math\n    import io\n    import warnings\n    import torch\n    from torch import nn, optim\n    import torch.nn.functional as F\n    from torch.utils.data import TensorDataset, DataLoader\n    import torch.ao.quantization as tq\n\n    # -----------------------------\n    # Device handling and defaults\n    # -----------------------------\n    device = torch.device(device)\n    torch.backends.cudnn.benchmark = True\n\n    # Hyperparameters with sensible defaults tuned for 8GB GPU and 6x6000 input\n    epochs = int(hyperparams.get('epochs', 15))\n    lr = float(hyperparams.get('lr', 2e-3))\n    batch_size = int(hyperparams.get('batch_size', 64))\n    weight_decay = float(hyperparams.get('weight_decay', 1e-4))\n    dropout = float(hyperparams.get('dropout', 0.1))\n    channel_multiplier = int(hyperparams.get('channel_multiplier', 4))  # per-lead feature multiplier (m)\n    kernel_size1 = int(hyperparams.get('kernel_size1', 64))\n    stride1 = int(hyperparams.get('stride1', 8))\n    kernel_size2 = int(hyperparams.get('kernel_size2', 16))\n    stride2 = int(hyperparams.get('stride2', 4))\n    gcn_hidden = int(hyperparams.get('gcn_hidden', 8))\n    label_smoothing = float(hyperparams.get('label_smoothing', 0.05))\n    grad_clip_norm = float(hyperparams.get('grad_clip_norm', 1.0))\n    use_amp = bool(hyperparams.get('use_amp', True))\n    calibrate_batches = int(hyperparams.get('calibrate_batches', 32))\n\n    # Quantization parameters\n    quantization_bits = int(hyperparams.get('quantization_bits', 8))  # {8,16,32}\n    quantize_weights = bool(hyperparams.get('quantize_weights', True))\n    quantize_activations = bool(hyperparams.get('quantize_activations', True))\n\n    # -----------------------------\n    # Sanity checks\n    # -----------------------------\n    assert isinstance(X_train, torch.Tensor) and isinstance(y_train, torch.Tensor)\n    assert isinstance(X_val, torch.Tensor) and isinstance(y_val, torch.Tensor)\n    assert X_train.ndim == 3 and X_train.shape[1] == 6 and X_train.shape[2] == 6000, \"X_train must be (N, 6, 6000)\"\n    assert X_val.ndim == 3 and X_val.shape[1] == 6 and X_val.shape[2] == 6000, \"X_val must be (N, 6, 6000)\"\n    num_classes = 5\n\n    # -----------------------------\n    # DataLoaders with spawn context\n    # -----------------------------\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n\n    num_workers = 4\n    train_loader = DataLoader(\n        train_ds,\n        batch_size=batch_size,\n        shuffle=True,\n        num_workers=num_workers,\n        pin_memory=True,\n        multiprocessing_context=mp_ctx,\n        persistent_workers=True,\n        drop_last=False,\n    )\n    val_loader = DataLoader(\n        val_ds,\n        batch_size=batch_size,\n        shuffle=False,\n        num_workers=num_workers,\n        pin_memory=True,\n        multiprocessing_context=mp_ctx,\n        persistent_workers=True,\n        drop_last=False,\n    )\n\n    # -----------------------------\n    # Model: MixSleepNet-inspired tiny CNN + GCN (6-node)\n    # -----------------------------\n    class DepthwiseTemporalBlock(nn.Module):\n        def __init__(self, in_ch=6, m=4, k1=64, s1=8, k2=16, s2=4, dropout=0.1):\n            super().__init__()\n            # Per-lead depthwise temporal filtering (keeps 6 channels)\n            self.dw1 = nn.Sequential(\n                nn.Conv1d(in_ch, in_ch, kernel_size=k1, stride=s1, padding=k1//2, groups=in_ch, bias=False),\n                nn.BatchNorm1d(in_ch),\n                nn.ReLU(inplace=True),\n            )\n            # Per-lead expansion: 6 -> 6*m via grouped conv (still per-lead)\n            self.dw2 = nn.Sequential(\n                nn.Conv1d(in_ch, in_ch*m, kernel_size=k2, stride=s2, padding=k2//2, groups=in_ch, bias=False),\n                nn.BatchNorm1d(in_ch*m),\n                nn.ReLU(inplace=True),\n            )\n            self.drop = nn.Dropout(dropout)\n            self.in_ch = in_ch\n            self.m = m\n\n        def fuse_model(self):\n            # Enable Conv+BN+ReLU fusion for static quantization\n            tq.fuse_modules(self.dw1, ['0', '1', '2'], inplace=True)\n            tq.fuse_modules(self.dw2, ['0', '1', '2'], inplace=True)\n\n        def forward(self, x):\n            # x: (B,6,6000)\n            x = self.dw1(x)     # (B,6, L1)\n            x = self.dw2(x)     # (B,6*m, L2)\n            x = self.drop(x)\n            # Global average pool over time -> (B, 6*m)\n            x = x.mean(dim=-1)\n            # Reshape to nodes=6, per-node features=m -> (B,6,m)\n            B, CM = x.shape\n            m = self.m\n            x = x.view(B, 6, m)\n            return x\n\n    class SimpleGCNLayer(nn.Module):\n        def __init__(self, in_features, out_features):\n            super().__init__()\n            # Learnable adjacency (6x6), row-normalized via softmax\n            self.A = nn.Parameter(torch.randn(6, 6) * 0.01)\n            self.lin = nn.Linear(in_features, out_features)\n            self.act = nn.ReLU(inplace=True)\n\n        def forward(self, X):\n            # X: (B, 6, F)\n            B, N, Fdim = X.shape\n            A = torch.softmax(self.A, dim=1)  # (6,6)\n            Xw = self.lin(X)                  # (B,6,out)\n            Xw = self.act(Xw)\n            # Graph propagation: (B,6,6) x (B,6,out) via shared A\n            A_batch = A.unsqueeze(0).expand(B, -1, -1)  # (B,6,6)\n            Xg = torch.bmm(A_batch, Xw)                 # (B,6,out)\n            return Xg\n\n    class NodeAttentionPool(nn.Module):\n        def __init__(self, in_features):\n            super().__init__()\n            self.query = nn.Parameter(torch.randn(in_features))\n\n        def forward(self, X):\n            # X: (B,6,F)\n            scores = torch.matmul(X, self.query)  # (B,6)\n            attn = torch.softmax(scores, dim=1).unsqueeze(-1)  # (B,6,1)\n            pooled = (X * attn).sum(dim=1)  # (B,F)\n            return pooled\n\n    class MixSleepTinyGCN(nn.Module):\n        def __init__(self, m=4, gcn_hidden=8, dropout=0.1, num_classes=5):\n            super().__init__()\n            self.extract = DepthwiseTemporalBlock(in_ch=6, m=m, k1=kernel_size1, s1=stride1, k2=kernel_size2, s2=stride2, dropout=dropout)\n            self.gcn = SimpleGCNLayer(in_features=m, out_features=gcn_hidden)\n            self.drop = nn.Dropout(dropout)\n            self.pool = NodeAttentionPool(in_features=gcn_hidden)\n            self.head = nn.Linear(gcn_hidden, num_classes)\n\n        def fuse_model(self):\n            self.extract.fuse_model()\n            # No fusable parts in GCN/head\n\n        def forward(self, x):\n            # x: (B,6,6000)\n            H = self.extract(x)            # (B,6,m)\n            G = self.gcn(H)                # (B,6,gcn_hidden)\n            G = self.drop(G)\n            Z = self.pool(G)               # (B,gcn_hidden)\n            logits = self.head(Z)          # (B,5)\n            return logits\n\n    model = MixSleepTinyGCN(m=channel_multiplier, gcn_hidden=gcn_hidden, dropout=dropout, num_classes=num_classes).to(device)\n\n    # -----------------------------\n    # Loss, Optimizer, AMP scaler\n    # -----------------------------\n    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing).to(device)\n    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\n    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)\n\n    # -----------------------------\n    # Training loop\n    # -----------------------------\n    train_losses, val_losses, val_acc_list = [], [], []\n\n    for epoch in range(1, epochs + 1):\n        model.train()\n        running_loss = 0.0\n        total = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n            optimizer.zero_grad(set_to_none=True)\n            with torch.cuda.amp.autocast(enabled=use_amp):\n                logits = model(xb)\n                loss = criterion(logits, yb)\n            scaler.scale(loss).backward()\n            if grad_clip_norm and grad_clip_norm > 0:\n                scaler.unscale_(optimizer)\n                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)\n            scaler.step(optimizer)\n            scaler.update()\n            running_loss += loss.detach().item() * xb.size(0)\n            total += xb.size(0)\n        train_epoch_loss = running_loss / max(1, total)\n\n        # Validation\n        model.eval()\n        val_running_loss = 0.0\n        correct = 0\n        total_val = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                val_running_loss += loss.detach().item() * xb.size(0)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                total_val += xb.size(0)\n        val_epoch_loss = val_running_loss / max(1, total_val)\n        val_epoch_acc = correct / max(1, total_val)\n\n        train_losses.append(train_epoch_loss)\n        val_losses.append(val_epoch_loss)\n        val_acc_list.append(val_epoch_acc)\n        print(f\"Epoch {epoch:03d}/{epochs:03d} - train_loss: {train_epoch_loss:.4f} - val_loss: {val_epoch_loss:.4f} - val_acc: {val_epoch_acc:.4f}\")\n\n    # -----------------------------\n    # Post-Training Quantization (PTQ)\n    # -----------------------------\n    def estimate_state_dict_size_bytes(state_dict):\n        total = 0\n        for t in state_dict.values():\n            if torch.is_tensor(t):\n                total += t.numel() * t.element_size()\n        return total\n\n    model_fp32 = model.eval().to('cpu')\n\n    # Ensure quantization engine for x86\n    torch.backends.quantized.engine = 'fbgemm'\n\n    quantized_model = model_fp32  # fallback\n    try:\n        if quantization_bits == 8 and (quantize_weights or quantize_activations):\n            # Static quantization with calibration (Conv + Linear)\n            model_to_quant = MixSleepTinyGCN(m=channel_multiplier, gcn_hidden=gcn_hidden, dropout=dropout, num_classes=num_classes)\n            model_to_quant.load_state_dict(model_fp32.state_dict(), strict=True)\n            model_to_quant.eval()\n            model_to_quant.fuse_model()\n            qconfig = tq.get_default_qconfig('fbgemm')\n            # Optionally choose to quantize weights only by disabling activation observers\n            if quantize_weights and not quantize_activations:\n                # Use weight-only by setting activation observer to Identity\n                act_observer = tq.observer.PlaceholderObserver.with_args(dtype=torch.float)\n                qconfig = tq.QConfig(activation=act_observer, weight=tq.observer.default_per_channel_weight_observer)\n            model_to_quant.qconfig = qconfig\n            prepared = tq.prepare(model_to_quant, inplace=False)\n            # Calibration using a few CPU batches from training data\n            prepared.eval()\n            with torch.inference_mode():\n                seen = 0\n                for xb, _ in train_loader:\n                    _ = prepared(xb)  # cpu tensors\n                    seen += 1\n                    if seen >= calibrate_batches:\n                        break\n            quantized_model = tq.convert(prepared, inplace=False)\n        elif quantization_bits == 16:\n            # FP16 weight (and activation) compression for size\n            quantized_model = model_fp32.half()\n        else:\n            # Keep FP32 (already small). Optionally apply dynamic quant to Linear for extra shrinkage\n            if quantize_weights and quantization_bits == 8:\n                quantized_model = tq.quantize_dynamic(model_fp32, {nn.Linear}, dtype=torch.qint8)\n            else:\n                quantized_model = model_fp32\n    except Exception as e:\n        warnings.warn(f\"Quantization encountered an issue; returning FP32 model. Error: {e}\")\n        quantized_model = model_fp32\n\n    # Verify size constraint (<= 256KB). If larger, fallback to dynamic int8\n    size_bytes = estimate_state_dict_size_bytes(quantized_model.state_dict())\n    if size_bytes > 256 * 1024:\n        warnings.warn(f\"Quantized model size {size_bytes/1024:.1f}KB exceeds 256KB. Applying dynamic int8 on Linear as fallback.\")\n        try:\n            quantized_model = tq.quantize_dynamic(model_fp32, {nn.Linear}, dtype=torch.qint8)\n            size_bytes = estimate_state_dict_size_bytes(quantized_model.state_dict())\n        except Exception:\n            pass\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_acc_list,\n        'final_state_dict_size_bytes': int(size_bytes)\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.002,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 64,
+      "type": "Categorical",
+      "categories": [
+        16,
+        32,
+        48,
+        64,
+        96,
+        128
+      ]
+    },
+    "epochs": {
+      "default": 15,
+      "type": "Integer",
+      "low": 5,
+      "high": 60
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.001,
+      "prior": "log-uniform"
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.4
+    },
+    "channel_multiplier": {
+      "default": 4,
+      "type": "Integer",
+      "low": 1,
+      "high": 8
+    },
+    "kernel_size1": {
+      "default": 64,
+      "type": "Integer",
+      "low": 32,
+      "high": 128
+    },
+    "stride1": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "kernel_size2": {
+      "default": 16,
+      "type": "Integer",
+      "low": 8,
+      "high": 64
+    },
+    "stride2": {
+      "default": 4,
+      "type": "Integer",
+      "low": 2,
+      "high": 8
+    },
+    "gcn_hidden": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 24
+    },
+    "label_smoothing": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "grad_clip_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "use_amp": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "calibrate_batches": {
+      "default": 32,
+      "type": "Integer",
+      "low": 8,
+      "high": 128
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    }
+  },
+  "confidence": 0.82,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      89283,
+      6,
+      6000
+    ],
+    "dtype": "float32",
+    "feature_count": 6000,
+    "sample_count": 89283,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1760371425,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

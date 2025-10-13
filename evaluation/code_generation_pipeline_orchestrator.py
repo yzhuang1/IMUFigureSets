@@ -92,6 +92,14 @@ class CodeGenerationPipelineOrchestrator:
         # Disable BO process mode after BO
         set_bo_process_mode(False)
 
+        # Aggressive memory cleanup before final training
+        import gc
+        gc.collect()
+        if device == 'cuda':
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            logger.info("🧹 GPU memory cleaned before final training")
+
         # STEP 4: Final Training with Optimized Parameters
         logger.info("🚀 STEP 4: Final Training Execution")
         final_model, training_results = self._execute_final_training(
@@ -513,10 +521,16 @@ class CodeGenerationPipelineOrchestrator:
         # Convert datasets to tensors for training function
         X_train_final = train_dataset.X
         y_train_final = train_dataset.y
-        X_val_final = val_dataset.X  
+        X_val_final = val_dataset.X
         y_val_final = val_dataset.y
         X_test_tensor = test_dataset.X
         y_test_tensor = test_dataset.y
+
+        # Delete intermediate datasets and splits to free memory before training
+        import gc
+        del train_dataset, val_dataset, test_dataset, splits
+        gc.collect()
+        logger.info("Deleted intermediate datasets to free memory before final training")
 
         # Save test tensors and model to subfolder
         from pathlib import Path

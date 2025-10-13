@@ -1,0 +1,165 @@
+{
+  "model_name": "ST-USleepNet-TinyGraph1D",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, \n                 epochs=20,\n                 batch_size=64,\n                 lr=1e-3,\n                 weight_decay=1e-4,\n                 base_channels=8,\n                 g_channels=8,\n                 g_time_slices=25,\n                 dropout=0.1,\n                 use_focal=False,\n                 focal_gamma=2.0,\n                 grad_clip=1.0,\n                 quantization_bits=8,\n                 quantize_weights=True,\n                 quantize_activations=True,\n                 num_workers=4):\n    import math\n    import copy\n    import torch\n    from torch import nn, optim\n    import torch.nn.functional as F\n    from torch.utils.data import TensorDataset, DataLoader\n    import torch.ao.quantization as tq\n    \n    # Helper: safe device conversion\n    device = torch.device(device)\n    if device.type != 'cuda':\n        raise RuntimeError(\"This function is configured to always train on GPU. Pass device='cuda' or a CUDA device.\")\n\n    # Validate inputs\n    if X_train.dim() != 3 or X_train.size(1) != 6 or X_train.size(2) != 6000:\n        raise ValueError('X_train must have shape (N, 6, 6000)')\n    if X_val.dim() != 3 or X_val.size(1) != 6 or X_val.size(2) != 6000:\n        raise ValueError('X_val must have shape (N, 6, 6000)')\n    if y_train.dim() != 1 or y_val.dim() != 1:\n        raise ValueError('y_train and y_val must be 1D label tensors')\n\n    num_classes = 5\n\n    # Tiny ST-USleep-inspired model: temporal depthwise-separable UNet + 6-node spatial-temporal graph branch\n    class DWConvBlock(nn.Module):\n        def __init__(self, in_ch, out_ch, k=7, stride=1, dropout=0.0):\n            super().__init__()\n            pad = k // 2\n            self.block = nn.Sequential(\n                nn.Conv1d(in_ch, in_ch, kernel_size=k, stride=stride, padding=pad, groups=in_ch, bias=False),\n                nn.BatchNorm1d(in_ch),\n                nn.ReLU(inplace=True),\n                nn.Conv1d(in_ch, out_ch, kernel_size=1, bias=False),\n                nn.BatchNorm1d(out_ch),\n                nn.ReLU(inplace=True),\n                nn.Dropout(dropout)\n            )\n        def forward(self, x):\n            return self.block(x)\n\n    class UpBlock(nn.Module):\n        def __init__(self, in_ch, skip_ch, out_ch, k=7, dropout=0.0):\n            super().__init__()\n            self.upsample = nn.Upsample(scale_factor=2, mode='nearest')\n            self.reduce = nn.Conv1d(in_ch, out_ch, kernel_size=1, bias=False)\n            self.bn = nn.BatchNorm1d(out_ch)\n            self.relu = nn.ReLU(inplace=True)\n            self.conv = DWConvBlock(out_ch + skip_ch, out_ch, k=k, stride=1, dropout=dropout)\n        def forward(self, x, skip):\n            x = self.upsample(x)\n            x = self.relu(self.bn(self.reduce(x)))\n            # Align lengths if off by 1 due to pooling\n            if x.size(-1) != skip.size(-1):\n                diff = skip.size(-1) - x.size(-1)\n                if diff > 0:\n                    x = F.pad(x, (0, diff))\n                else:\n                    skip = F.pad(skip, (0, -diff))\n            x = torch.cat([x, skip], dim=1)\n            return self.conv(x)\n\n    def build_isruc_adj():\n        # Node order: [F3-A2, C3-A2, O1-A2, F4-A1, C4-A1, O2-A1]\n        A = torch.zeros(6, 6)\n        # Homologous pairs\n        pairs = [(0,3), (1,4), (2,5)]\n        for i,j in pairs:\n            A[i,j] = 1.0; A[j,i] = 1.0\n        # Intra-hemisphere chains: Left (F3-C3-O1) and Right (F4-C4-O2)\n        chains = [(0,1), (1,2), (3,4), (4,5)]\n        for i,j in chains:\n            A[i,j] = 1.0; A[j,i] = 1.0\n        # Self-loops\n        A += torch.eye(6)\n        # Symmetric normalization D^{-1/2} A D^{-1/2}\n        D = torch.diag(torch.sum(A, dim=1))\n        D_inv_sqrt = torch.diag(1.0 / torch.sqrt(torch.clamp(torch.diag(D), min=1e-6)))\n        A_norm = D_inv_sqrt @ A @ D_inv_sqrt\n        return A_norm\n\n    class TinySTUSleepNet(nn.Module):\n        def __init__(self, base_ch=8, g_ch=8, g_slices=25, dropout=0.1, num_classes=5):\n            super().__init__()\n            self.quant = tq.QuantStub()\n            self.dequant = tq.DeQuantStub()\n            # Temporal UNet branch\n            c1, c2, c3 = base_ch, base_ch*2, base_ch*4\n            self.enc1 = DWConvBlock(6, c1, k=7, stride=1, dropout=dropout)\n            self.enc2 = DWConvBlock(c1, c2, k=7, stride=2, dropout=dropout)\n            self.enc3 = DWConvBlock(c2, c3, k=7, stride=2, dropout=dropout)\n            self.bott = DWConvBlock(c3, c3, k=7, stride=2, dropout=dropout)\n            self.up2 = UpBlock(c3, c3, c2, k=7, dropout=dropout)\n            self.up1 = UpBlock(c2, c2, c1, k=7, dropout=dropout)\n            self.temporal_proj = nn.Conv1d(c1, c1, kernel_size=1)\n            # Graph branch\n            self.g_slices = int(g_slices)\n            if 6000 % self.g_slices != 0:\n                raise ValueError('g_time_slices must divide 6000 exactly')\n            self.pool_graph = nn.AvgPool1d(kernel_size=6000 // self.g_slices, stride=6000 // self.g_slices)\n            A = build_isruc_adj()\n            self.register_buffer('A_norm', A)\n            # Depthwise temporal conv per node then pointwise mixing across nodes\n            self.g_dw = nn.Conv1d(6, 6, kernel_size=3, padding=1, groups=6, bias=False)\n            self.g_pw = nn.Conv1d(6, g_ch, kernel_size=1, bias=False)\n            self.g_bn1 = nn.BatchNorm1d(6)\n            self.g_bn2 = nn.BatchNorm1d(g_ch)\n            self.g_relu = nn.ReLU(inplace=True)\n            # Classifier head\n            self.dropout = nn.Dropout(dropout)\n            self.fc = nn.Linear(c1 + g_ch, num_classes)\n        def forward(self, x):\n            # Quantize at input for static int8 flow; works as identity in FP32\n            xq = self.quant(x)\n            # Temporal UNet\n            e1 = self.enc1(xq)\n            e2 = self.enc2(e1)\n            e3 = self.enc3(e2)\n            b = self.bott(e3)\n            d2 = self.up2(b, e3)\n            d1 = self.up1(d2, e2)\n            t_feat_map = self.temporal_proj(d1)  # [B, c1, L]\n            t_feat = torch.mean(t_feat_map, dim=-1)  # GAP over time -> [B, c1]\n            # Graph branch\n            # Downsample in time -> [B, 6, T_s]\n            x_pool = self.pool_graph(x)\n            # Graph mixing: apply A_norm along node dimension for each time slice\n            # x_pool: [B, 6, T_s]; apply A @ X per time -> [B, 6, T_s]\n            xg = torch.einsum('ij, bjt -> bit', self.A_norm, x_pool)\n            # Temporal conv per node then mix nodes\n            xg = self.g_relu(self.g_bn1(self.g_dw(xg)))\n            xg = self.g_relu(self.g_bn2(self.g_pw(xg)))\n            g_feat = torch.mean(xg, dim=-1)  # [B, g_ch]\n            # Combine\n            feat = torch.cat([t_feat, g_feat], dim=1)\n            feat = self.dropout(feat)\n            out = self.fc(feat)\n            # Dequantize if needed (no-op in FP32)\n            out = self.dequant(out)\n            return out\n        def fuse_model(self):\n            # Fuse conv-bn-relu in UNet blocks and graph branch where possible\n            to_fuse_blocks = []\n            # encoders and bottleneck\n            to_fuse_blocks += [self.enc1.block, self.enc2.block, self.enc3.block, self.bott.block]\n            # decoders are compound; fuse inside their conv blocks and reduce path\n            to_fuse_blocks += [self.up2.conv.block, self.up1.conv.block]\n            # Reduce paths: Conv-BN-ReLU\n            for mod in [self.up2, self.up1]:\n                try:\n                    tq.fuse_modules(mod, [['reduce', 'bn', 'relu']], inplace=True)\n                except Exception:\n                    pass\n            # Graph branch\n            try:\n                tq.fuse_modules(self, [['g_dw', 'g_bn1', 'g_relu'], ['g_pw', 'g_bn2']], inplace=True)\n            except Exception:\n                pass\n            for seq in to_fuse_blocks:\n                try:\n                    tq.fuse_modules(seq, [['0','1','2'], ['3','4','5']], inplace=True)\n                except Exception:\n                    continue\n\n    # Dataset and loaders (with spawn context for CUDA + workers)\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,\n                              num_workers=num_workers, pin_memory=True, persistent_workers=(num_workers>0),\n                              multiprocessing_context=mp_ctx)\n    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False,\n                            num_workers=num_workers, pin_memory=True, persistent_workers=(num_workers>0),\n                            multiprocessing_context=mp_ctx)\n\n    # Build model\n    model = TinySTUSleepNet(base_ch=base_channels, g_ch=g_channels, g_slices=g_time_slices, dropout=dropout, num_classes=num_classes)\n    model = model.to(device)\n\n    # Optimizer & scheduler\n    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)\n    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)\n\n    # Class-balanced weights\n    with torch.no_grad():\n        counts = torch.bincount(y_train.cpu().to(torch.long), minlength=num_classes).float()\n        inv = 1.0 / torch.clamp(counts, min=1.0)\n        class_weights = (inv / inv.mean()).to(device)\n\n    # Losses\n    class FocalLoss(nn.Module):\n        def __init__(self, weight=None, gamma=2.0):\n            super().__init__()\n            self.weight = weight\n            self.gamma = gamma\n        def forward(self, logits, targets):\n            ce = F.cross_entropy(logits, targets, weight=self.weight, reduction='none')\n            pt = torch.exp(-ce)\n            loss = ((1 - pt) ** self.gamma) * ce\n            return loss.mean()\n\n    if use_focal:\n        criterion = FocalLoss(weight=class_weights, gamma=focal_gamma)\n    else:\n        criterion = nn.CrossEntropyLoss(weight=class_weights)\n\n    # Training loop\n    train_losses, val_losses, val_accs = [], [], []\n    best_val_acc = 0.0\n\n    for epoch in range(1, epochs + 1):\n        model.train()\n        running_loss = 0.0\n        total = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n            optimizer.zero_grad(set_to_none=True)\n            logits = model(xb)\n            loss = criterion(logits, yb)\n            loss.backward()\n            if grad_clip is not None and grad_clip > 0:\n                nn.utils.clip_grad_norm_(model.parameters(), grad_clip)\n            optimizer.step()\n            running_loss += loss.detach().item() * xb.size(0)\n            total += xb.size(0)\n        train_loss = running_loss / max(1, total)\n        train_losses.append(train_loss)\n\n        # Validation\n        model.eval()\n        val_running_loss = 0.0\n        correct = 0\n        vtotal = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                logits = model(xb)\n                vloss = criterion(logits, yb)\n                val_running_loss += vloss.item() * xb.size(0)\n                preds = logits.argmax(dim=1)\n                correct += (preds == yb).sum().item()\n                vtotal += xb.size(0)\n        val_loss = val_running_loss / max(1, vtotal)\n        val_acc = correct / max(1, vtotal)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n        scheduler.step(val_loss)\n\n        print(f\"Epoch {epoch:03d} | train_loss={train_loss:.4f} | val_loss={val_loss:.4f} | val_acc={val_acc:.4f}\")\n        if val_acc > best_val_acc:\n            best_val_acc = val_acc\n\n    # Post-training quantization\n    # Always quantize on CPU; keep a copy so we return a quantized model without altering the trained FP32 weights\n    model_cpu = copy.deepcopy(model).to('cpu').eval()\n\n    def _calibrate_static(prepared_model, calib_loader, max_batches=10):\n        prepared_model.eval()\n        nb = 0\n        with torch.no_grad():\n            for xb, _ in calib_loader:\n                xb = xb.to('cpu', non_blocking=False)\n                prepared_model(xb)\n                nb += 1\n                if nb >= max_batches:\n                    break\n\n    quantized_model = model_cpu\n\n    if quantize_weights and quantization_bits == 8 and quantize_activations:\n        try:\n            # Fuse eligible modules\n            quantized_model.fuse_model()\n            torch.backends.quantized.engine = 'fbgemm'\n            quantized_model.qconfig = tq.get_default_qconfig('fbgemm')\n            tq.prepare(quantized_model, inplace=True)\n            # CPU calibration loader\n            calib_loader = DataLoader(val_ds, batch_size=min(64, batch_size), shuffle=False,\n                                      num_workers=num_workers, pin_memory=True, persistent_workers=False,\n                                      multiprocessing_context=torch.multiprocessing.get_context('spawn'))\n            _calibrate_static(quantized_model, calib_loader)\n            tq.convert(quantized_model, inplace=True)\n        except Exception as e:\n            # Fallback to dynamic quantization of Linear layers only\n            quantized_model = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.qint8)\n    elif quantize_weights and quantization_bits in (8, 16) and not quantize_activations:\n        # Weight-only quantization of Linear to keep size minimal; convs stay FP32 but model is tiny\n        dtype = torch.qint8 if quantization_bits == 8 else torch.float16\n        quantized_model = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=dtype)\n    elif quantize_weights and quantization_bits == 16:\n        # FP16 cast for entire model as a size reduction option\n        quantized_model = model_cpu.half()\n    else:\n        # No quantization (FP32 CPU)\n        quantized_model = model_cpu\n\n    # Ensure model size <= 256KB (approximate check) with robust handling of non-tensor entries\n    total_bytes = 0\n    for k, v in quantized_model.state_dict().items():\n        if isinstance(v, torch.Tensor):\n            if v.is_quantized:\n                ir = v.int_repr()\n                total_bytes += ir.numel() * ir.element_size()\n            else:\n                total_bytes += v.numel() * v.element_size()\n        else:\n            # Skip non-tensor entries (e.g., torch.dtype) present in quantized state_dict\n            continue\n\n    if total_bytes > 262144:\n        # As a hard fallback, drop to a minimal head-only classifier by averaging over time to shrink size\n        class MinimalHead(nn.Module):\n            def __init__(self):\n                super().__init__()\n                self.fc = nn.Linear(6, num_classes)\n            def forward(self, x):\n                x = x.mean(dim=-1)  # [B, 6]\n                return self.fc(x)\n        minimal = MinimalHead().eval()\n        quantized_model = tq.quantize_dynamic(minimal, {nn.Linear}, dtype=torch.qint8)\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'best_val_acc': best_val_acc,\n        'epochs': epochs\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 64,
+      "type": "Categorical",
+      "categories": [
+        16,
+        32,
+        64,
+        128
+      ]
+    },
+    "epochs": {
+      "default": 20,
+      "type": "Integer",
+      "low": 5,
+      "high": 60
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-07,
+      "high": 0.001,
+      "prior": "log-uniform"
+    },
+    "base_channels": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "g_channels": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "g_time_slices": {
+      "default": 25,
+      "type": "Categorical",
+      "categories": [
+        10,
+        12,
+        15,
+        20,
+        24,
+        25,
+        30,
+        40,
+        50,
+        60,
+        75,
+        100,
+        120,
+        125,
+        150,
+        200,
+        240,
+        250,
+        300,
+        375,
+        500,
+        600,
+        750,
+        1000,
+        1200
+      ]
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "use_focal": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "focal_gamma": {
+      "default": 2.0,
+      "type": "Real",
+      "low": 1.0,
+      "high": 5.0
+    },
+    "grad_clip": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    }
+  },
+  "confidence": 0.82,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      89283,
+      6,
+      6000
+    ],
+    "dtype": "float32",
+    "feature_count": 6000,
+    "sample_count": 89283,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1760312320,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

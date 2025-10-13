@@ -1,0 +1,166 @@
+{
+  "model_name": "ST-USleepNet-Tiny",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\n    import math\n    import time\n    import copy\n    import torch\n    import torch.nn.functional as F\n    from torch import nn, optim\n    from torch.utils.data import TensorDataset, DataLoader\n    \n    # ------------------------\n    # Device handling and defaults\n    # ------------------------\n    device = torch.device(device)\n    assert torch.cuda.is_available(), \"CUDA GPU is required for training.\"\n    torch.backends.cudnn.benchmark = True\n\n    # Hyperparameters with sensible defaults sized for 8GB GPU\n    lr = hyperparams.get('lr', 5e-4)\n    batch_size = hyperparams.get('batch_size', 64)\n    epochs = hyperparams.get('epochs', 10)\n    weight_decay = hyperparams.get('weight_decay', 1e-5)\n    dropout = hyperparams.get('dropout', 0.1)\n    grad_clip = hyperparams.get('grad_clip', 1.0)\n    use_amp = hyperparams.get('use_amp', True)\n    num_workers = hyperparams.get('num_workers', 4)\n\n    # Model arch hyperparams\n    base_channels = hyperparams.get('base_channels', 12)  # keeps model tiny\n    kernel_size_enc = hyperparams.get('kernel_size_enc', 9)\n    kernel_size_dec = hyperparams.get('kernel_size_dec', 5)\n    partitions = hyperparams.get('partitions', 6)  # time partitions per 30s epoch\n    gcn_hidden_dim = hyperparams.get('gcn_hidden_dim', 8)\n\n    # Quantization hyperparams\n    quantization_bits = hyperparams.get('quantization_bits', 8)  # {8,16,32}\n    quantize_weights = hyperparams.get('quantize_weights', True)\n    quantize_activations = hyperparams.get('quantize_activations', True)\n    calib_batches = hyperparams.get('calib_batches', 8)  # for static PTQ calibration when bits=8\n\n    # Ensure CPU tensors for DataLoader pinned memory\n    if X_train.is_cuda: X_train = X_train.detach().cpu()\n    if y_train.is_cuda: y_train = y_train.detach().cpu()\n    if X_val.is_cuda: X_val = X_val.detach().cpu()\n    if y_val.is_cuda: y_val = y_val.detach().cpu()\n\n    # ------------------------\n    # DataLoaders with spawn context\n    # ------------------------\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    train_ds = TensorDataset(X_train, y_train.long())\n    val_ds = TensorDataset(X_val, y_val.long())\n    train_loader = DataLoader(\n        train_ds,\n        batch_size=batch_size,\n        shuffle=True,\n        num_workers=num_workers,\n        pin_memory=True,\n        drop_last=False,\n        persistent_workers=True,\n        multiprocessing_context=mp_ctx,\n    )\n    val_loader = DataLoader(\n        val_ds,\n        batch_size=batch_size,\n        shuffle=False,\n        num_workers=num_workers,\n        pin_memory=True,\n        drop_last=False,\n        persistent_workers=True,\n        multiprocessing_context=mp_ctx,\n    )\n\n    # ------------------------\n    # Model definition: ST-USleepNet Tiny (Temporal CNN U-Net + Graph stream)\n    # ------------------------\n    class DSConv1d(nn.Module):\n        def __init__(self, in_ch, out_ch, k, stride=1):\n            super().__init__()\n            pad = k // 2\n            self.dw = nn.Conv1d(in_ch, in_ch, kernel_size=k, stride=stride, padding=pad, groups=in_ch, bias=False)\n            self.pw = nn.Conv1d(in_ch, out_ch, kernel_size=1, bias=True)\n            self.act = nn.ReLU(inplace=True)\n        def forward(self, x):\n            x = self.dw(x)\n            x = self.pw(x)\n            return self.act(x)\n\n    class TemporalUNetTiny(nn.Module):\n        def __init__(self, in_ch=6, base=12, k_enc=9, k_dec=5, dropout=0.1):\n            super().__init__()\n            c1, c2, c3, cb = base, base*2, base*3, base*4\n            self.enc1 = DSConv1d(in_ch, c1, k_enc)\n            self.pool1 = nn.AvgPool1d(2)\n            self.enc2 = DSConv1d(c1, c2, k_enc)\n            self.pool2 = nn.AvgPool1d(2)\n            self.enc3 = DSConv1d(c2, c3, k_enc)\n            self.pool3 = nn.AvgPool1d(2)\n            self.bottom = DSConv1d(c3, cb, k_enc)\n            self.up3 = nn.Upsample(scale_factor=2, mode='nearest')\n            self.dec3 = DSConv1d(cb + c3, c2, k_dec)\n            self.up2 = nn.Upsample(scale_factor=2, mode='nearest')\n            self.dec2 = DSConv1d(c2 + c2, c1, k_dec)\n            self.up1 = nn.Upsample(scale_factor=2, mode='nearest')\n            self.dec1 = DSConv1d(c1 + c1, c1, k_dec)\n            self.drop = nn.Dropout(p=dropout)\n            self.out_dim = c1\n        def forward(self, x):\n            # x: (B,6,6000)\n            s1 = self.enc1(x)          # (B,c1,6000)\n            x = self.pool1(s1)         # (B,c1,3000)\n            s2 = self.enc2(x)          # (B,c2,3000)\n            x = self.pool2(s2)         # (B,c2,1500)\n            s3 = self.enc3(x)          # (B,c3,1500)\n            x = self.pool3(s3)         # (B,c3,750)\n            x = self.bottom(x)         # (B,cb,750)\n            # Decoder\n            x = self.up3(x)            # (B,cb,1500)\n            x = torch.cat([x, s3], dim=1)\n            x = self.dec3(x)           # (B,c2,1500)\n            x = self.up2(x)            # (B,c2,3000)\n            x = torch.cat([x, s2], dim=1)\n            x = self.dec2(x)           # (B,c1,3000)\n            x = self.up1(x)            # (B,c1,6000)\n            x = torch.cat([x, s1], dim=1)\n            x = self.dec1(x)           # (B,c1,6000)\n            x = self.drop(x)\n            # Global average pooling over time -> temporal embedding\n            temb = x.mean(dim=2)       # (B,c1)\n            return temb, x  # also return final temporal feature map for optional uses\n\n    class GraphConv(nn.Module):\n        def __init__(self, in_dim, out_dim):\n            super().__init__()\n            self.lin = nn.Linear(in_dim, out_dim, bias=True)\n        def forward(self, x, A):\n            # x: (B,N,D), A: (N,N)\n            Ax = torch.matmul(A, x)  # (B,N,D)\n            return self.lin(Ax)\n\n    class GraphStreamTiny(nn.Module):\n        def __init__(self, num_channels=6, partitions=6, in_feat_dim=1, hidden=8, dropout=0.1):\n            super().__init__()\n            self.C = num_channels\n            self.P = partitions\n            self.N = self.C * self.P\n            # Precompute adjacency: chain over time per channel + fully-connected across channels at same partition\n            A = torch.zeros(self.N, self.N, dtype=torch.float32)\n            # time-chain within channel\n            for c in range(self.C):\n                for p in range(self.P-1):\n                    i = c*self.P + p\n                    j = c*self.P + (p+1)\n                    A[i, j] = 1.0\n                    A[j, i] = 1.0\n            # cross-channel same partition fully-connected\n            for p in range(self.P):\n                nodes = [c*self.P + p for c in range(self.C)]\n                for a in nodes:\n                    for b in nodes:\n                        if a != b:\n                            A[a, b] = 1.0\n            # Add self loops and normalize A_hat = D^{-1/2}(A+I)D^{-1/2}\n            I = torch.eye(self.N)\n            A = A + I\n            deg = A.sum(dim=1)\n            deg_inv_sqrt = torch.pow(torch.clamp(deg, min=1.0), -0.5)\n            D_inv_sqrt = torch.diag(deg_inv_sqrt)\n            A_hat = D_inv_sqrt @ A @ D_inv_sqrt\n            self.register_buffer('A_hat', A_hat)\n            # Node feature lift and GCN\n            self.proj = nn.Linear(in_feat_dim, hidden, bias=True)\n            self.gcn1 = GraphConv(hidden, hidden)\n            self.gcn2 = GraphConv(hidden, hidden)\n            self.act = nn.ReLU(inplace=True)\n            self.drop = nn.Dropout(p=dropout)\n            self.out_dim = hidden\n        def forward(self, x_raw):\n            # x_raw: (B,6,6000) float\n            B, C, T = x_raw.shape\n            P = self.P\n            assert T % P == 0, \"Sequence length must be divisible by partitions.\"\n            L = T // P\n            xr = x_raw.view(B, C, P, L)\n            # Simple per-node feature: mean over partition window (amplitude energy proxy)\n            node_feat = xr.mean(dim=3)  # (B,C,P)\n            # To nodes axis\n            node_feat = node_feat.permute(0,2,1).contiguous().view(B, P*C, 1)  # (B,N,1)\n            h = self.proj(node_feat)  # (B,N,H)\n            h = self.act(h)\n            h = self.drop(h)\n            h = self.gcn1(h, self.A_hat)\n            h = self.act(h)\n            h = self.drop(h)\n            h = self.gcn2(h, self.A_hat)\n            h = self.act(h)\n            # Global mean over nodes -> graph embedding\n            gemb = h.mean(dim=1)  # (B,H)\n            return gemb\n\n    class STUSleepNetTiny(nn.Module):\n        def __init__(self, in_ch=6, base=12, k_enc=9, k_dec=5, partitions=6, gcn_hidden=8, dropout=0.1, num_classes=5):\n            super().__init__()\n            self.temporal = TemporalUNetTiny(in_ch=in_ch, base=base, k_enc=k_enc, k_dec=k_dec, dropout=dropout)\n            self.graph = GraphStreamTiny(num_channels=in_ch, partitions=partitions, in_feat_dim=1, hidden=gcn_hidden, dropout=dropout)\n            d_t = self.temporal.out_dim\n            d_g = self.graph.out_dim\n            self.head = nn.Sequential(\n                nn.Linear(d_t + d_g, max(8, (d_t + d_g)//2)),\n                nn.ReLU(inplace=True),\n                nn.Dropout(p=dropout),\n                nn.Linear(max(8, (d_t + d_g)//2), num_classes)\n            )\n        def forward(self, x):\n            temb, tfeat = self.temporal(x)\n            gemb = self.graph(x)\n            z = torch.cat([temb, gemb], dim=1)\n            logits = self.head(z)\n            return logits\n\n    model = STUSleepNetTiny(in_ch=6, base=base_channels, k_enc=kernel_size_enc, k_dec=kernel_size_dec,\n                            partitions=partitions, gcn_hidden=gcn_hidden_dim, dropout=dropout, num_classes=5)\n    model = model.to(device)\n\n    criterion = nn.CrossEntropyLoss().to(device)\n    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)\n\n    # Cosine LR schedule optional\n    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, epochs))\n\n    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)\n\n    # ------------------------\n    # Training loop\n    # ------------------------\n    train_losses, val_losses, val_accs = [], [], []\n\n    for epoch in range(1, epochs+1):\n        model.train()\n        epoch_loss = 0.0\n        n_train = 0\n        t0 = time.time()\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True).float()\n            yb = yb.to(device, non_blocking=True).long()\n            optimizer.zero_grad(set_to_none=True)\n            with torch.cuda.amp.autocast(enabled=use_amp):\n                logits = model(xb)\n                loss = criterion(logits, yb)\n            scaler.scale(loss).backward()\n            if grad_clip is not None and grad_clip > 0:\n                scaler.unscale_(optimizer)\n                nn.utils.clip_grad_norm_(model.parameters(), grad_clip)\n            scaler.step(optimizer)\n            scaler.update()\n            epoch_loss += loss.detach().item() * xb.size(0)\n            n_train += xb.size(0)\n        scheduler.step()\n        train_loss = epoch_loss / max(1, n_train)\n        train_losses.append(train_loss)\n\n        # Validation\n        model.eval()\n        val_loss = 0.0\n        n_val = 0\n        correct = 0\n        with torch.inference_mode():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True).float()\n                yb = yb.to(device, non_blocking=True).long()\n                logits = model(xb)\n                loss = criterion(logits, yb)\n                val_loss += loss.item() * xb.size(0)\n                n_val += xb.size(0)\n                pred = logits.argmax(dim=1)\n                correct += (pred == yb).sum().item()\n        val_loss = val_loss / max(1, n_val)\n        val_acc = correct / max(1, n_val)\n        val_losses.append(val_loss)\n        val_accs.append(val_acc)\n\n        print(f\"Epoch {epoch:03d}: train_loss={train_loss:.5f} val_loss={val_loss:.5f} val_acc={val_acc:.4f} time={(time.time()-t0):.1f}s\")\n\n    # ------------------------\n    # Post-Training Quantization (PTQ)\n    # Note: Quantized models run on CPU; we return a CPU quantized model.\n    # ------------------------\n    model_cpu = copy.deepcopy(model).to('cpu').eval()\n    quantized_model = model_cpu\n    used_static_ptq = False\n\n    try:\n        if quantize_weights and quantization_bits == 8:\n            if quantize_activations:\n                # Attempt static quantization for Conv + Linear\n                import torch.ao.quantization as tq\n                torch.backends.quantized.engine = 'fbgemm'\n                qmodel = copy.deepcopy(model_cpu)\n                qmodel.qconfig = tq.get_default_qconfig('fbgemm')\n                tq.prepare(qmodel, inplace=True)\n                # Calibration with a few CPU batches\n                calib_loader = DataLoader(\n                    train_ds, batch_size=min(128, batch_size), shuffle=False, num_workers=0, pin_memory=False\n                )\n                with torch.inference_mode():\n                    for i, (xb, _) in enumerate(calib_loader):\n                        qmodel(xb.float())\n                        if i+1 >= calib_batches:\n                            break\n                tq.convert(qmodel, inplace=True)\n                quantized_model = qmodel\n                used_static_ptq = True\n            else:\n                # Dynamic quantization for Linear layers only\n                import torch.ao.quantization as tq\n                quantized_model = tq.quantize_dynamic(\n                    model_cpu, {nn.Linear}, dtype=torch.qint8\n                )\n        elif quantization_bits == 16:\n            # Keep in float16\n            quantized_model = model_cpu.half()\n        else:\n            # 32-bit float model\n            quantized_model = model_cpu.float()\n    except Exception as e:\n        # Fallback to dynamic Linear-only quantization if static fails\n        import torch.ao.quantization as tq\n        quantized_model = tq.quantize_dynamic(model_cpu, {nn.Linear}, dtype=torch.qint8)\n        used_static_ptq = False\n\n    # Estimate serialized parameter size\n    with torch.inference_mode():\n        sd = quantized_model.state_dict()\n        est_size_bytes = 0\n        for k, v in sd.items():\n            if hasattr(v, 'element_size'):\n                est_size_bytes += v.numel() * v.element_size()\n        # Some quantized weights store packed params not counted here; this is a lower-bound estimate.\n\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs,\n        'quantization': {\n            'bits': quantization_bits,\n            'weights': bool(quantize_weights),\n            'activations': bool(quantize_activations),\n            'static_ptq_used': bool(used_static_ptq),\n            'estimated_state_dict_size_bytes': int(est_size_bytes)\n        }\n    }\n\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.0005,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.005,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 64,
+      "type": "Categorical",
+      "categories": [
+        32,
+        64,
+        128,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 10,
+      "type": "Integer",
+      "low": 5,
+      "high": 50
+    },
+    "weight_decay": {
+      "default": 1e-05,
+      "type": "Real",
+      "low": 1e-07,
+      "high": 0.001,
+      "prior": "log-uniform"
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "grad_clip": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.0,
+      "high": 5.0
+    },
+    "use_amp": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "num_workers": {
+      "default": 4,
+      "type": "Categorical",
+      "categories": [
+        4
+      ]
+    },
+    "base_channels": {
+      "default": 12,
+      "type": "Integer",
+      "low": 6,
+      "high": 16
+    },
+    "kernel_size_enc": {
+      "default": 9,
+      "type": "Categorical",
+      "categories": [
+        5,
+        7,
+        9,
+        11
+      ]
+    },
+    "kernel_size_dec": {
+      "default": 5,
+      "type": "Categorical",
+      "categories": [
+        3,
+        5,
+        7
+      ]
+    },
+    "partitions": {
+      "default": 6,
+      "type": "Categorical",
+      "categories": [
+        3,
+        4,
+        5,
+        6,
+        8,
+        10,
+        12
+      ]
+    },
+    "gcn_hidden_dim": {
+      "default": 8,
+      "type": "Integer",
+      "low": 4,
+      "high": 16
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "calib_batches": {
+      "default": 8,
+      "type": "Integer",
+      "low": 2,
+      "high": 32
+    }
+  },
+  "confidence": 0.86,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      89283,
+      6,
+      6000
+    ],
+    "dtype": "float32",
+    "feature_count": 6000,
+    "sample_count": 89283,
+    "is_sequence": true,
+    "is_image": false,
+    "is_tabular": false,
+    "has_labels": true,
+    "label_count": 5,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1760335454,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}
