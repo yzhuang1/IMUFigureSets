@@ -97,7 +97,7 @@ GPU memory: {gpu_memory_mb} MiB
 Sequence length: {sequence_length if sequence_length else 'N/A'}
 
 - Use the first recommended approach if available, otherwise proceed with a reasonable architecture.
-- Consider the dataset size and GPU memory when selecting batch_size to avoid out-of-memory errors.
+- Consider the dataset size and GPU memory when selecting batch_size.
 """
 
         if literature_review:
@@ -117,7 +117,13 @@ Requirements:
   * return quantized model + metrics (include lists: train_losses, val_losses, val_acc for all epochs)
   * fill in the real input you need for hyperparams and quantization parameters
   * IMPORTS: ALWAYS include ALL necessary imports at the start of train_model function. Required imports: from torch.utils.data import TensorDataset, DataLoader; from torch import nn, optim
-  * IMPORTANT: For DataLoader, use num_workers=4 and pin_memory=True for efficient GPU data loading. Use non_blocking=True when moving tensors to GPU.
+  * IMPORTANT: For DataLoader optimization to prevent GPU starvation:
+    - Use num_workers as a hyperparameter (typically 4-8 for large datasets)
+    - Set pin_memory=True for faster GPU transfers
+    - Set persistent_workers=True when num_workers > 0 (avoids worker recreation overhead)
+    - Set prefetch_factor=2 or higher (default is 2) to pre-load batches while GPU trains
+    - Use non_blocking=True when moving tensors to GPU (.to(device, non_blocking=True))
+  * PERFORMANCE: Consider using mixed precision training (torch.cuda.amp.autocast and GradScaler) as a hyperparameter - can provide 2-3x speedup on modern GPUs, especially for large datasets with small models.
   * MULTIPROCESSING: When using num_workers > 0 with CUDA, ALWAYS use spawn context to avoid CUDA initialization errors: mp_ctx = torch.multiprocessing.get_context('spawn'), then pass multiprocessing_context=mp_ctx to DataLoader.
   * CRITICAL: ALWAYS train on GPU - ensure ALL tensors (model, inputs, targets, losses) are on the same device (GPU). Use .to(device, non_blocking=True) consistently throughout training loop.
   * DEVICE HANDLING: The 'device' parameter may be passed as either a string (e.g., "cuda") or torch.device object. ALWAYS convert it properly: device = torch.device(device) at the start of your function to avoid "'str' object has no attribute 'type'" errors.
@@ -146,7 +152,8 @@ Response JSON example:
     "epochs": {"default": 10, "type": "Integer", "low": 5, "high": 50},
     "hidden_size": {"default": 128, "type": "Integer", "low": 32, "high": 512},
     "dropout": {"default": 0.1, "type": "Real", "low": 0.0, "high": 0.7},
-    "num_workers": {"default": 4, "type": "Categorical", "categories": [4]},
+    "num_workers": {"default": 4, "type": "Categorical", "categories": [0, 2, 4, 8]},
+    "prefetch_factor": {"default": 2, "type": "Categorical", "categories": [2, 4, 8]},
     "quantization_bits": {"default": 32, "type": "Categorical", "categories": [8,16,32]},
     "quantize_weights": {"default": false, "type": "Categorical", "categories": [true,false]},
     "quantize_activations": {"default": false, "type": "Categorical", "categories": [true,false]}
