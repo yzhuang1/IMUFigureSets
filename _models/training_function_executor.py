@@ -418,15 +418,17 @@ class BO_TrainingObjective:
                 X_array, y_array, test_size=0.2, random_state=42, stratify=y_array
             )
         else:
-            # Use BO subset for efficient optimization (respects config.bo_sample_num)
+            # Use centralized splits - BO training on train set, validation on val set
             try:
-                X_bo, y_bo = get_bo_subset()
-                logger.info(f"Using BO subset for optimization: {len(X_bo)} samples (bo_sample_num={config.bo_sample_num})")
-                from sklearn.model_selection import train_test_split
-                X_train, X_val, y_train, y_val = train_test_split(
-                    X_bo, y_bo, test_size=0.2, random_state=42, stratify=y_bo
-                )
-                logger.info(f"BO splits - Train: {len(X_train)}, Val: {len(X_val)}")
+                splits = get_current_splits()
+
+                # Get BO subset for training (respects config.bo_sample_num for efficiency)
+                X_train, y_train = get_bo_subset()
+                logger.info(f"Using BO subset for training: {len(X_train)} samples (bo_sample_num={config.bo_sample_num})")
+
+                # Use the already-split validation data (no additional splitting needed)
+                X_val, y_val = splits.X_val, splits.y_val
+                logger.info(f"Using centralized validation set: {len(X_val)} samples")
 
             except (ValueError, Exception) as e:
                 # Fallback: use full centralized splits if BO subset fails

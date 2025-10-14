@@ -63,7 +63,14 @@ class CentralizedDataSplitter:
         """
         logger.info(f"Creating centralized data splits with test_size={test_size}, val_size={val_size}")
         logger.info(f"Input data shape: X={X.shape}, y={y.shape}")
-        logger.info(f"Class distribution: {np.bincount(y)}")
+
+        # Convert labels to integers if they're floats (handle both numpy and torch)
+        if hasattr(y, 'dtype') and y.dtype in [np.float32, np.float64]:
+            y = y.astype(np.int64)
+        elif hasattr(y, 'dtype') and 'float' in str(y.dtype):
+            y = y.long() if hasattr(y, 'long') else y.to(torch.int64)
+
+        logger.info(f"Class distribution: {np.bincount(y.cpu().numpy() if hasattr(y, 'cpu') else y)}")
         
         # First split: separate test set
         stratify_first = y if stratify else None

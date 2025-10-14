@@ -1,0 +1,113 @@
+{
+  "model_name": "TinyTabularMLP-PE-Classifier",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, lr=0.001, batch_size=128, epochs=50, hidden_size=128, dropout=0.1, weight_decay=1e-4, label_smoothing=0.05, grad_clip_norm=1.0, quantization_bits=8, quantize_weights=True, quantize_activations=False):\n    import copy\n    import math\n    import torch\n    from torch import nn, optim\n    from torch.utils.data import TensorDataset, DataLoader\n    import torch.nn.functional as F\n    from contextlib import nullcontext\n    # Speed knobs (hard-coded as required)\n    speed_params = {\"num_workers\": 2, \"use_mixed_precision\": True}\n    torch.backends.cudnn.benchmark = True\n    if torch.cuda.is_available():\n        torch.backends.cuda.matmul.allow_tf32 = True\n    # Device handling (ALWAYS train on GPU)\n    device = torch.device(device) if not isinstance(device, torch.device) else device\n    if device.type != 'cuda':\n        if torch.cuda.is_available():\n            print(\"[Info] Overriding device to 'cuda' to satisfy GPU training requirement.\")\n            device = torch.device('cuda')\n        else:\n            raise RuntimeError(\"CUDA is not available but GPU training is required.\")\n    # Ensure tensors are on CPU for DataLoader + pinned memory path\n    X_train = X_train.detach().to('cpu', non_blocking=False).float().contiguous()\n    y_train = y_train.detach().to('cpu', non_blocking=False).long().contiguous()\n    X_val = X_val.detach().to('cpu', non_blocking=False).float().contiguous()\n    y_val = y_val.detach().to('cpu', non_blocking=False).long().contiguous()\n    # DataLoaders with spawn context and prefetching\n    mp_ctx = torch.multiprocessing.get_context('spawn')\n    train_ds = TensorDataset(X_train, y_train)\n    val_ds = TensorDataset(X_val, y_val)\n    train_loader = DataLoader(\n        train_ds,\n        batch_size=batch_size,\n        shuffle=True,\n        num_workers=speed_params['num_workers'],\n        pin_memory=True,\n        prefetch_factor=2,\n        persistent_workers=True,\n        multiprocessing_context=mp_ctx,\n        drop_last=False,\n    )\n    val_loader = DataLoader(\n        val_ds,\n        batch_size=batch_size,\n        shuffle=False,\n        num_workers=speed_params['num_workers'],\n        pin_memory=True,\n        prefetch_factor=2,\n        persistent_workers=True,\n        multiprocessing_context=mp_ctx,\n        drop_last=False,\n    )\n    # Tiny MLP for 4-D tabular inputs (3-class)\n    class TinyMLP(nn.Module):\n        def __init__(self, in_dim=4, hidden=128, out_dim=3, dropout_p=0.1):\n            super().__init__()\n            self.fc1 = nn.Linear(in_dim, hidden)\n            self.relu1 = nn.ReLU(inplace=True)\n            self.drop1 = nn.Dropout(p=dropout_p)\n            self.fc2 = nn.Linear(hidden, hidden)\n            self.relu2 = nn.ReLU(inplace=True)\n            self.drop2 = nn.Dropout(p=dropout_p)\n            self.fc_out = nn.Linear(hidden, out_dim)\n        def forward(self, x):\n            x = self.fc1(x)\n            x = self.relu1(x)\n            x = self.drop1(x)\n            x = self.fc2(x)\n            x = self.relu2(x)\n            x = self.drop2(x)\n            x = self.fc_out(x)\n            return x\n    base_model = TinyMLP(in_dim=4, hidden=hidden_size, out_dim=3, dropout_p=dropout).to(device)\n    try:\n        model = torch.compile(base_model)  # PyTorch 2.0+ compiler for speed\n    except Exception as e:\n        print(f\"[Warn] torch.compile failed ({e}). Falling back to eager mode.\")\n        model = base_model\n    optimizer = optim.AdamW(base_model.parameters(), lr=lr, weight_decay=weight_decay)\n    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)\n    criterion = nn.CrossEntropyLoss(label_smoothing=float(label_smoothing)).to(device)\n    scaler = torch.cuda.amp.GradScaler(enabled=speed_params['use_mixed_precision'])\n    train_losses, val_losses, val_accs = [], [], []\n    # Training loop\n    for epoch in range(1, epochs + 1):\n        model.train()\n        running_loss = 0.0\n        total_train = 0\n        for xb, yb in train_loader:\n            xb = xb.to(device, non_blocking=True)\n            yb = yb.to(device, non_blocking=True)\n            optimizer.zero_grad(set_to_none=True)\n            with torch.cuda.amp.autocast(enabled=speed_params['use_mixed_precision']):\n                logits = model(xb)\n                loss = criterion(logits, yb)\n            scaler.scale(loss).backward()\n            scaler.unscale_(optimizer)\n            if grad_clip_norm is not None and grad_clip_norm > 0:\n                nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=float(grad_clip_norm))\n            scaler.step(optimizer)\n            scaler.update()\n            running_loss += loss.detach().float().item() * xb.size(0)\n            total_train += xb.size(0)\n        epoch_train_loss = running_loss / max(1, total_train)\n        # Validation\n        model.eval()\n        val_running_loss = 0.0\n        correct = 0\n        total = 0\n        with torch.no_grad():\n            for xb, yb in val_loader:\n                xb = xb.to(device, non_blocking=True)\n                yb = yb.to(device, non_blocking=True)\n                with torch.cuda.amp.autocast(enabled=speed_params['use_mixed_precision']):\n                    logits = model(xb)\n                    loss = criterion(logits, yb)\n                val_running_loss += loss.detach().float().item() * xb.size(0)\n                preds = torch.argmax(logits, dim=1)\n                correct += (preds == yb).sum().item()\n                total += xb.size(0)\n        epoch_val_loss = val_running_loss / max(1, total)\n        epoch_val_acc = correct / max(1, total)\n        scheduler.step()\n        train_losses.append(epoch_train_loss)\n        val_losses.append(epoch_val_loss)\n        val_accs.append(epoch_val_acc)\n        print(f\"Epoch {epoch:03d}/{epochs:03d} | train_loss={epoch_train_loss:.4f} | val_loss={epoch_val_loss:.4f} | val_acc={epoch_val_acc:.4f}\")\n    # Post-training quantization (model -> CPU, <=256KB target)\n    base_model.eval()\n    base_model_cpu = copy.deepcopy(base_model).to('cpu')\n    quantized_model = None\n    if quantization_bits == 8:\n        if quantize_weights and quantize_activations:\n            import torch.ao.quantization as tq\n            torch.backends.quantized.engine = 'fbgemm'\n            # Fuse Linear+ReLU layers for better int8 quantization\n            try:\n                tq.fuse_modules(base_model_cpu, [['fc1', 'relu1'], ['fc2', 'relu2']], inplace=True)\n            except Exception as e:\n                print(f\"[Warn] Module fusion skipped: {e}\")\n            base_model_cpu.qconfig = tq.get_default_qconfig('fbgemm')\n            tq.prepare(base_model_cpu, inplace=True)\n            # Calibration using a few batches from train + val\n            with torch.inference_mode():\n                seen = 0\n                for xb, _ in train_loader:\n                    base_model_cpu(xb)\n                    seen += xb.size(0)\n                    if seen >= 256:  # small calibration budget\n                        break\n                for xb, _ in val_loader:\n                    base_model_cpu(xb)\n                    seen += xb.size(0)\n                    if seen >= 512:\n                        break\n            tq.convert(base_model_cpu, inplace=True)\n            quantized_model = base_model_cpu\n        elif quantize_weights and not quantize_activations:\n            import torch.ao.quantization as tq\n            quantized_model = tq.quantize_dynamic(\n                base_model_cpu,\n                {nn.Linear},\n                dtype=torch.qint8\n            )\n        else:\n            quantized_model = base_model_cpu  # no quantization\n    elif quantization_bits == 16:\n        # Cast to float16. Activations will run in fp16 if inputs are fp16.\n        class HalfWrapper(nn.Module):\n            def __init__(self, m):\n                super().__init__()\n                self.m = m.half()\n            def forward(self, x):\n                return self.m(x.half())\n        quantized_model = HalfWrapper(base_model_cpu)\n    elif quantization_bits == 32:\n        quantized_model = base_model_cpu\n    else:\n        raise ValueError(\"quantization_bits must be one of {8,16,32}\")\n    metrics = {\n        'train_losses': train_losses,\n        'val_losses': val_losses,\n        'val_acc': val_accs\n    }\n    return quantized_model, metrics\n",
+  "bo_config": {
+    "lr": {
+      "default": 0.001,
+      "type": "Real",
+      "low": 1e-05,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "batch_size": {
+      "default": 128,
+      "type": "Categorical",
+      "categories": [
+        64,
+        96,
+        128,
+        192,
+        256
+      ]
+    },
+    "epochs": {
+      "default": 50,
+      "type": "Integer",
+      "low": 10,
+      "high": 200
+    },
+    "hidden_size": {
+      "default": 128,
+      "type": "Integer",
+      "low": 32,
+      "high": 192
+    },
+    "dropout": {
+      "default": 0.1,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.5
+    },
+    "weight_decay": {
+      "default": 0.0001,
+      "type": "Real",
+      "low": 1e-06,
+      "high": 0.01,
+      "prior": "log-uniform"
+    },
+    "label_smoothing": {
+      "default": 0.05,
+      "type": "Real",
+      "low": 0.0,
+      "high": 0.2
+    },
+    "grad_clip_norm": {
+      "default": 1.0,
+      "type": "Real",
+      "low": 0.5,
+      "high": 5.0
+    },
+    "quantization_bits": {
+      "default": 8,
+      "type": "Categorical",
+      "categories": [
+        8,
+        16,
+        32
+      ]
+    },
+    "quantize_weights": {
+      "default": true,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    },
+    "quantize_activations": {
+      "default": false,
+      "type": "Categorical",
+      "categories": [
+        true,
+        false
+      ]
+    }
+  },
+  "confidence": 0.86,
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      500,
+      4
+    ],
+    "dtype": "float32",
+    "feature_count": 4,
+    "sample_count": 500,
+    "is_sequence": false,
+    "is_image": false,
+    "is_tabular": true,
+    "has_labels": true,
+    "label_count": 3,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  },
+  "timestamp": 1760413239,
+  "metadata": {
+    "generated_by": "AI Code Generator",
+    "api_model": "gpt-5",
+    "version": "1.0"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "query": "Stress Level tabular data classification multiclass classification large dataset classification 2024 2025 PyTorch implementation state-of-the-art methods",
+  "review_text": "Problem framing: You’re classifying 4 stress states from non-sequential, tabular tensors shaped (8,), using WESAD-derived features. Most WESAD “state-of-the-art” results come from sequence models on raw signals or windowed features; when reduced to low-dimensional tabular features, best-in-class tabular learners are generally MLP-based or strong GBDTs, with modern deep tabular baselines showing favorable accuracy/efficiency on medium-to-large datasets. ([neurofeel.space](https://neurofeel.space/?utm_source=openai))\nKey domain evidence: (a) Personalized models on WESAD dramatically outperform generalized cross-subject models (e.g., 4-class per-person accuracies 88–99%; generalized ≈67%)—implicating subject drift and protocol sensitivity. Use leave-one-subject-out (LOSO) or external validation to avoid optimistic estimates. ([ai.jmir.org](https://ai.jmir.org/2024/1/e52171/?utm_source=openai)) (b) Several 2024–2025 papers report very high accuracies on WESAD, but they are typically sequence models and/or rely on within-subject or context-aware splits (e.g., TEANet up to 96.94% on WESAD; image-encoding DNN 4-class test acc 94.77%; a 2025 lab-to-real study reports up to 99.61% for 5-class). These set an approximate performance ceiling but are not directly comparable to fixed (8,) tabular inputs. ([arxiv.org](https://arxiv.org/abs/2503.12657?utm_source=openai)) (c) Cross-dataset analyses emphasize that stressor type and arousal confounds limit generalization; models may be detecting arousal rather than stress. This argues for robust validation and careful feature design for tabular settings. ([arxiv.org](https://arxiv.org/abs/2405.09563?utm_source=openai))\nTabular SOTA (2024–2025): Large meta-benchmarks show that improved MLPs (RealMLP) and parameter-efficient ensembles (TabM) match or exceed attention-based tabular transformers while training faster and being easier to tune; ModernNCA is another strong, efficient baseline. These are implemented in PyTorch toolkits and scale well to large datasets. ([arxiv.org](https://arxiv.org/abs/2407.04491?utm_source=openai)) Complementary to these, recent tree/gradient-based innovations (e.g., GRANDE) are competitive but are not strictly necessary given your PyTorch-first constraint. ([proceedings.iclr.cc](https://proceedings.iclr.cc/paper_files/paper/2024/hash/109cf25cbc36037deecdbeabfa199956-Abstract-Conference.html?utm_source=openai))\nEfficiency and compute: RealMLP (NeurIPS 2024) was designed for favorable time–accuracy tradeoffs on 1k–500k-sample tabular tasks; a small 3–4 layer MLP (width 128–256) with label smoothing, calibrated loss, and early stopping typically has sub‑million parameters for 8 inputs and runs comfortably on CPU or modest GPU. TabM adds parameter‑efficient ensembling inside a single PyTorch model, improving accuracy with modest extra compute compared to training many independent models. Public PyTorch codebases (pytabkit) provide ready implementations. ([arxiv.org](https://arxiv.org/abs/2407.04491?utm_source=openai))\nAdditional options: Hyperdimensional computing with boosting (BoostHD) reported 98.37% on WESAD with high inference efficiency, but adoption and tooling are less standard than PyTorch MLPs; consider only if you need extreme efficiency and can accommodate its pipeline. For severe class imbalance, recent language‑interfaced tabular oversampling can help, though standard SMOTE/weights usually suffice for 4-class WESAD features. ([arxiv.org](https://arxiv.org/abs/2411.14612?utm_source=openai))",
+  "key_findings": [
+    "Personalization matters: On WESAD, per-subject 4-class models reached 88–99% accuracy, while generalized cross-subject models were ~67%—use LOSO or external validation to avoid optimistic estimates. ([ai.jmir.org](https://ai.jmir.org/2024/1/e52171/?utm_source=openai))",
+    "For tabular data at scale, RealMLP (NeurIPS 2024) and TabM (2024) deliver state-of-the-art accuracy–efficiency, often matching or beating transformer-based tabular models, with straightforward PyTorch implementations. ([arxiv.org](https://arxiv.org/abs/2407.04491?utm_source=openai))",
+    "Sequence/representation-heavy WESAD models set upper bounds but aren’t directly comparable to fixed (8,) tabular inputs (e.g., TEANet up to 96.94% on WESAD; image-encoding DNN 4-class test acc 94.77%; a lab-to-real validation reports 5-class 99.61%). ([arxiv.org](https://arxiv.org/abs/2503.12657?utm_source=openai))",
+    "Generalization is constrained by stressor type and arousal confounds; cross-dataset studies show models often track arousal rather than stress, underscoring the need for robust validation and careful feature engineering for tabular classifiers. ([arxiv.org](https://arxiv.org/abs/2405.09563?utm_source=openai))",
+    "If extreme efficiency is required, BoostHD (hyperdimensional computing + boosting) reported 98.37% on WESAD with strong robustness, but PyTorch-first MLPs remain the most standard and reproducible choice. ([arxiv.org](https://arxiv.org/abs/2411.14612?utm_source=openai))"
+  ],
+  "recommended_approaches": [
+    "Use RealMLP (NeurIPS 2024) in PyTorch as the primary model: a 3–4 layer MLP (width 128–256), GELU, dropout 0.1–0.2, label smoothing, class-balanced/cost-sensitive cross-entropy, early stopping, and post-hoc calibration; optionally enable TabM-style parameter-efficient ensembling (packed ensemble heads) if you need a small but reliable accuracy lift on large datasets. This choice aligns with 8-D tabular inputs, scales to large n, is reproducible with public PyTorch code (pytabkit), and is shown to be competitive or better than attention-based tabular models while being computationally efficient. ([arxiv.org](https://arxiv.org/abs/2407.04491?utm_source=openai))"
+  ],
+  "recent_papers": [
+    {
+      "title": "Better by Default: Strong Pre-Tuned MLPs and Boosted Trees on Tabular Data (NeurIPS 2024)",
+      "contribution": "Introduces RealMLP with meta-tuned defaults; across 1k–500k-sample tasks, RealMLP achieves competitive accuracy with favorable time–accuracy tradeoffs versus other deep tabular models and strong GBDTs—ideal for large tabular problems. ([arxiv.org](https://arxiv.org/abs/2407.04491?utm_source=openai))"
+    },
+    {
+      "title": "TabM: Advancing Tabular Deep Learning with Parameter-Efficient Ensembling (2024)",
+      "contribution": "Single-model, parameter-efficient ensembling built on MLPs; large-scale evaluation shows TabM topping deep tabular baselines while retaining efficiency—practical upgrade path over plain MLPs. ([arxiv.org](https://arxiv.org/abs/2410.24210?utm_source=openai))"
+    },
+    {
+      "title": "Modern Neighborhood Components Analysis (2024)",
+      "contribution": "Revives NCA with minor but effective modernizations; reports SOTA across numerous tabular datasets with reduced training time and model size—useful as an alternative efficient baseline. ([arxiv.org](https://arxiv.org/abs/2407.03257?utm_source=openai))"
+    },
+    {
+      "title": "GRANDE: Gradient-Based Decision Tree Ensembles for Tabular Data (ICLR 2024)",
+      "contribution": "End-to-end gradient-trained hard-split ensembles that outperform existing gradient-boosting and deep tabular frameworks on many datasets—strong non-MLP baseline (not required if you must stay PyTorch-native). ([proceedings.iclr.cc](https://proceedings.iclr.cc/paper_files/paper/2024/hash/109cf25cbc36037deecdbeabfa199956-Abstract-Conference.html?utm_source=openai))"
+    },
+    {
+      "title": "TEANet: Transpose-Enhanced Autoencoder for Wearable Stress Monitoring (2025)",
+      "contribution": "Sequence model on BVP signals; reports up to 96.94% accuracy on WESAD, indicating an upper bound for raw-signal methods rather than fixed 8-feature tabular settings. ([arxiv.org](https://arxiv.org/abs/2503.12657?utm_source=openai))"
+    },
+    {
+      "title": "A Comparison of Personalized and Generalized Approaches to Emotion Recognition Using Consumer Wearables (JMIR AI 2024; arXiv 2023)",
+      "contribution": "Shows 4-class WESAD personalized models at 88–99% accuracy vs ~67% for generalized models, highlighting validation protocol effects and subject drift. ([ai.jmir.org](https://ai.jmir.org/2024/1/e52171/?utm_source=openai))"
+    }
+  ],
+  "confidence": 0.72,
+  "timestamp": 1760414743,
+  "generated_time": "2025-10-13 23:05:43",
+  "data_profile": {
+    "data_type": "torch_tensor",
+    "shape": [
+      31470603,
+      8
+    ],
+    "dtype": "float32",
+    "feature_count": 8,
+    "sample_count": 31470603,
+    "is_sequence": false,
+    "is_image": false,
+    "is_tabular": true,
+    "has_labels": true,
+    "label_count": 4,
+    "sequence_lengths": null,
+    "channels": null,
+    "height": null,
+    "width": null,
+    "metadata": {}
+  }
+}

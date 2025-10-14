@@ -1,0 +1,40 @@
+{
+  "pipeline_type": "AI Code Generation with BO and Feedback Loop",
+  "final_performance": {
+    "acc": 1.0,
+    "macro_f1": null
+  },
+  "pipeline_history": [
+    {
+      "attempt": 1,
+      "model_name": "TinyTabularMLP-PE-Classifier",
+      "json_filepath": "generated_training_functions/training_function_torch_tensor_TinyTabularMLP-PE-Classifier_1760413239.json",
+      "bo_best_params": {
+        "lr": 0.007007193583244844,
+        "batch_size": "64",
+        "epochs": "137",
+        "hidden_size": "168",
+        "dropout": 0.11419520809214809,
+        "weight_decay": 0.0009757351684204792,
+        "label_smoothing": 0.02134180085704536,
+        "grad_clip_norm": 0.6172652976249735,
+        "quantization_bits": "16",
+        "quantize_weights": "False",
+        "quantize_activations": "False"
+      },
+      "bo_best_score": 0.765625,
+      "final_metrics": {
+        "acc": 1.0,
+        "macro_f1": null
+      },
+      "performance_score": 1.0,
+      "confidence": 0.86
+    }
+  ],
+  "total_attempts": 1,
+  "successful_attempts": 1,
+  "final_success": true,
+  "best_model": "TinyTabularMLP-PE-Classifier",
+  "generated_functions": [],
+  "saved_model_path": "trained_models/best_model_TinyTabularMLP-PE-Classifier_20251013_224459.pth"
+}
