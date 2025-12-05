@@ -1,0 +1,14 @@
+1. Perfect! Now I see the issue. Look at lines 43-50 in the training code - there's validation logic that adjusts num_heads if hidden_size % num_heads != 0:
+# Enforce Transformer constraint: embed_dim must be divisible by num_heads
+if hidden_size % num_heads != 0:
+    # Prefer adjusting num_heads to a valid divisor within [2..8]
+    valid_heads = [h for h in range(min(8, hidden_size), 1, -1) if hidden_size % h == 0]
+    if valid_heads:
+        num_heads = valid_heads[0]
+    else:
+        # If no valid head count, round hidden_size up to nearest multiple of num_heads
+        hidden_size = int(math.ceil(hidden_size / num_heads) * num_heads)
+
+2. Model size little bug
+
+3.

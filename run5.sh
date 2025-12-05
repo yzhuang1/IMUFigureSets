@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail   # 严格模式
 
-for i in {1..5}
+for i in {1..8}
 do
     echo "===== 第 $i 次运行开始 ====="
     

@@ -52,111 +52,100 @@ class AICodeGenerator:
         return sorted(divisors)
 
     def _create_prompt(self, data_profile: Dict[str, Any], input_shape: tuple, num_classes: int, literature_review: Optional[LiteratureReview] = None) -> str:
-        """Create enhanced prompt for GPT-5 code generation with literature review insights"""
+        """Create enhanced prompt for GPT code generation with literature review insights"""
         import torch
+        import numpy as np
 
-        # Get PyTorch version for context
+        # Get system context
         pytorch_version = torch.__version__
-
-        # Dataset context for better model selection
-        dataset_context = ""
-        if config.dataset_name and config.dataset_name != "Unknown Dataset":
-            dataset_context = f"\nDataset: {config.dataset_name}\nSource: {config.dataset_source}"
-
-        # Sample count
         num_samples = data_profile.get("sample_count", data_profile.get("num_samples", "unknown"))
 
-        # Calculate dataset storage size (approximate)
+        # Calculate dataset size
         dataset_size_mb = "unknown"
         try:
-            import numpy as np
-            # Estimate: num_samples * input_shape elements * 4 bytes (float32)
             elements_per_sample = np.prod(input_shape) if input_shape else 0
             total_bytes = num_samples * elements_per_sample * 4  # float32
             dataset_size_mb = f"{total_bytes / (1024 * 1024):.2f} MB"
         except Exception:
             pass
 
-        # GPU memory info
-        gpu_memory_mb = 8192  # Fixed GPU memory: 8192 MiB
+        # Dataset context
+        dataset_context = ""
+        if config.dataset_name and config.dataset_name != "Unknown Dataset":
+            dataset_context = f"\nDataset: {config.dataset_name} (Source: {config.dataset_source})"
 
         # Extract sequence length for patch_size constraints
         sequence_length = None
+        valid_patch_sizes = []
         if len(input_shape) >= 2:
-            # For shape like (1000, 2) or (2, 1000), find the larger dimension as sequence length
             sequence_length = max(input_shape[-2:]) if max(input_shape[-2:]) > 10 else None
+            if sequence_length:
+                valid_patch_sizes = self._get_valid_divisors(sequence_length)
 
-        prompt = f"""
-Generate a PyTorch training function for a {num_classes}-class classifier.
+        # Build main prompt
+        prompt = f"""Generate a PyTorch training function for a {num_classes}-class classifier.
 
-System: {config.os_type}
-PyTorch Version: {pytorch_version}
-Data: {data_profile['data_type']}, input shape {input_shape}, {num_samples} samples{dataset_context}
-Dataset size: {dataset_size_mb}
-GPU memory: {gpu_memory_mb} MiB
-Sequence length: {sequence_length if sequence_length else 'N/A'}
-
-- Use the first recommended approach if available, otherwise proceed with a reasonable architecture.
-- Consider the dataset size and GPU memory when selecting batch_size.
+SYSTEM INFO:
+- PyTorch: {pytorch_version}, System: {config.os_type}
+- Data: {data_profile['data_type']}, Shape: {input_shape}, Samples: {num_samples}, Size: {dataset_size_mb}{dataset_context}
+- GPU Memory: 8192 MiB, Sequence Length: {sequence_length if sequence_length else 'N/A'}
 """
 
-        if literature_review:
-            rec = (literature_review.recommended_approaches[0]
-                if literature_review.recommended_approaches else "No specific recommendation")
-            prompt += f"\Recommend: {rec}"
+        # Add literature review recommendation if available
+        if literature_review and literature_review.recommended_approaches:
+            prompt += f"- Recommended Approach: {literature_review.recommended_approaches[0]}\n"
 
         prompt += """
-Output: VALID JSON ONLY.
+OUTPUT FORMAT: Valid JSON only (no markdown, no text before/after JSON).
 
-Requirements:
+TRAINING CODE REQUIREMENTS:
 - Provide "training_code" implementing:
-  def train_model(X_train, y_train, X_val, y_val, device, **hyperparams **quantization parameters)
-  * tensors as inputs
-  * build model from scratch
-  * core train loop with epoch-by-epoch logging (log epoch, train_loss, val_loss, val_acc each epoch)
-  * return quantized model + metrics (include lists: train_losses, val_losses, val_acc for all epochs)
-  * fill in the real input you need for hyperparams and quantization parameters
-  * IMPORTS: ALWAYS include ALL necessary imports at the start of train_model function. Required imports: from torch.utils.data import TensorDataset, DataLoader; from torch import nn, optim
-  * IMPORTANT: For DataLoader optimization to prevent GPU starvation:
-    - Use num_workers as a hyperparameter (typically 4-8 for large datasets)
-    - Set pin_memory=True for faster GPU transfers
-    - Set persistent_workers=True when num_workers > 0 (avoids worker recreation overhead)
-    - Set prefetch_factor=2 or higher (default is 2) to pre-load batches while GPU trains
-    - Use non_blocking=True when moving tensors to GPU (.to(device, non_blocking=True))
-  * PERFORMANCE: Consider using mixed precision training (torch.cuda.amp.autocast and GradScaler) as a hyperparameter - can provide 2-3x speedup on modern GPUs, especially for large datasets with small models.
-  * MULTIPROCESSING: When using num_workers > 0 with CUDA, ALWAYS use spawn context to avoid CUDA initialization errors: mp_ctx = torch.multiprocessing.get_context('spawn'), then pass multiprocessing_context=mp_ctx to DataLoader.
-  * CRITICAL: ALWAYS train on GPU - ensure ALL tensors (model, inputs, targets, losses) are on the same device (GPU). Use .to(device, non_blocking=True) consistently throughout training loop.
-  * DEVICE HANDLING: The 'device' parameter may be passed as either a string (e.g., "cuda") or torch.device object. ALWAYS convert it properly: device = torch.device(device) at the start of your function to avoid "'str' object has no attribute 'type'" errors.
-- Final model (after quantization) MUST have ≤ 256KB storage size.
-- Implement post-training quantization using torch.quantization / torch.ao.quantization.
-  * Include hyperparams: quantization_bits ∈ {8, 16, 32}, quantize_weights ∈ {true,false}, quantize_activations ∈ {true,false}.
-  * Choose a sensible strategy for the chosen architecture (e.g., CNN vs Transformer).
+1. def train_model(X_train, y_train, X_val, y_val, device, **hyperparams)
+ * tensors as inputs
+2. return quantized model + metrics (include lists: train_losses, val_losses, val_acc for all epochs)
+3. Build model from scratch (no pretrained models)
+4. Print out training loop with epoch-by-epoch logging (epoch, train_loss, val_loss, val_acc, time)
+5. Essential imports at function start: torch, nn, optim, TensorDataset, DataLoader
 
-Bayesian Optimization:
-- Provide "bo_config" with ALL hyperparameters used in training_code.
-- Each item MUST have: "default", "type" ∈ {"Real","Integer","Categorical"}, and valid ranges:
-  * Real: low, high, optional prior ∈ {"uniform","log-uniform"} (if log-uniform, low > 0, e.g., 1e-6)
-  * Integer: low, high (inclusive)
-  * Categorical: categories [..] - IMPORTANT: ALL category values MUST be hashable (strings, numbers, booleans, or tuples). NEVER use lists as category values.
-- Only include params actually consumed by training_code.{f'''
-- CRITICAL: For transformer models with patch_size, it must divide sequence length ({sequence_length}). Use only valid divisors: {valid_patch_sizes}''' if valid_patch_sizes else ""}
+CRITICAL IMPLEMENTATION DETAILS:
+- Device handling: Convert device to torch.device at function start: device = torch.device(device)
+- ALWAYS train on GPU
+- DataLoader config (use optimal fixed values, NOT hyperparameters):
+  * num_workers=(you choose), pin_memory=True, persistent_workers=True, prefetch_factor=2
+  * Use spawn context for CUDA: multiprocessing_context=torch.multiprocessing.get_context('spawn')
+- Mixed precision: Use torch.cuda.amp.autocast() and GradScaler for 2-3x speedup
+
+QUANTIZATION (256KB size limit):
+- Post-training quantization via torch.quantization or torch.ao.quantization
+- Hyperparameters: quantization_bits ∈ {8,16,32}, quantize_weights ∈ {true,false}, quantize_activations ∈ {true,false}
+
+BAYESIAN OPTIMIZATION CONFIG:
+- CRITICAL: Only include hyperparameters that affect MODEL ACCURACY or MODEL COMPRESSION
+- DO include parameters like: lr, batch_size, epochs, hidden_size, num_layers, dropout, quantization_bits, quantize_weights, quantize_activations
+- DO NOT include: num_workers, prefetch_factor, pin_memory (performance params - set optimal fixed values in code)
+- Parameter types: Real (with "low", "high", optional "prior"="log-uniform"), Integer (with "low", "high"), Categorical (with "categories" list)
+- All category values must be hashable (strings, numbers, booleans, tuples - NO lists)"""
+
+        # Add patch_size constraints if applicable
+        if valid_patch_sizes:
+            prompt += f"\n- Patch size constraint: Must divide sequence length ({sequence_length}). Valid divisors: {valid_patch_sizes}"
+
+        prompt += """
 - DIVISIBILITY CONSTRAINTS: If param A must be divisible by param B, keep smaller param B normal, configure bigger param A as multiplication factor (e.g., A_factor). In code: A = B * A_factor.
 
-Response JSON example:
+EXAMPLE OF RESPONSE JSON STRUCTURE:
 {
-  "model_name": "ModelName",
-  "training_code": "def train_model(...):\\n    # code",
+  "model_name": "ModelArchitectureName",
+  "training_code": "def train_model(X_train, y_train, X_val, y_val, device, **hyperparams):\\n    # complete implementation",
   "bo_config": {
     "lr": {"default": 0.001, "type": "Real", "low": 1e-6, "high": 1e-1, "prior": "log-uniform"},
-    "batch_size": {"default": 64, "type": "Categorical", "categories": [8,16,32,64,128]},
-    "epochs": {"default": 10, "type": "Integer", "low": 5, "high": 50},
+    "batch_size": {"default": 64, "type": "Categorical", "categories": [8, 16, 32, 64, 128]},
+    "epochs": {"default": 20, "type": "Integer", "low": 10, "high": 50},
     "hidden_size": {"default": 128, "type": "Integer", "low": 32, "high": 512},
-    "dropout": {"default": 0.1, "type": "Real", "low": 0.0, "high": 0.7},
-    "num_workers": {"default": 4, "type": "Categorical", "categories": [0, 2, 4, 8]},
-    "prefetch_factor": {"default": 2, "type": "Categorical", "categories": [2, 4, 8]},
-    "quantization_bits": {"default": 32, "type": "Categorical", "categories": [8,16,32]},
-    "quantize_weights": {"default": false, "type": "Categorical", "categories": [true,false]},
-    "quantize_activations": {"default": false, "type": "Categorical", "categories": [true,false]}
+    "dropout": {"default": 0.1, "type": "Real", "low": 0.0, "high": 0.5},
+    "quantization_bits": {"default": 8, "type": "Categorical", "categories": [8, 16, 32]},
+    "quantize_weights": {"default": true, "type": "Categorical", "categories": [true, false]},
+    "quantize_activations": {"default": false, "type": "Categorical", "categories": [true, false]}
   },
   "confidence": 0.9
 }

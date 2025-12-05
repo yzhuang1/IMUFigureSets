@@ -1,6 +1,6 @@
 {
   "model_name": "best_model_MR-CNN + BiGRU (BiMamba-lite) for ISRUC_20251013_140335",
-  "model_path": "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/trained_models/best_model_MR-CNN + BiGRU (BiMamba-lite) for ISRUC_20251013_140335.pth",
+  "model_path": "/home/shiyuanduan/Documents/Projects/GPTLAB/IMUFigureSets/backup/dataset3/3-1/best_model_MR-CNN + BiGRU (BiMamba-lite) for ISRUC_20251013_140335.pth",
   "is_quantized": false,
   "model_size": {
     "total_parameters": 8233,
@@ -91,12 +91,12 @@
     ]
   },
   "inference_latency": {
-    "mean_ms": 53.42931163380854,
-    "std_ms": 1.4827883168947125,
-    "min_ms": 51.679179072380066,
-    "max_ms": 63.4578219614923,
-    "median_ms": 53.14907705178484,
-    "p95_ms": 55.284592194948345,
-    "p99_ms": 59.89291418925861
+    "mean_ms": 58.860998934251256,
+    "std_ms": 2.597164563418336,
+    "min_ms": 56.21713103028014,
+    "max_ms": 73.46902997232974,
+    "median_ms": 58.26295749284327,
+    "p95_ms": 61.73617935855872,
+    "p99_ms": 70.55174848181197
   }
 }

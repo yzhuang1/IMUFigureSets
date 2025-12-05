@@ -39,36 +39,116 @@ def calculate_model_storage_size_kb(model: torch.nn.Module,
                                    quantize_weights: bool = False,
                                    quantize_activations: bool = False) -> float:
     """
-    Calculate actual storage size in KB considering quantization.
+    Calculate actual RUNTIME storage size in KB considering quantization.
+
+    This function correctly handles:
+    - Regular models (using model.parameters())
+    - Dynamic quantized models (checking state_dict for _packed_params)
+    - Static quantized models (checking state_dict for quantized tensors)
 
     Args:
-        model: PyTorch model
-        quantization_bits: Bits per parameter (8, 16, 32)
-        quantize_weights: Whether weights are quantized
-        quantize_activations: Whether activations are quantized (affects intermediate storage)
+        model: PyTorch model (regular, dynamic quantized, or static quantized)
+        quantization_bits: Bits per parameter (8, 16, 32) - used for non-quantized models
+        quantize_weights: Whether weights are quantized - used for non-quantized models
+        quantize_activations: Whether activations are quantized (informational)
 
     Returns:
-        Storage size in KB
+        Runtime storage size in KB (actual memory needed to load and run the model)
     """
-    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_size_kb = 0.0
 
-    if quantize_weights:
-        # Use specified quantization bits for weights
-        bytes_per_param = quantization_bits / 8
+    # Try to get state_dict to check for quantized parameters
+    try:
+        state_dict = model.state_dict()
+        has_state_dict = True
+    except Exception:
+        has_state_dict = False
+        state_dict = {}
+
+    # Check if this is a quantized model by looking for packed_params or quantized tensors
+    has_packed_params = any('_packed_params' in key for key in state_dict.keys())
+    has_quantized_tensors = any(
+        hasattr(param, 'qscheme') and callable(param.qscheme)
+        for param in state_dict.values()
+        if isinstance(param, torch.Tensor)
+    )
+
+    is_quantized_model = has_packed_params or has_quantized_tensors
+
+    if is_quantized_model and has_state_dict:
+        # Handle quantized models by examining state_dict
+        logger.debug("Detected quantized model, calculating size from state_dict")
+
+        for name, param in state_dict.items():
+            # Handle dynamic quantization packed_params
+            if '_packed_params._packed_params' in name:
+                # This is a quantized weight stored as tuple in dynamic quantization
+                if isinstance(param, tuple) and len(param) > 0:
+                    weight = param[0]
+                    if isinstance(weight, torch.Tensor):
+                        # Runtime size: quantized weights use 1 byte per element (INT8)
+                        # even though they may be stored as FP32 in the checkpoint
+                        total_size_kb += weight.numel() / 1024
+                        logger.debug(f"  {name}: {weight.numel()} params -> {weight.numel()/1024:.2f} KB (INT8)")
+
+            # Handle other packed_params components (dtype, etc.)
+            elif '_packed_params' in name and isinstance(param, (int, float, type(None), type)):
+                # These are metadata (dtype, etc.), negligible size
+                continue
+
+            # Handle regular tensors (non-quantized layers like LayerNorm, or static quantized)
+            elif isinstance(param, torch.Tensor):
+                # Check if this is a quantized tensor
+                if hasattr(param, 'qscheme') and callable(param.qscheme):
+                    try:
+                        # This is a statically quantized tensor
+                        # Use int_repr() size for runtime
+                        int_repr = param.int_repr()
+                        size_kb = int_repr.element_size() * int_repr.numel() / 1024
+                        total_size_kb += size_kb
+                        logger.debug(f"  {name}: quantized tensor -> {size_kb:.2f} KB")
+                    except Exception:
+                        # Fallback to regular calculation
+                        size_kb = param.element_size() * param.numel() / 1024
+                        total_size_kb += size_kb
+                        logger.debug(f"  {name}: {size_kb:.2f} KB")
+                else:
+                    # Regular FP32/FP16 tensor
+                    size_kb = param.element_size() * param.numel() / 1024
+                    total_size_kb += size_kb
+                    if size_kb > 0.01:  # Only log non-trivial sizes
+                        logger.debug(f"  {name}: {size_kb:.2f} KB (FP{param.element_size()*8})")
+
+        logger.debug(f"Total quantized model size: {total_size_kb:.2f} KB")
+
     else:
-        # Default float32 = 4 bytes per parameter
-        bytes_per_param = 4
+        # Handle non-quantized models using traditional parameters() approach
+        logger.debug("Using parameters() for non-quantized model")
+        total_params = sum(p.numel() for p in model.parameters())
 
-    # Calculate base model storage
-    storage_bytes = total_params * bytes_per_param
+        if total_params == 0:
+            # Fallback: if parameters() returns nothing, try state_dict
+            logger.warning("model.parameters() returned 0, falling back to state_dict")
+            for name, param in state_dict.items():
+                if isinstance(param, torch.Tensor):
+                    total_size_kb += param.element_size() * param.numel() / 1024
+        else:
+            if quantize_weights:
+                # Use specified quantization bits for weights
+                bytes_per_param = quantization_bits / 8
+            else:
+                # Default float32 = 4 bytes per parameter
+                bytes_per_param = 4
 
-    # Add overhead for model structure (buffers, non-parameter data)
-    # Typically 5-10% overhead for metadata, buffers, etc.
-    overhead_factor = 1.1
+            # Calculate base model storage
+            storage_bytes = total_params * bytes_per_param
+            total_size_kb = storage_bytes / 1024
 
-    storage_kb = (storage_bytes * overhead_factor) / 1024
+    # Add small overhead for model structure metadata (buffers, etc.)
+    # Use 2% overhead instead of 10% to be more accurate
+    overhead_kb = total_size_kb * 0.02
 
-    return storage_kb
+    return total_size_kb + overhead_kb
 
 class TrainingFunctionExecutor:
     """Executes training functions loaded from JSON files"""
